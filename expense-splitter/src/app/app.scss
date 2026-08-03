@@ -1,0 +1,317 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.topbar {
+  background: var(--navy-900);
+  color: var(--text-invert);
+  padding: 14px 24px 0;
+}
+
+.topbar-inner {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 12px;
+}
+
+.title-input {
+  flex: 1;
+  min-width: 220px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-invert);
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+
+  &::placeholder {
+    color: rgb(255 255 255 / 55%);
+  }
+
+  &:hover {
+    border-color: rgb(255 255 255 / 25%);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: rgb(255 255 255 / 55%);
+    background: rgb(255 255 255 / 10%);
+  }
+}
+
+.total {
+  text-align: right;
+  line-height: 1.25;
+}
+
+.total .label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgb(255 255 255 / 65%);
+}
+
+.total .value {
+  font-size: 22px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The picker paints itself; the top bar only decides how wide it sits. */
+.currency-select {
+  flex: none;
+  width: 210px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
+.reset {
+  border-color: rgb(255 255 255 / 30%);
+  background: transparent;
+  color: var(--text-invert);
+
+  &:hover:not(:disabled) {
+    background: rgb(255 255 255 / 12%);
+    border-color: rgb(255 255 255 / 55%);
+  }
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.tab {
+  padding: 9px 16px;
+  border: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: transparent;
+  color: rgb(255 255 255 / 72%);
+  font-size: 14px;
+  font-weight: 550;
+
+  &:hover {
+    background: rgb(255 255 255 / 10%);
+    color: var(--text-invert);
+  }
+
+  &.active {
+    background: var(--bg);
+    color: var(--navy-900);
+  }
+}
+
+/* Phones only; `display: none` until the media query below turns it on. */
+.menu-toggle {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: var(--radius-sm);
+  background: rgb(255 255 255 / 10%);
+  color: var(--text-invert);
+  font-size: 17px;
+  line-height: 1;
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 6px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--credit);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.alert {
+  max-width: 1240px;
+  margin: 16px auto 0;
+  padding: 11px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--credit-bg);
+  color: var(--credit);
+  font-size: 14px;
+  font-weight: 550;
+
+  &.warning {
+    background: var(--warn-bg);
+    color: var(--warn);
+  }
+
+  &.info {
+    background: var(--navy-050);
+    color: var(--navy-800);
+  }
+
+  /* Layout only — carries no meaning, so it never doubles as a state class. */
+  &.with-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  &.conflict {
+    background: var(--warn-bg);
+    color: var(--warn);
+  }
+}
+
+.alert-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
+main {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 22px 24px 60px;
+}
+
+main h2 {
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+
+footer {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 24px 30px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* --- Phones -------------------------------------------------------------
+   Below this width the six tabs need two lines and the identity row three,
+   which costs a third of the screen before any content appears. The title,
+   the total and a menu button stay; the rest folds behind the button, which
+   expands the bar downwards rather than floating a panel over the page —
+   there is nothing to dismiss and nothing to scroll underneath.
+
+   `display: contents` on the identity row is what makes that possible: it
+   drops the wrapper so its children and the tabs become one flex container
+   that can be ordered as a single mobile layout. Above the breakpoint the
+   wrapper is a normal flex row again and the desktop bar is untouched. */
+@media (max-width: 640px) {
+  .topbar {
+    padding: 10px 16px 0;
+  }
+
+  .topbar-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 10px;
+  }
+
+  .identity {
+    display: contents;
+  }
+
+  /* Basis 0, not auto: an input's intrinsic width is wide enough to push the
+     menu button onto a second line. */
+  .title-input {
+    order: 1;
+    flex: 1 1 0;
+    min-width: 0;
+    font-size: 18px;
+  }
+
+  .total {
+    order: 2;
+    flex: none;
+    line-height: 1.1;
+  }
+
+  .total .value {
+    font-size: 18px;
+  }
+
+  .menu-toggle {
+    order: 3;
+    display: inline-flex;
+    flex: none;
+  }
+
+  /* Folded away until the button says otherwise. */
+  .tabs,
+  .currency-select,
+  .actions {
+    display: none;
+  }
+
+  .menu-open {
+    .tabs {
+      order: 4;
+      display: flex;
+      flex-direction: column;
+      flex-basis: 100%;
+      gap: 2px;
+    }
+
+    .currency-select {
+      order: 5;
+      display: block;
+      flex-basis: 100%;
+      width: auto;
+    }
+
+    .actions {
+      order: 6;
+      display: flex;
+      flex-basis: 100%;
+    }
+
+    /* Two buttons on one line, each big enough to hit. */
+    .actions .btn {
+      flex: 1;
+      justify-content: center;
+      padding: 9px 13px;
+    }
+  }
+
+  /* A menu row, not a folder tab: square it off and give it a thumb's worth
+     of height. */
+  .tab {
+    border-radius: var(--radius-sm);
+    padding: 11px 12px;
+    text-align: left;
+    font-size: 15px;
+  }
+
+  main {
+    padding: 16px 16px 48px;
+  }
+
+  .alert {
+    margin: 12px 16px 0;
+  }
+
+  footer {
+    padding: 0 16px 24px;
+  }
+}

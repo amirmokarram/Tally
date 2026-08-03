@@ -1,0 +1,1369 @@
+{
+  "source": "Expenses.xlsx",
+  "hasVbaMacros": false,
+  "parts": [
+    "[Content_Types].xml",
+    "_rels/.rels",
+    "xl/_rels/workbook.xml.rels",
+    "xl/comments1.xml",
+    "xl/comments2.xml",
+    "xl/comments3.xml",
+    "xl/drawings/drawing1.xml",
+    "xl/drawings/drawing2.xml",
+    "xl/drawings/drawing3.xml",
+    "xl/drawings/drawing4.xml",
+    "xl/drawings/drawing5.xml",
+    "xl/drawings/vmlDrawing1.vml",
+    "xl/drawings/vmlDrawing2.vml",
+    "xl/drawings/vmlDrawing3.vml",
+    "xl/persons/person.xml",
+    "xl/sharedStrings.xml",
+    "xl/styles.xml",
+    "xl/workbook.xml",
+    "xl/worksheets/_rels/sheet1.xml.rels",
+    "xl/worksheets/_rels/sheet2.xml.rels",
+    "xl/worksheets/_rels/sheet3.xml.rels",
+    "xl/worksheets/_rels/sheet4.xml.rels",
+    "xl/worksheets/_rels/sheet5.xml.rels",
+    "xl/worksheets/sheet1.xml",
+    "xl/worksheets/sheet2.xml",
+    "xl/worksheets/sheet3.xml",
+    "xl/worksheets/sheet4.xml",
+    "xl/worksheets/sheet5.xml"
+  ],
+  "definedNames": {
+    "Title": "Split!$D$1",
+    "SelectedMainCurrencySymbol": "Split!$H$2",
+    "SelectedMainCurrencyAbbr": "Split!$G$2",
+    "EffectiveCurrencySymbol": "#REF!",
+    "EffectiveMainCurrencySymbol": "Split!$J$2",
+    "SPLITSHEET_COL": "LAMBDA(cols, Offset(cols,9,0,Rows(cols)-9))",
+    "GETSHEETNAMES": "LAMBDA(formularange, include_zero_totals, LET(\n  txt, FORMULATEXT(formulaRange),\n  inside, REGEXEXTRACT(txt, \"sheetNames\\s*,\\s*\\{([^\\}]+)\\}\"),\n  parts, SPLIT(inside, \",\"),\n  sheetNames, ARRAYFORMULA(Substitute(REGEXREPLACE(TRIM(parts),\"^'|'?!A1$\",\"\"),\"''\",\"'\")),\n  TRANSPOSE(\n    IF(\n      include_zero_totals,\n      sheetNames,\n      IfError(FILTER(\n        sheetNames,\n        MAP(sheetNames, LAMBDA(s, INDIRECT(s&\"!Total\")>0))\n      ),)\n    )\n  )\n))",
+    "EXPAND_TO_LAST_ROW": "LAMBDA(range, Offset(range,0,0,Rows(Split!$A:$A)-Row(range)+1))",
+    "EXPAND_TO_LAST_NAME_COL": "LAMBDA(arg, LET(\n  c, COLUMN(arg),\n  w, MAX(IF(LEN(Split!$M$7:$7), COLUMN(Split!$M$7:$7) - c + 1)),\n  OFFSET(arg, 0, 0, , If(w=0,1,w))\n))",
+    "LAST_ROW": "LAMBDA(range, ArrayFormula(max(if(len(range),row(range)))))",
+    "JSON_PROP": "LAMBDA(name, value, wrapinquotes, IF(\n  wrapInQuotes,\n  \"\"\"\" & JSON_ESCAPE(name) & \"\"\":\"\"\" & JSON_ESCAPE(value) & \"\"\"\",\n  \"\"\"\" & JSON_ESCAPE(name) & \"\"\":\" & TO_TEXT(value)\n))",
+    "EXPENSESHEET_COL": "LAMBDA(cols, Offset(cols,9,0,Rows(cols)-9))",
+    "ADD_EMPTY_ROW": "LAMBDA(array, {MAKEARRAY(1,Columns(array),LAMBDA(r,c,));array})",
+    "GET_SHEET_RANGE": "LAMBDA(name, LET(\n    orgRange, SPLITSHEET_COL(Split!$C:$C),\n    startRow, ROW(orgRange),\n    endRow, LAST_ROW(orgRange),\n    IF(endRow = 0, \"null\",\n      LET(\n        rowCount, endRow - startRow + 1,\n        rng, ARRAY_CONSTRAIN(orgRange, rowCount, 1),\n        r, SEQUENCE(rowCount, 1, startRow),\n        match, BYROW(rng, LAMBDA(cell,\n          LEFT(cell, LEN(name) + 1) = name & \"!\"\n        )),\n        count, COUNTIF(match, TRUE),\n        IF(count = 0, \"null\",\n          LET(\n            matched, FILTER(r, match),\n            \"[\" & MIN(matched) & \",\" & MAX(matched) & \"]\"\n          )\n        )\n      )\n    )\n  ))",
+    "JSON_ESCAPE": "LAMBDA(text, SUBSTITUTE(\n  SUBSTITUTE(\n    SUBSTITUTE(\n      SUBSTITUTE(\n        SUBSTITUTE(text, \"\\\", \"\\\\\"),\n        \"\"\"\", \"\\\"\"\"\n      ),\n      CHAR(10), \"\\n\"\n    ),\n    CHAR(13), \"\\r\"\n  ),\n  CHAR(9), \"\\t\"\n))",
+    "Expenses!ExplicitPayers": "Expenses!$C$4",
+    "Expenses!Total": "Expenses!$C$3",
+    "Expenses!EffectiveCurrencySymbol": "Expenses!$F$1",
+    "3D8DE36231C!Total": "'3D8DE36231C'!$C$3",
+    "3D8DE36231C!ExplicitPayers": "'3D8DE36231C'!$C$4",
+    "3D8DE36231C!EffectiveCurrencySymbol": "'3D8DE36231C'!$F$1"
+  },
+  "sheets": [
+    {
+      "name": "Split",
+      "state": "visible",
+      "dimensions": "A1:V17",
+      "truncatedTo": null,
+      "cells": [
+        {
+          "ref": "A1",
+          "kind": "value",
+          "value": "Help"
+        },
+        {
+          "ref": "D1",
+          "kind": "value",
+          "value": "Copy of Blank"
+        },
+        {
+          "ref": "A2",
+          "kind": "formula",
+          "formula": "=Round(Sum(SPLITSHEET_COL($E:$F)),2)"
+        },
+        {
+          "ref": "E2",
+          "kind": "value",
+          "value": "(USD)                    US Dollar"
+        },
+        {
+          "ref": "F2",
+          "kind": "value",
+          "value": "main currency:"
+        },
+        {
+          "ref": "G2",
+          "kind": "formula",
+          "formula": "IfError(REGEXEXTRACT(E2,\"^\\((\\w{3})\\)\"),)",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"IfError(REGEXEXTRACT(E2,\"\"^\\((\\w{3})\\)\"\"),)\"),\"USD\")",
+          "lastCachedValue": "\"USD\""
+        },
+        {
+          "ref": "H2",
+          "kind": "array-formula",
+          "spills": "H2",
+          "formula": "=If(IsBlank(G2),,Xlookup(G2,Currencies!B:B,Currencies!C:C))"
+        },
+        {
+          "ref": "I2",
+          "kind": "value",
+          "value": "applied currency:"
+        },
+        {
+          "ref": "J2",
+          "kind": "formula",
+          "formula": "RegExExtract(TO_TEXT(K2),\"^\\s*([^0-9\\s]+)\\s*\\d{1,3}(?:,\\d{3})*\\.\\d{2}\")",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"RegExExtract(TO_TEXT(K2),\"\"^\\s*([^0-9\\s]+)\\s*\\d{1,3}(?:,\\d{3})*\\.\\d{2}\"\")\"),\"$\")",
+          "lastCachedValue": "\"$\""
+        },
+        {
+          "ref": "K2",
+          "kind": "value",
+          "value": 0.0
+        },
+        {
+          "ref": "M2",
+          "kind": "formula",
+          "formula": "ARRAYFORMULA(\n  LET(\n    headers, EXPAND_TO_LAST_NAME_COL(M7),\n    groupsRaw, EXPAND_TO_LAST_NAME_COL(M6),\n    balancesRaw, EXPAND_TO_LAST_NAME_COL(M5),\n\n    hasGroupError,        SUMPRODUCT(N(ISERROR(groupsRaw))) > 0,\n    hasBalanceError,      SUMPRODUCT(N(ISERROR(balancesRaw))) > 0,\n\n    IF(\n       (hasBalanceError+H3+NOT(A2))>0,\n      ,\n      LET(\n        balances, ROUND(balancesRaw, 2),\n        groups,   groupsRaw,\n        step,     0.01,\n\n        isPaidBySpecified, SUM(SPLITSHEET_COL(I:I)) > 0,\n        errTotal, IF(isPaidBySpecified, SUM(balances), SUM(balances) - $A2),\n\n        grp, IF(OR(hasGroupError,COUNTA(groups) = 0), IF(headers <> \"\", \"ALL\", \"\"), groups),\n\n        baseCandidates,\n          FILTER(\n            TRIM(People!B:B),\n            TRIM(People!B:B) <> \"\",\n            ISNUMBER(MATCH(TRIM(People!B:B), headers, 0))\n          ),\n\n        adj,\n          MAP(\n            headers, grp,\n            LAMBDA(h, g,\n              LET(\n                groupHeaders, FILTER(headers, grp = g),\n                groupCandidates,\n                  FILTER(\n                    baseCandidates,\n                    ISNUMBER(MATCH(baseCandidates, groupHeaders, 0)),\n                    XLOOKUP(baseCandidates, headers, balances) <> 0\n                  ),\n                err, IF(isPaidBySpecified, SUM(FILTER(balances, grp = g)), errTotal),\n                k,  MIN(ABS(ROUND(err / step, 0)), COUNTA(groupCandidates)),\n                pos, IFERROR(MATCH(h, groupCandidates, 0), 1000000000),\n                IF(err = 0, 0, IF(pos <= k, -SIGN(err) * step, 0))\n              )\n            )\n          ),\n\n        ROUND(balances + adj, 2)\n      )\n    )\n  )\n)\n",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"ARRAYFORMULA(\n  LET(\n    headers, EXPAND_TO_LAST_NAME_COL(M7),\n    groupsRaw, EXPAND_TO_LAST_NAME_COL(M6),\n    balancesRaw, EXPAND_TO_LAST_NAME_COL(M5),\n\n    hasGroupError,        SUMPRODUCT(N(ISERROR(groupsRaw))) > 0,\n    hasBalanceError,      SUMPRODUCT\"&\"(N(ISERROR(balancesRaw))) > 0,\n\n    IF(\n       (hasBalanceError+H3+NOT(A2))>0,\n      ,\n      LET(\n        balances, ROUND(balancesRaw, 2),\n        groups,   groupsRaw,\n        step,     0.01,\n\n        isPaidBySpecified, SUM(SPLITSHEET_COL(I:I)) > 0,\n     \"&\"   errTotal, IF(isPaidBySpecified, SUM(balances), SUM(balances) - $A2),\n\n        grp, IF(OR(hasGroupError,COUNTA(groups) = 0), IF(headers <> \"\"\"\", \"\"ALL\"\", \"\"\"\"), groups),\n\n        baseCandidates,\n          FILTER(\n            TRIM(People!B:B),\n          \"&\"  TRIM(People!B:B) <> \"\"\"\",\n            ISNUMBER(MATCH(TRIM(People!B:B), headers, 0))\n          ),\n\n        adj,\n          MAP(\n            headers, grp,\n            LAMBDA(h, g,\n              LET(\n                groupHeaders, FILTER(headers, grp = g),\n \"&\"               groupCandidates,\n                  FILTER(\n                    baseCandidates,\n                    ISNUMBER(MATCH(baseCandidates, groupHeaders, 0)),\n                    XLOOKUP(baseCandidates, headers, balances) <> 0\n                  ),\n  \"&\"              err, IF(isPaidBySpecified, SUM(FILTER(balances, grp = g)), errTotal),\n                k,  MIN(ABS(ROUND(err / step, 0)), COUNTA(groupCandidates)),\n                pos, IFERROR(MATCH(h, groupCandidates, 0), 1000000000),\n                IF(err\"&\" = 0, 0, IF(pos <= k, -SIGN(err) * step, 0))\n              )\n            )\n          ),\n\n        ROUND(balances + adj, 2)\n      )\n    )\n  )\n)\n\"),\"\")",
+          "lastCachedValue": "\"\""
+        },
+        {
+          "ref": "A3",
+          "kind": "formula",
+          "formula": "LET(\n  isBaseCurrencyMissing, IsBlank(E2),\n  isAddingNewCheckSheet, Not(IsBlank($A$8)),\n  isChangingCurrency, H2 <> EffectiveMainCurrencySymbol,\n  isProcessingRowValueChanges, $K$8<>0,\n  noneNames, COUNTA(SPLITSHEET_COL($C:$C))=0,\n  itemPriceMissing, COUNTIFS(SPLITSHEET_COL($D:$D), \"<>\", SPLITSHEET_COL($E:$E), \"=\")>0,\n  payerAlreadyInCheck,\n    COUNTIF(\n      BYROW(\n        ArrayFormula(EXPAND_TO_LAST_NAME_COL(SPLITSHEET_COL(M:M))),\n        LAMBDA(splitRow,\n          LET(\n            rowNum, INDEX(ROW(splitRow), 1),\n            payRatios, ArrayFormula(MOD(splitRow,1)*10),\n            explicitAssignments, INDIRECT(REGEXREPLACE(INDIRECT(\"$C$\"&rowNum), \"F\\d+$\", \"ExplicitPayers\")),\n            AND(NOT(ISBLANK(explicitAssignments)), SUM(payRatios)>0, TRIM(INDIRECT(\"$D$\"&rowNum))<>\"\")\n          )\n        )\n      ),\n      TRUE\n    )>0,\n  paidByMissing, H3,\n  shareValuesMissing, CountIf(ArrayFormula(ERROR.TYPE($H13:H17)=2),true)>0,\n  message,SWITCH(TRUE,\n    isBaseCurrencyMissing, \"Select a Base Currency\",\n    isAddingNewCheckSheet, \"⏳ Adding new Expense Sheet...\",\n    isChangingCurrency,\"⏳ Changing Currency Symbol...\",\n    noneNames, \"✏️Start with the People sheet &    the Expenses sheet\",\n    itemPriceMissing,\"Item(s) Amount Missing\",\n    payerAlreadyInCheck, \"Payer(s) already specified in Expense Sheet\",\n    shareValuesMissing, \"Missing Share Values\",\n    paidByMissing, \"Missing Payer for Item(s)\",\n    \"\"\n  ),\nmessage\n)",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"LET(\n  isBaseCurrencyMissing, IsBlank(E2),\n  isAddingNewCheckSheet, Not(IsBlank($A$8)),\n  isChangingCurrency, H2 <> EffectiveMainCurrencySymbol,\n  isProcessingRowValueChanges, $K$8<>0,\n  noneNames, COUNTA(SPLITSHEET_COL($C:$C))=0,\n  itemPriceMissing, COUN\"&\"TIFS(SPLITSHEET_COL($D:$D), \"\"<>\"\", SPLITSHEET_COL($E:$E), \"\"=\"\")>0,\n  payerAlreadyInCheck,\n    COUNTIF(\n      BYROW(\n        ArrayFormula(EXPAND_TO_LAST_NAME_COL(SPLITSHEET_COL(M:M))),\n        LAMBDA(splitRow,\n          LET(\n            rowNum, INDEX(ROW\"&\"(splitRow), 1),\n            payRatios, ArrayFormula(MOD(splitRow,1)*10),\n            explicitAssignments, INDIRECT(REGEXREPLACE(INDIRECT(\"\"$C$\"\"&rowNum), \"\"F\\d+$\"\", \"\"ExplicitPayers\"\")),\n            AND(NOT(ISBLANK(explicitAssignments)), SUM(payRatios)>0,\"&\" TRIM(INDIRECT(\"\"$D$\"\"&rowNum))<>\"\"\"\")\n          )\n        )\n      ),\n      TRUE\n    )>0,\n  paidByMissing, H3,\n  shareValuesMissing, CountIf(ArrayFormula(ERROR.TYPE($H13:H17)=2),true)>0,\n  message,SWITCH(TRUE,\n    isBaseCurrencyMissing, \"\"Select a Base Cu\"&\"rrency\"\",\n    isAddingNewCheckSheet, \"\"⏳ Adding new Expense Sheet...\"\",\n    isChangingCurrency,\"\"⏳ Changing Currency Symbol...\"\",\n    noneNames, \"\"✏️Start with the People sheet &    the Expenses sheet\"\",\n    itemPriceMissing,\"\"Item(s) Amount Missing\"\",\n  \"&\"  payerAlreadyInCheck, \"\"Payer(s) already specified in Expense Sheet\"\",\n    shareValuesMissing, \"\"Missing Share Values\"\",\n    paidByMissing, \"\"Missing Payer for Item(s)\"\",\n    \"\"\"\"\n  ),\nmessage\n)\"),\"✏️Start with the People sheet &    the Expenses sheet\")",
+          "lastCachedValue": "\"✏️Start with the People sheet &    the Expenses sheet\""
+        },
+        {
+          "ref": "F3",
+          "kind": "value",
+          "value": "1st  bill row:"
+        },
+        {
+          "ref": "G3",
+          "kind": "formula",
+          "formula": "=10"
+        },
+        {
+          "ref": "H3",
+          "kind": "formula",
+          "formula": "=AND(I9>0, COUNTIFS(SPLITSHEET_COL($I:$I),\"=0\", SPLITSHEET_COL($F:$F),\"<>\")>0)"
+        },
+        {
+          "ref": "I3",
+          "kind": "array-formula",
+          "spills": "I3",
+          "formula": "=OR(Map(GETSHEETNAMES(D9,TRUE),Lambda(it,IsError(Indirect(it&\"!A2\")))))"
+        },
+        {
+          "ref": "K3",
+          "kind": "value",
+          "value": "rightmost share value column number:"
+        },
+        {
+          "ref": "L3",
+          "kind": "array-formula",
+          "spills": "L3",
+          "formula": "=MAX(Let(range,EXPAND_TO_LAST_ROW(M7:V7),IF(IsBlank(range),13, COLUMN(range))))"
+        },
+        {
+          "ref": "L4",
+          "kind": "array-formula",
+          "spills": "L4",
+          "formula": "=Columns(EXPAND_TO_LAST_NAME_COL(M7))"
+        },
+        {
+          "ref": "L5",
+          "kind": "formula",
+          "formula": "LET(\n  sheetProp,\n  MAP(\n    VSTACK(\"3D8DE36231C\", GETSHEETNAMES(D9, TRUE)),\n    LAMBDA(\n      sheetName,\n      LET(\n        d2Ref, IFERROR(INDIRECT(sheetName & \"!D2\"), \"\"),\n        effectiveCurrencySymbol2, IFERROR(INDIRECT(sheetName & \"!EffectiveCurrencySymbol\"), \"\"),\n        selectedCurrencySymbol2, IFERROR(INDIRECT(sheetName & \"!E1\"), \"\"),\n        hasRedFormatting, INDIRECT(sheetName & \"!F3\"),\n        b2HasError, ISERROR(INDIRECT(sheetName & \"!B2\")),\n        isRateRowHidden, INDIRECT(sheetName & \"!F2\"),\n        taxVal, TO_TEXT(INDIRECT(sheetName & \"!C5\")),\n        tipVal, TO_TEXT(INDIRECT(sheetName & \"!C6\")),\n        discVal, TO_TEXT(INDIRECT(sheetName & \"!C7\")),\n        IF(\n          d2Ref = \"\",\n          \"\",\n          LET(\n            includeIfCurrency, LAMBDA(rowNum, IF(OR(NOT(REGEXMATCH(TO_TEXT(INDIRECT(sheetName & \"!C\" & rowNum)), \"^[%0-9\\.]*$\")),rowNum=\"\"), \"\"\"C\" & rowNum & \"\"\"\", )),\n            ranges,\n              TEXTJOIN(\n                \",\",\n                TRUE,\n                \"\"\"C3\"\"\",\n                \"\"\"C\" & G3 & \":C\"\"\",\n                includeIfCurrency(5),\n                includeIfCurrency(6),\n                includeIfCurrency(7)\n              ),\n            taxTipDiscValues,\n              \"[\"\"\" & TEXTJOIN(\"\"\",\"\"\", FALSE, JSON_ESCAPE(taxVal), JSON_ESCAPE(tipVal), JSON_ESCAPE(discVal)) & \"\"\"]\",\n            \"\"\"\" & JSON_ESCAPE(sheetName) & \"\"\":{\" &\n              TEXTJOIN(\n                \",\",\n                FALSE,\n                JSON_PROP(\"name\", sheetName, TRUE),\n                JSON_PROP(\"isDefaultCurrency\", IF(d2Ref, \"true\", \"false\"), FALSE),\n                JSON_PROP(\"effectiveCurrencySymbol\", effectiveCurrencySymbol2, TRUE),\n                JSON_PROP(\"selectedCurrencySymbol\", selectedCurrencySymbol2, TRUE),\n                JSON_PROP(\"hasUserOverriddenRate\", IF(b2HasError, \"true\", \"false\"), FALSE),\n                JSON_PROP(\"isRateRowHidden\", IF(isRateRowHidden, \"true\", \"false\"), FALSE),\n                JSON_PROP(\"hasRedFormattingActive\", IF(hasRedFormatting, \"true\", \"false\"), FALSE),\n                JSON_PROP(\"currencyFormatRanges\", \"[\" & ranges & \"]\", FALSE),\n                JSON_PROP(\"taxTipDiscValues\", taxTipDiscValues, FALSE),\n                JSON_PROP(\"splitSheetRows\", GET_SHEET_RANGE(sheetName), FALSE)\n              ) &\n            \"}\"\n          )\n        )\n      )\n    )\n  ),\n  sheetObject, \"{\" & TEXTJOIN(\",\", TRUE, sheetProp) & \"}\",\n  \"{\"\n    & TEXTJOIN(\n        \",\",\n        FALSE,\n        JSON_PROP(\"mainCurrencySymbol\", EffectiveMainCurrencySymbol, TRUE),\n        JSON_PROP(\"selectedMainCurrencySymbol\", SelectedMainCurrencySymbol, TRUE),\n        JSON_PROP(\"splitSheetTitle\", Title, TRUE),\n        JSON_PROP(\"maxRows\", Rows(A:A), FALSE),\n        JSON_PROP(\"maxColumns\", Columns(1:1), FALSE),\n        JSON_PROP(\"maxColWithData\", L3, FALSE),\n        JSON_PROP(\"isSheetsFormulaStale\", IF(I3, \"true\", \"false\"), FALSE),\n        JSON_PROP(\n          \"people\",\n          \"{\"\n            & TEXTJOIN(\n                \",\",\n                FALSE,\n                JSON_PROP(\"namesSnapshot\", If(IsBlank(People!B1),\"[]\",People!B1), FALSE),\n                JSON_PROP(\n                  \"currentNames\",\n                  LET(\n                    lastRow, LAST_ROW(People!A:A),\n                    items, IF(lastRow=1,, INDEX(People!A:A, 2):INDEX(People!A:A, lastRow)),\n                    If(lastRow=1,\"[]\",\"[\" & TEXTJOIN(\",\", TRUE, MAP(items, LAMBDA(x, \"\"\"\" & JSON_ESCAPE(x) & \"\"\"\"))) & \"]\")\n                  ),\n                  FALSE\n                )\n              )\n            & \"}\",\n          FALSE\n        ),\n        JSON_PROP(\"sheets\", sheetObject, FALSE)\n      )\n    & \"}\"\n)",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"LET(\n  sheetProp,\n  MAP(\n    VSTACK(\"\"3D8DE36231C\"\", GETSHEETNAMES(D9, TRUE)),\n    LAMBDA(\n      sheetName,\n      LET(\n        d2Ref, IFERROR(INDIRECT(sheetName & \"\"!D2\"\"), \"\"\"\"),\n        effectiveCurrencySymbol2, IFERROR(INDIRECT(sheetName & \"\"!Effective\"&\"CurrencySymbol\"\"), \"\"\"\"),\n        selectedCurrencySymbol2, IFERROR(INDIRECT(sheetName & \"\"!E1\"\"), \"\"\"\"),\n        hasRedFormatting, INDIRECT(sheetName & \"\"!F3\"\"),\n        b2HasError, ISERROR(INDIRECT(sheetName & \"\"!B2\"\")),\n        isRateRowHidden, INDIRECT\"&\"(sheetName & \"\"!F2\"\"),\n        taxVal, TO_TEXT(INDIRECT(sheetName & \"\"!C5\"\")),\n        tipVal, TO_TEXT(INDIRECT(sheetName & \"\"!C6\"\")),\n        discVal, TO_TEXT(INDIRECT(sheetName & \"\"!C7\"\")),\n        IF(\n          d2Ref = \"\"\"\",\n          \"\"\"\",\n          L\"&\"ET(\n            includeIfCurrency, LAMBDA(rowNum, IF(OR(NOT(REGEXMATCH(TO_TEXT(INDIRECT(sheetName & \"\"!C\"\" & rowNum)), \"\"^[%0-9\\.]*$\"\")),rowNum=\"\"\"\"), \"\"\"\"\"\"C\"\" & rowNum & \"\"\"\"\"\"\"\", )),\n            ranges,\n              TEXTJOIN(\n                \"\",\"\",\n  \"&\"              TRUE,\n                \"\"\"\"\"\"C3\"\"\"\"\"\",\n                \"\"\"\"\"\"C\"\" & G3 & \"\":C\"\"\"\"\"\",\n                includeIfCurrency(5),\n                includeIfCurrency(6),\n                includeIfCurrency(7)\n              ),\n            taxTipDiscValues\"&\",\n              \"\"[\"\"\"\"\"\" & TEXTJOIN(\"\"\"\"\"\",\"\"\"\"\"\", FALSE, JSON_ESCAPE(taxVal), JSON_ESCAPE(tipVal), JSON_ESCAPE(discVal)) & \"\"\"\"\"\"]\"\",\n            \"\"\"\"\"\"\"\" & JSON_ESCAPE(sheetName) & \"\"\"\"\"\":{\"\" &\n              TEXTJOIN(\n                \"\",\"\",\n           \"&\"     FALSE,\n                JSON_PROP(\"\"name\"\", sheetName, TRUE),\n                JSON_PROP(\"\"isDefaultCurrency\"\", IF(d2Ref, \"\"true\"\", \"\"false\"\"), FALSE),\n                JSON_PROP(\"\"effectiveCurrencySymbol\"\", effectiveCurrencySymbol2, TRUE),\n            \"&\"    JSON_PROP(\"\"selectedCurrencySymbol\"\", selectedCurrencySymbol2, TRUE),\n                JSON_PROP(\"\"hasUserOverriddenRate\"\", IF(b2HasError, \"\"true\"\", \"\"false\"\"), FALSE),\n                JSON_PROP(\"\"isRateRowHidden\"\", IF(isRateRowHidden, \"\"true\"\", \"\"fals\"&\"e\"\"), FALSE),\n                JSON_PROP(\"\"hasRedFormattingActive\"\", IF(hasRedFormatting, \"\"true\"\", \"\"false\"\"), FALSE),\n                JSON_PROP(\"\"currencyFormatRanges\"\", \"\"[\"\" & ranges & \"\"]\"\", FALSE),\n                JSON_PROP(\"\"taxTipDiscValues\"\", taxT\"&\"ipDiscValues, FALSE),\n                JSON_PROP(\"\"splitSheetRows\"\", GET_SHEET_RANGE(sheetName), FALSE)\n              ) &\n            \"\"}\"\"\n          )\n        )\n      )\n    )\n  ),\n  sheetObject, \"\"{\"\" & TEXTJOIN(\"\",\"\", TRUE, sheetProp) & \"\"}\"\",\n  \"\"{\"\"\n  \"&\"  & TEXTJOIN(\n        \"\",\"\",\n        FALSE,\n        JSON_PROP(\"\"mainCurrencySymbol\"\", EffectiveMainCurrencySymbol, TRUE),\n        JSON_PROP(\"\"selectedMainCurrencySymbol\"\", SelectedMainCurrencySymbol, TRUE),\n        JSON_PROP(\"\"splitSheetTitle\"\", Title, TR\"&\"UE),\n        JSON_PROP(\"\"maxRows\"\", Rows(A:A), FALSE),\n        JSON_PROP(\"\"maxColumns\"\", Columns(1:1), FALSE),\n        JSON_PROP(\"\"maxColWithData\"\", L3, FALSE),\n        JSON_PROP(\"\"isSheetsFormulaStale\"\", IF(I3, \"\"true\"\", \"\"false\"\"), FALSE),\n        JSON_\"&\"PROP(\n          \"\"people\"\",\n          \"\"{\"\"\n            & TEXTJOIN(\n                \"\",\"\",\n                FALSE,\n                JSON_PROP(\"\"namesSnapshot\"\", If(IsBlank(People!B1),\"\"[]\"\",People!B1), FALSE),\n                JSON_PROP(\n                  \"\"\"&\"currentNames\"\",\n                  LET(\n                    lastRow, LAST_ROW(People!A:A),\n                    items, IF(lastRow=1,, INDEX(People!A:A, 2):INDEX(People!A:A, lastRow)),\n                    If(lastRow=1,\"\"[]\"\",\"\"[\"\" & TEXTJOIN(\"\",\"\", TRUE, MAP\"&\"(items, LAMBDA(x, \"\"\"\"\"\"\"\" & JSON_ESCAPE(x) & \"\"\"\"\"\"\"\"))) & \"\"]\"\")\n                  ),\n                  FALSE\n                )\n              )\n            & \"\"}\"\",\n          FALSE\n        ),\n        JSON_PROP(\"\"sheets\"\", sheetObject, FALSE)\n      )\n   \"&\" & \"\"}\"\"\n)\"),\"{\"\"mainCurrencySymbol\"\":\"\"$\"\",\"\"selectedMainCurrencySymbol\"\":\"\"$\"\",\"\"splitSheetTitle\"\":\"\"Copy of Blank\"\",\"\"maxRows\"\":17,\"\"maxColumns\"\":22,\"\"maxColWithData\"\":13,\"\"isSheetsFormulaStale\"\":false,\"\"people\"\":{\"\"namesSnapshot\"\":[],\"\"currentNames\"\":[]},\"\"sheets\"\"\"&\":{\"\"3D8DE36231C\"\":{\"\"name\"\":\"\"3D8DE36231C\"\",\"\"isDefaultCurrency\"\":true,\"\"effectiveCurrencySymbol\"\":\"\"$\"\",\"\"selectedCurrencySymbol\"\":\"\"$\"\",\"\"hasUserOverriddenRate\"\":false,\"\"isRateRowHidden\"\":true,\"\"hasRedFormattingActive\"\":false,\"\"currencyFormatRanges\"\":[\"&\"\"\"C3\"\",\"\"C10:C\"\",\"\"C5\"\",\"\"C6\"\",\"\"C7\"\"],\"\"taxTipDiscValues\"\":[\"\"$0.00\"\",\"\"$0.00\"\",\"\"$0.00\"\"],\"\"splitSheetRows\"\":null},\"\"3D8DE36231C\"\":{\"\"name\"\":\"\"3D8DE36231C\"\",\"\"isDefaultCurrency\"\":true,\"\"effectiveCurrencySymbol\"\":\"\"$\"\",\"\"selectedCurrencySymbol\"\":\"\"$\"\",\"\"\"&\"hasUserOverriddenRate\"\":false,\"\"isRateRowHidden\"\":true,\"\"hasRedFormattingActive\"\":false,\"\"currencyFormatRanges\"\":[\"\"C3\"\",\"\"C10:C\"\",\"\"C5\"\",\"\"C6\"\",\"\"C7\"\"],\"\"taxTipDiscValues\"\":[\"\"$0.00\"\",\"\"$0.00\"\",\"\"$0.00\"\"],\"\"splitSheetRows\"\":null},\"\"Expenses\"\":{\"\"name\"\":\"&\"\"\"Expenses\"\",\"\"isDefaultCurrency\"\":true,\"\"effectiveCurrencySymbol\"\":\"\"$\"\",\"\"selectedCurrencySymbol\"\":\"\"$\"\",\"\"hasUserOverriddenRate\"\":false,\"\"isRateRowHidden\"\":true,\"\"hasRedFormattingActive\"\":false,\"\"currencyFormatRanges\"\":[\"\"C3\"\",\"\"C10:C\"\",\"\"C5\"\",\"\"C6\"\",\"&\"\"\"C7\"\"],\"\"taxTipDiscValues\"\":[\"\"$0.00\"\",\"\"$0.00\"\",\"\"$0.00\"\"],\"\"splitSheetRows\"\":null}}}\")",
+          "lastCachedValue": "\"{\"\"mainCurrencySymbol\"\":\"\"$\"\",\"\"selectedMainCurrencySymbol\"\":\"\"$\"\",\"\"splitSheetTitle\"\":\"\"Copy of Blank\"\",\"\"maxRows\"\":17,\"\"maxColumns\"\":22,\"\"maxColWithData\"\":13,\"\"isSheetsFormulaStale\"\":false,\"\"people\"\":{\"\"namesSnapshot\"\":[],\"\"currentNames\"\":[]},\"\"sheets\"\"\"&\":{\"\"3D8DE36231C\"\":{\"\"name\"\":\"\"3D8DE36231C\"\",\"\"isDefaultCurrency\"\":true,\"\"effectiveCurrencySymbol\"\":\"\"$\"\",\"\"selectedCurrencySymbol\"\":\"\"$\"\",\"\"hasUserOverriddenRate\"\":false,\"\"isRateRowHidden\"\":true,\"\"hasRedFormattingActive\"\":false,\"\"currencyFormatRanges\"\":[\"&\"\"\"C3\"\",\"\"C10:C\"\",\"\"C5\"\",\"\"C6\"\",\"\"C7\"\"],\"\"taxTipDiscValues\"\":[\"\"$0.00\"\",\"\"$0.00\"\",\"\"$0.00\"\"],\"\"splitSheetRows\"\":null},\"\"3D8DE36231C\"\":{\"\"name\"\":\"\"3D8DE36231C\"\",\"\"isDefaultCurrency\"\":true,\"\"effectiveCurrencySymbol\"\":\"\"$\"\",\"\"selectedCurrencySymbol\"\":\"\"$\"\",\"\"\"&\"hasUserOverriddenRate\"\":false,\"\"isRateRowHidden\"\":true,\"\"hasRedFormattingActive\"\":false,\"\"currencyFormatRanges\"\":[\"\"C3\"\",\"\"C10:C\"\",\"\"C5\"\",\"\"C6\"\",\"\"C7\"\"],\"\"taxTipDiscValues\"\":[\"\"$0.00\"\",\"\"$0.00\"\",\"\"$0.00\"\"],\"\"splitSheetRows\"\":null},\"\"Expenses\"\":{\"\"name\"\":\"&\"\"\"Expenses\"\",\"\"isDefaultCurrency\"\":true,\"\"effectiveCurrencySymbol\"\":\"\"$\"\",\"\"selectedCurrencySymbol\"\":\"\"$\"\",\"\"hasUserOverriddenRate\"\":false,\"\"isRateRowHidden\"\":true,\"\"hasRedFormattingActive\"\":false,\"\"currencyFormatRanges\"\":[\"\"C3\"\",\"\"C10:C\"\",\"\"C5\"\",\"\"C6\"\",\"&\"\"\"C7\"\"],\"\"taxTipDiscValues\"\":[\"\"$0.00\"\",\"\"$0.00\"\",\"\"$0.00\"\"],\"\"splitSheetRows\"\":null}}}\""
+        },
+        {
+          "ref": "M5",
+          "kind": "formula",
+          "formula": " ArrayFormula(ROUND(\nBYCOL(\n      EXPAND_TO_LAST_NAME_COL(M7:M17),\n      LAMBDA(\n        col,\n        LET(\n          header, INDEX(col, 1),\n          IF(header=\"\",,LET( \n          splits, OFFSET(col, 3, 0),\n          explicitAssignments, Map(SPLITSHEET_COL($C:$C),Lambda(it,Indirect(REGEXREPLACE(it,\"F\\d+$\", \"ExplicitPayers\")))),\n          SUM(SPLITSHEET_COL($H:$H) * TRUNC(splits) - SPLITSHEET_COL($G:$G) *\n                IF(\n                  IsBlank(explicitAssignments),\n                  MOD(splits, 1) * 10,\n                  Map(explicitAssignments,Lambda(eAssignment,IF(\n                  COUNTIF(\n                    TRIM(SPLIT(eAssignment, \",\")),\n                    header\n                  ) > 0,1,0)))\n                  \n                ))\n        )))\n      )\n    ),\n    3\n))",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\" ArrayFormula(ROUND(\nBYCOL(\n      EXPAND_TO_LAST_NAME_COL(M7:M17),\n      LAMBDA(\n        col,\n        LET(\n          header, INDEX(col, 1),\n          IF(header=\"\"\"\",,LET( \n          splits, OFFSET(col, 3, 0),\n          explicitAssignments, Map(SPLITSHEET_\"&\"COL($C:$C),Lambda(it,Indirect(REGEXREPLACE(it,\"\"F\\d+$\"\", \"\"ExplicitPayers\"\")))),\n          SUM(SPLITSHEET_COL($H:$H) * TRUNC(splits) - SPLITSHEET_COL($G:$G) *\n                IF(\n                  IsBlank(explicitAssignments),\n                  MOD(splits\"&\", 1) * 10,\n                  Map(explicitAssignments,Lambda(eAssignment,IF(\n                  COUNTIF(\n                    TRIM(SPLIT(eAssignment, \"\",\"\")),\n                    header\n                  ) > 0,1,0)))\n                  \n                ))\n   \"&\"     )))\n      )\n    ),\n    3\n))\"),0.0)",
+          "lastCachedValue": "0.0"
+        },
+        {
+          "ref": "E6",
+          "kind": "value",
+          "value": "Group:"
+        },
+        {
+          "ref": "J6",
+          "kind": "value",
+          "value": "Disclaimer"
+        },
+        {
+          "ref": "M6",
+          "kind": "array-formula",
+          "spills": "M6",
+          "formula": "=Transpose(LET(\n  rng, EXPAND_TO_LAST_NAME_COL(M5),\n  IF(\n    AND(Counta(rng)>2,SUMPRODUCT(N(ISERROR(rng))) = 0,Sum(SPLITSHEET_COL(I:I))>0),\n    GetAssignedTransactionGroups(rng),\n  )\n))"
+        },
+        {
+          "ref": "A7",
+          "kind": "formula",
+          "formula": "=If(I3,\"Refresh\",\"Add Sheet\")"
+        },
+        {
+          "ref": "D7",
+          "kind": "value",
+          "value": "\nItem"
+        },
+        {
+          "ref": "E7",
+          "kind": "value",
+          "value": "\nAmount"
+        },
+        {
+          "ref": "G7",
+          "kind": "value",
+          "value": "Unit Paid"
+        },
+        {
+          "ref": "H7",
+          "kind": "value",
+          "value": "Unit Cost"
+        },
+        {
+          "ref": "I7",
+          "kind": "value",
+          "value": "Pay Units"
+        },
+        {
+          "ref": "J7",
+          "kind": "value",
+          "value": "Cost Units"
+        },
+        {
+          "ref": "K7",
+          "kind": "formula",
+          "formula": "=COUNTA(SPLITSHEET_COL($K:K))"
+        },
+        {
+          "ref": "L7",
+          "kind": "value",
+          "value": "ref split vals"
+        },
+        {
+          "ref": "M7",
+          "kind": "array-formula",
+          "spills": "M7",
+          "formula": "=LET(\n  lastRow, MAX(IF(LEN(People!A:A), ROW(People!A:A))),\n  items, If(lastRow=1,, TRANSPOSE(INDEX(People!A:A, 2):INDEX(People!A:A, lastRow))),\n items\n)"
+        },
+        {
+          "ref": "A9",
+          "kind": "formula",
+          "formula": "ADD_EMPTY_ROW(ARRAYFORMULA(iferror(REGEXEXTRACT(SPLITSHEET_COL($C:C),\"^[^!]+\"),)))",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"ADD_EMPTY_ROW(ARRAYFORMULA(iferror(REGEXEXTRACT(SPLITSHEET_COL($C:C),\"\"^[^!]+\"\"),)))\"),\"\")",
+          "lastCachedValue": "\"\""
+        },
+        {
+          "ref": "B9",
+          "kind": "formula",
+          "formula": "ADD_EMPTY_ROW(MAP(SPLITSHEET_COL($C:$C), LAMBDA(c,\n  IfError(LET(\n    sn, REGEXEXTRACT(c, \"^[^!]+\"),\n    pairs, {\"Tx\"&UNICHAR(8239),\"D5\";\"Tp\",\"D6\";\"Dis\"&UNICHAR(8239),\"D7\"},\n    TEXTJOIN(\" - \", TRUE,\n      BYROW(pairs, LAMBDA(rw,\n        LET(\n          title, INDEX(rw,1,1),\n          addr,  INDEX(rw,1,2),\n          val, Round(INDIRECT(sn & \"!\" & addr),2),\n          if(val>0,title & \": \" & TEXT(val, \"#,##0\"\"\"&UNICHAR(8239)&\"\"\".00\"),\"\")\n        )\n      ))\n    )\n  ),)\n)))",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"ADD_EMPTY_ROW(MAP(SPLITSHEET_COL($C:$C), LAMBDA(c,\n  IfError(LET(\n    sn, REGEXEXTRACT(c, \"\"^[^!]+\"\"),\n    pairs, {\"\"Tx\"\"&UNICHAR(8239),\"\"D5\"\";\"\"Tp\"\",\"\"D6\"\";\"\"Dis\"\"&UNICHAR(8239),\"\"D7\"\"},\n    TEXTJOIN(\"\" - \"\", TRUE,\n      BYROW(pairs, LAMBDA(rw,\n        L\"&\"ET(\n          title, INDEX(rw,1,1),\n          addr,  INDEX(rw,1,2),\n          val, Round(INDIRECT(sn & \"\"!\"\" & addr),2),\n          if(val>0,title & \"\": \"\" & TEXT(val, \"\"#,##0\"\"\"\"\"\"&UNICHAR(8239)&\"\"\"\"\"\".00\"\"),\"\"\"\")\n        )\n      ))\n    )\n  ),)\n)))\"),\"\")",
+          "lastCachedValue": "\"\""
+        },
+        {
+          "ref": "C9",
+          "kind": "array-formula",
+          "spills": "C9:C10",
+          "formula": "=ADD_EMPTY_ROW(IF(_xlfn.ISFORMULA(D9),\n  LET(\n    sheetNames, GETSHEETNAMES(D9,false),\n    IF(COUNTA(sheetNames)=0,,\n      REDUCE(, sheetNames, LAMBDA(acc, sheet,\n        LET(\n          range, INDIRECT(sheet&\"!A:A\"),\n          maxRow, LAST_ROW(range),\n          refs, IF(maxRow>=G3, sheet&\"!F\"&SEQUENCE(maxRow-G3+1,1,G3),),\n          IF(acc=\"\", refs, VSTACK(acc, refs))\n        )\n      ))\n    )\n  ),\n))"
+        },
+        {
+          "ref": "D9",
+          "kind": "formula",
+          "formula": "ADD_EMPTY_ROW(Let(sheetNames, {'3D8DE36231C'!A1,Expenses!A1},\nrange0, Let(lastRow,LAST_ROW(EXPENSESHEET_COL('3D8DE36231C'!A:A)),If(lastRow>0,ChooseCols(Index('3D8DE36231C'!A:A,10):Index('3D8DE36231C'!E:E,lastRow),1,5,4),)),\ncond0, IfError('3D8DE36231C'!Total>0,FALSE),\narray0, {ARRAYFORMULA(SEQUENCE(ROWS(range0),1,1,0)*0 + cond0 = 1), range0},\nrange1, Let(lastRow,LAST_ROW(EXPENSESHEET_COL(Expenses!A:A)),If(lastRow>0,ChooseCols(Index(Expenses!A:A,10):Index(Expenses!E:E,lastRow),1,5,4),)),\ncond1, IfError(Expenses!Total>0,FALSE),\narray1, {ARRAYFORMULA(SEQUENCE(ROWS(range1),1,1,0)*0 + cond1 = 1), range1},\n s, VSTACK(array0,array1),\n kept, FILTER(s, CHOOSECOLS(s, 1)),\n result,CHOOSECOLS(kept, 2, 3, 4), If(IsError(result),If(H2<>J2,{\"Calculating...\",If(IsBlank(H2),\"❓ ⇄ 💶\",\"💵 ⇄ 💶\")},),result)))",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"ADD_EMPTY_ROW(Let(sheetNames, {'3D8DE36231C'!A1,Expenses!A1},\nrange0, Let(lastRow,LAST_ROW(EXPENSESHEET_COL('3D8DE36231C'!A:A)),If(lastRow>0,ChooseCols(Index('3D8DE36231C'!A:A,10):Index('3D8DE36231C'!E:E,lastRow),1,5,4),)),\ncond0, IfError('3D8DE36231C'!\"&\"Total>0,FALSE),\narray0, {ARRAYFORMULA(SEQUENCE(ROWS(range0),1,1,0)*0 + cond0 = 1), range0},\nrange1, Let(lastRow,LAST_ROW(EXPENSESHEET_COL(Expenses!A:A)),If(lastRow>0,ChooseCols(Index(Expenses!A:A,10):Index(Expenses!E:E,lastRow),1,5,4),)),\ncond1, IfErro\"&\"r(Expenses!Total>0,FALSE),\narray1, {ARRAYFORMULA(SEQUENCE(ROWS(range1),1,1,0)*0 + cond1 = 1), range1},\n s, VSTACK(array0,array1),\n kept, FILTER(s, CHOOSECOLS(s, 1)),\n result,CHOOSECOLS(kept, 2, 3, 4), If(IsError(result),If(H2<>J2,{\"\"Calculating...\"\",I\"&\"f(IsBlank(H2),\"\"❓ ⇄ 💶\"\",\"\"💵 ⇄ 💶\"\")},),result)))\"),\"\")",
+          "lastCachedValue": "\"\""
+        },
+        {
+          "ref": "G9",
+          "kind": "array-formula",
+          "spills": "G9:G17",
+          "formula": "=ADD_EMPTY_ROW(iferror(if(SPLITSHEET_COL($E:$E)=\"\",,(SPLITSHEET_COL($E:$E)+SPLITSHEET_COL($F:$F))/SPLITSHEET_COL($I:$I)),0))"
+        },
+        {
+          "ref": "H9",
+          "kind": "array-formula",
+          "spills": "H9:H17",
+          "formula": "=ADD_EMPTY_ROW(Let(colE,SPLITSHEET_COL($E:$E),sum,SPLITSHEET_COL($F:F)+colE,if(sum=0,,(sum/SPLITSHEET_COL($J:$J)))))"
+        },
+        {
+          "ref": "I9",
+          "kind": "formula",
+          "formula": "LET(\n  rows,\n    BYROW(\n      ARRAYFORMULA(EXPAND_TO_LAST_NAME_COL(SPLITSHEET_COL(M:M))),\n      LAMBDA(\n        splitRow,\n        LET(\n          payRatios, ARRAYFORMULA(MOD(splitRow, 1) * 10),\n          billSheetName, REGEXEXTRACT(INDEX($C:$C, ROW(splitRow)), \"^[^!]+\"),\n          explicitAssignments, INDIRECT(billSheetName & \"!ExplicitPayers\"),\n          IF(\n            ISERROR(billSheetName),\n            ,\n            IF(\n              ISBLANK(explicitAssignments),\n              SUM(payRatios),\n              COUNTA(SPLIT(explicitAssignments, \",\"))\n            )\n          )\n        )\n      )\n    ),\n  total, SUM(rows),\n  VSTACK(total, rows)\n)",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"LET(\n  rows,\n    BYROW(\n      ARRAYFORMULA(EXPAND_TO_LAST_NAME_COL(SPLITSHEET_COL(M:M))),\n      LAMBDA(\n        splitRow,\n        LET(\n          payRatios, ARRAYFORMULA(MOD(splitRow, 1) * 10),\n          billSheetName, REGEXEXTRACT(INDEX($C:$C, ROW(splitRo\"&\"w)), \"\"^[^!]+\"\"),\n          explicitAssignments, INDIRECT(billSheetName & \"\"!ExplicitPayers\"\"),\n          IF(\n            ISERROR(billSheetName),\n            ,\n            IF(\n              ISBLANK(explicitAssignments),\n              SUM(payRatios),\n     \"&\"         COUNTA(SPLIT(explicitAssignments, \"\",\"\"))\n            )\n          )\n        )\n      )\n    ),\n  total, SUM(rows),\n  VSTACK(total, rows)\n)\"),0.0)",
+          "lastCachedValue": "0.0"
+        },
+        {
+          "ref": "J9",
+          "kind": "array-formula",
+          "spills": "J9:J17",
+          "formula": "=ADD_EMPTY_ROW(BYROW(EXPAND_TO_LAST_NAME_COL(SPLITSHEET_COL(M:M)), LAMBDA(rw, Let(result,Sum(Trunc(rw)),if(AND(result>0,Not(IsBlank(Indirect(\"E\"& Row(rw))))),result,)))))\n"
+        },
+        {
+          "ref": "K9",
+          "kind": "formula",
+          "formula": "ADD_EMPTY_ROW(ArrayFormula(\n  IF(LEN(SPLITSHEET_COL(C:C)) > 0,\n    IF(REGEXMATCH(\n         BYROW(Offset(SPLITSHEET_COL(M:M),0,0,,L3-Column(M1)+1), LAMBDA(row, JOIN(\",\", row))),\n         \"^\" & SUBSTITUTE(REGEXREPLACE(SPLITSHEET_COL(L:L), \",+$\", ), \".\", \"\\.\") & \",*$\"\n       ),\n       ,\n       1\n    ),\n  )\n))",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"ADD_EMPTY_ROW(ArrayFormula(\n  IF(LEN(SPLITSHEET_COL(C:C)) > 0,\n    IF(REGEXMATCH(\n         BYROW(Offset(SPLITSHEET_COL(M:M),0,0,,L3-Column(M1)+1), LAMBDA(row, JOIN(\"\",\"\", row))),\n         \"\"^\"\" & SUBSTITUTE(REGEXREPLACE(SPLITSHEET_COL(L:L), \"\",+$\"\", ), \"\"\"&\".\"\", \"\"\\.\"\") & \"\",*$\"\"\n       ),\n       ,\n       1\n    ),\n  )\n))\"),\"\")",
+          "lastCachedValue": "\"\""
+        },
+        {
+          "ref": "L9",
+          "kind": "formula",
+          "formula": "ADD_EMPTY_ROW(\n  LET(\n    colC, SPLITSHEET_COL(C:C),\n    countC, COUNTA(colC),\n    IF(\n      countC = 0,,\n      ARRAYFORMULA(\n        REGEXEXTRACT(\n          MAP(\n            ARRAY_CONSTRAIN(colC, countC, 1),\n            LAMBDA(addr, INDIRECT(addr))\n          ),\"(?:[^,]*(?:,)){0,\" & ($L$3 - 1 - 12) & \"}[^,]*\"\n        )\n      )\n    )\n  )\n)",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"ADD_EMPTY_ROW(\n  LET(\n    colC, SPLITSHEET_COL(C:C),\n    countC, COUNTA(colC),\n    IF(\n      countC = 0,,\n      ARRAYFORMULA(\n        REGEXEXTRACT(\n          MAP(\n            ARRAY_CONSTRAIN(colC, countC, 1),\n            LAMBDA(addr, INDIRECT(addr))\n     \"&\"     ),\"\"(?:[^,]*(?:,)){0,\"\" & ($L$3 - 1 - 12) & \"\"}[^,]*\"\"\n        )\n      )\n    )\n  )\n)\"),\"\")",
+          "lastCachedValue": "\"\""
+        }
+      ],
+      "dataValidations": [
+        "<dataValidation type=\"decimal\" allowBlank=\"1\" showDropDown=\"1\" showErrorMessage=\"1\" sqref=\"M11:V17\"><formula1>0.0</formula1><formula2>10.0</formula2></dataValidation>",
+        "<dataValidation type=\"list\" allowBlank=\"1\" showErrorMessage=\"1\" sqref=\"E2\"><formula1>Currencies!$D$2:$D17</formula1></dataValidation>"
+      ],
+      "conditionalFormatting": [
+        "<conditionalFormatting sqref=\"M9:V17\"><cfRule type=\"expression\" dxfId=\"3\" priority=\"1\"><formula>Let(explicitAssignment,INDIRECT(REGEXREPLACE($C9,&quot;F\\d+$&quot;,&quot;ExplicitPayers&quot;)),AND(Not(IsBlank(M$7)),Not(IsBlank(explicitAssignment)),MOD(M9, 1) &lt;&gt; 0,Trim($D9)&lt;&gt;&quot;&quot;,Mod(row(), 2) = 1))</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"M9:V17\"><cfRule type=\"expression\" dxfId=\"0\" priority=\"2\"><formula>Let(explicitAssignment,INDIRECT(REGEXREPLACE($C9,&quot;F\\d+$&quot;,&quot;ExplicitPayers&quot;)),AND(Not(IsBlank(M$7)),Not(IsBlank(explicitAssignment)),MOD(M9, 1) &lt;&gt; 0,Trim($D9)&lt;&gt;&quot;&quot;,Mod(row(), 2) = 0))</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"M9:V17\"><cfRule type=\"expression\" dxfId=\"3\" priority=\"3\"><formula> AND(IsError($H9),ERROR.TYPE($H9)=2,Mod(row(), 2) = 1)</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"E10:E17\"><cfRule type=\"expression\" dxfId=\"3\" priority=\"4\"><formula>AND(IsBlank($E10),Not(IsBlank($D10)))</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"M9:V17\"><cfRule type=\"expression\" dxfId=\"0\" priority=\"5\"><formula> AND(IsError($H9),ERROR.TYPE($H9)=2,Mod(row(), 2) = 0)</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"M9:V17\"><cfRule type=\"expression\" dxfId=\"3\" priority=\"6\"><formula>AND(Not(IsBlank($F9)),$I$9&lt;&gt;0, $I9=0,Trim($D9)&lt;&gt;&quot;&quot;,,Mod(row(), 2) = 1)</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"M9:V17\"><cfRule type=\"expression\" dxfId=\"0\" priority=\"7\"><formula>AND(Not(IsBlank($F9)),$I$9&lt;&gt;0, $I9=0,Trim($D9)&lt;&gt;&quot;&quot;,,Mod(row(), 2) = 0)</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"M9:V17\"><cfRule type=\"expression\" dxfId=\"4\" priority=\"8\"><formula>Let(explicitAssignment,INDIRECT(REGEXREPLACE($C9,&quot;F\\d+$&quot;,&quot;ExplicitPayers&quot;)),AND(OR(AND(IsBlank(explicitAssignment),MOD(M9, 1) &lt;&gt; 0),CountIf(ArrayFormula(Trim(Split(explicitAssignment,&quot;,&quot;))),M$7)&gt;0),Mod(row(), 2) = 1))</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"M9:V17\"><cfRule type=\"expression\" dxfId=\"5\" priority=\"9\"><formula>Let(explicitAssignment,INDIRECT(REGEXREPLACE($C9,&quot;F\\d+$&quot;,&quot;ExplicitPayers&quot;)),AND(OR(AND(IsBlank(explicitAssignment),MOD(M9, 1) &lt;&gt; 0),CountIf(ArrayFormula(Trim(Split(explicitAssignment,&quot;,&quot;))),M$7)&gt;0),Mod(row(), 2) = 0))</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"C10:V17\"><cfRule type=\"expression\" dxfId=\"6\" priority=\"10\"><formula> Mod(row(), 2) = 1</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"M7:V8\"><cfRule type=\"expression\" dxfId=\"7\" priority=\"11\"><formula>M$6=1</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"M7:V8\"><cfRule type=\"expression\" dxfId=\"8\" priority=\"12\"><formula>M$6=2</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"M7:V8\"><cfRule type=\"expression\" dxfId=\"9\" priority=\"13\"><formula>M$6=3</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"M7:V8\"><cfRule type=\"expression\" dxfId=\"10\" priority=\"14\"><formula>M$6=4</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"M7:V8\"><cfRule type=\"expression\" dxfId=\"11\" priority=\"15\"><formula>M$6=5</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"M7:V8\"><cfRule type=\"expression\" dxfId=\"12\" priority=\"16\"><formula>M$6=6</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"M7:V8\"><cfRule type=\"expression\" dxfId=\"13\" priority=\"17\"><formula>M$6=7</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"M2:V4\"><cfRule type=\"cellIs\" dxfId=\"14\" priority=\"18\" operator=\"lessThan\"><formula>0</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"A10:B17\"><cfRule type=\"expression\" dxfId=\"15\" priority=\"19\"><formula>Mod(Match($A10,Let(range,$A$9:$A17,Unique(Filter(range,range&lt;&gt;&quot;&quot;))),0), 2 ) = 1</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"A3:E4\"><cfRule type=\"expression\" dxfId=\"16\" priority=\"20\"><formula>AND(H2&lt;&gt;&quot;&quot;,OR(CountA($C$9:$C17)=0,Not(IsBlank($A$8))))</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"E2\"><cfRule type=\"expression\" dxfId=\"17\" priority=\"21\"><formula>IsBlank(G2)</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"L9\"><cfRule type=\"notContainsBlanks\" dxfId=\"18\" priority=\"22\"><formula>LEN(TRIM(L9))&gt;0</formula></cfRule></conditionalFormatting>"
+      ]
+    },
+    {
+      "name": "People",
+      "state": "visible",
+      "dimensions": "A1:B10",
+      "truncatedTo": null,
+      "cells": [
+        {
+          "ref": "A1",
+          "kind": "value",
+          "value": "Names"
+        },
+        {
+          "ref": "B1",
+          "kind": "value",
+          "value": "[]"
+        }
+      ],
+      "dataValidations": [
+        "<dataValidation type=\"custom\" allowBlank=\"1\" showDropDown=\"1\" showInputMessage=\"1\" showErrorMessage=\"1\" prompt=\"No Duplicates. Name cannot contain leading and trailing spaces, comma or quotes\" sqref=\"A2:A10\"><formula1>AND(Not(RegExMatch($A2,&quot;[,&quot;&quot;]|^\\s+|\\s+$&quot;)),COUNTIF(Indirect(&quot;$A2:$A&quot;), A2) = 1)</formula1></dataValidation>"
+      ],
+      "conditionalFormatting": []
+    },
+    {
+      "name": "Expenses",
+      "state": "visible",
+      "dimensions": "A1:F19",
+      "truncatedTo": null,
+      "cells": [
+        {
+          "ref": "A1",
+          "kind": "formula",
+          "formula": "=If(F1<>E1,\"⏳    \",) & \"Currency:\""
+        },
+        {
+          "ref": "B1",
+          "kind": "array-formula",
+          "spills": "B1:C1",
+          "formula": "={\"\",Currencies!A1}"
+        },
+        {
+          "ref": "C1",
+          "kind": "value",
+          "value": "Default"
+        },
+        {
+          "ref": "D1",
+          "kind": "array-formula",
+          "spills": "D1:E1",
+          "formula": "=If(D2,{SelectedMainCurrencyAbbr,SelectedMainCurrencySymbol},XLookup(C1,Currencies!A:A,Currencies!B:C))"
+        },
+        {
+          "ref": "E1",
+          "kind": "value",
+          "value": "$"
+        },
+        {
+          "ref": "F1",
+          "kind": "formula",
+          "formula": "RegExExtract(TO_TEXT(C3),\"^\\s*([^0-9\\s]+)\\s*\\d{1,3}(?:,\\d{3})*\\.\\d{2}\")",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"RegExExtract(TO_TEXT(C3),\"\"^\\s*([^0-9\\s]+)\\s*\\d{1,3}(?:,\\d{3})*\\.\\d{2}\"\")\"),\"$\")",
+          "lastCachedValue": "\"$\""
+        },
+        {
+          "ref": "A2",
+          "kind": "formula",
+          "formula": "=IF(IsError(B2),2,1)"
+        },
+        {
+          "ref": "B2",
+          "kind": "array-formula",
+          "spills": "B2:C2",
+          "formula": "={\n  \"\",\n  If(D2,1,IfError(1/XLookup(D1,Currencies!I:I,Currencies!J:J),Exchange_Rate(D1,SelectedMainCurrencyAbbr,Today())))\n}"
+        },
+        {
+          "ref": "C2",
+          "kind": "value",
+          "value": 1.0
+        },
+        {
+          "ref": "D2",
+          "kind": "formula",
+          "formula": "=C1=Currencies!A1"
+        },
+        {
+          "ref": "E2",
+          "kind": "value",
+          "value": 10.0
+        },
+        {
+          "ref": "F2",
+          "kind": "formula",
+          "formula": "=Not(SUBTOTAL(103, E2))"
+        },
+        {
+          "ref": "A3",
+          "kind": "value",
+          "value": "Total:"
+        },
+        {
+          "ref": "C3",
+          "kind": "formula",
+          "formula": "=Round(Sum(EXPENSESHEET_COL(C:C))+ E5 + E6 - E7,2)"
+        },
+        {
+          "ref": "F3",
+          "kind": "formula",
+          "formula": "OR(OR(ARRAYFORMULA(COUNTIF(Indirect(\"$A$8:$A\"),$A10:$A19)  >1)),OR(ARRAYFORMULA((((Not(IsBlank($A10:$A19)))*(IsBlank($C10:$C19)))>0))),OR(ARRAYFORMULA((((IsBlank($A10:$A19))*(Not(IsBlank($C10:$C19))))>0))),COUNTIF(INDIRECT(\"Currencies!F:F\"), C1) = 0,(((C4<>\"\")*(SUMPRODUCT(COUNTIF(INDIRECT(\"People!A2:A\"),TRIM(SPLIT(SUBSTITUTE(C4,\"\"\"\",\"\"),\",\")))=0)>0))>0))",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"OR(OR(ARRAYFORMULA(COUNTIF(Indirect(\"\"$A$8:$A\"\"),$A10:$A19)  >1)),OR(ARRAYFORMULA((((Not(IsBlank($A10:$A19)))*(IsBlank($C10:$C19)))>0))),OR(ARRAYFORMULA((((IsBlank($A10:$A19))*(Not(IsBlank($C10:$C19))))>0))),COUNTIF(INDIRECT(\"\"Currencies!F:F\"\"), C1) = 0,(\"&\"((C4<>\"\"\"\")*(SUMPRODUCT(COUNTIF(INDIRECT(\"\"People!A2:A\"\"),TRIM(SPLIT(SUBSTITUTE(C4,\"\"\"\"\"\"\"\",\"\"\"\"),\"\",\"\")))=0)>0))>0))\"),FALSE)",
+          "lastCachedValue": "FALSE"
+        },
+        {
+          "ref": "A4",
+          "kind": "value",
+          "value": "Paid By:"
+        },
+        {
+          "ref": "F4",
+          "kind": "formula",
+          "formula": "=CountA(A10:A100000001)"
+        },
+        {
+          "ref": "A5",
+          "kind": "formula",
+          "formula": "ArrayFormula(Let(n,Now(),textValue,TO_TEXT($C5:$C7),sumOfC,Sum(EXPENSESHEET_COL(C:C)),If(RegExMatch(textValue,\"^((\\s*\\d+(\\.\\d*)?\\s*)|(0%))$\"),\"⏳  \",) & {\"Tax: \";\"Tip:  \";\"Discount:  \"} & If(sumOfC=0,\"\",If($E5:$E7=0,\"\",\"(\"& If(REGEXMATCH(textValue, \"%\") ,Text($E5:$E7,\"\"\"\"& F1 & \"\"\"##0.00\"),Text(Round($E5:$E7/sumOfC,2),\"0.00%\"))&\")\"))))",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"ArrayFormula(Let(n,Now(),textValue,TO_TEXT($C5:$C7),sumOfC,Sum(EXPENSESHEET_COL(C:C)),If(RegExMatch(textValue,\"\"^((\\s*\\d+(\\.\\d*)?\\s*)|(0%))$\"\"),\"\"⏳  \"\",) & {\"\"Tax: \"\";\"\"Tip:  \"\";\"\"Discount:  \"\"} & If(sumOfC=0,\"\"\"\",If($E5:$E7=0,\"\"\"\",\"\"(\"\"& If(REGEXMATCH(te\"&\"xtValue, \"\"%\"\") ,Text($E5:$E7,\"\"\"\"\"\"\"\"& F1 & \"\"\"\"\"\"##0.00\"\"),Text(Round($E5:$E7/sumOfC,2),\"\"0.00%\"\"))&\"\")\"\"))))\"),\"Tax: \")",
+          "lastCachedValue": "\"Tax: \""
+        },
+        {
+          "ref": "B5",
+          "kind": "formula",
+          "formula": "={\"\",0}"
+        },
+        {
+          "ref": "C5",
+          "kind": "value",
+          "value": 0.0
+        },
+        {
+          "ref": "D5",
+          "kind": "array-formula",
+          "spills": "D5:D7",
+          "formula": "=E5:E7*$C$2"
+        },
+        {
+          "ref": "E5",
+          "kind": "formula",
+          "formula": "ARRAYFORMULA(LET(\n  n,Now(),\n  vals, $C5:$C6,\n  txt, TO_TEXT(vals),\n  total, SUM(EXPENSESHEET_COL(C:C)),\n    IF(REGEXMATCH(txt, \"%\"),\n       vals * total,\n       vals\n    )\n  )\n)",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"ARRAYFORMULA(LET(\n  n,Now(),\n  vals, $C5:$C6,\n  txt, TO_TEXT(vals),\n  total, SUM(EXPENSESHEET_COL(C:C)),\n    IF(REGEXMATCH(txt, \"\"%\"\"),\n       vals * total,\n       vals\n    )\n  )\n)\"),0.0)",
+          "lastCachedValue": "0.0"
+        },
+        {
+          "ref": "A6",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"Tip:  \")",
+          "lastCachedValue": "\"Tip:  \""
+        },
+        {
+          "ref": "B6",
+          "kind": "formula",
+          "formula": "={\"\",0}"
+        },
+        {
+          "ref": "C6",
+          "kind": "value",
+          "value": 0.0
+        },
+        {
+          "ref": "D6",
+          "kind": "value",
+          "value": 0.0
+        },
+        {
+          "ref": "E6",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),0.0)",
+          "lastCachedValue": "0.0"
+        },
+        {
+          "ref": "A7",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"Discount:  \")",
+          "lastCachedValue": "\"Discount:  \""
+        },
+        {
+          "ref": "B7",
+          "kind": "formula",
+          "formula": "={\"\",0}"
+        },
+        {
+          "ref": "C7",
+          "kind": "value",
+          "value": 0.0
+        },
+        {
+          "ref": "D7",
+          "kind": "value",
+          "value": 0.0
+        },
+        {
+          "ref": "E7",
+          "kind": "formula",
+          "formula": "LET(\n  n,Now(),\n  val, $C7,\n  txt, TO_TEXT(val),\n  total, SUM(EXPENSESHEET_COL(C:C)),\n  amount,IF(REGEXMATCH(txt, \"%\"),\n       val * total,\n       val\n    ),\n   Min(total,amount)\n  )\n",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"LET(\n  n,Now(),\n  val, $C7,\n  txt, TO_TEXT(val),\n  total, SUM(EXPENSESHEET_COL(C:C)),\n  amount,IF(REGEXMATCH(txt, \"\"%\"\"),\n       val * total,\n       val\n    ),\n   Min(total,amount)\n  )\n\"),0.0)",
+          "lastCachedValue": "0.0"
+        },
+        {
+          "ref": "A8",
+          "kind": "value",
+          "value": "Item"
+        },
+        {
+          "ref": "C8",
+          "kind": "value",
+          "value": "Amount"
+        },
+        {
+          "ref": "D9",
+          "kind": "array-formula",
+          "spills": "D9:D19",
+          "formula": "=If(IsBlank($C$9:$C19)+($C$9:$C19=0),,Let(itemSum,SUM($C$9:$C19),if(itemSum=0,0,(($D$5+$D$6 - MIN(itemSum,$D$7))/itemSum) * $C$9:$C19*$C$2)))"
+        },
+        {
+          "ref": "E9",
+          "kind": "array-formula",
+          "spills": "E9:E19",
+          "formula": "=If(IsBlank(C9:C19),,C9:C19*$C$2)"
+        }
+      ],
+      "dataValidations": [
+        "<dataValidation type=\"custom\" allowBlank=\"1\" showDropDown=\"1\" showErrorMessage=\"1\" sqref=\"C10:C19\"><formula1>AND(ISNUMBER($C10),$C10&gt;=0)</formula1></dataValidation>",
+        "<dataValidation type=\"custom\" allowBlank=\"1\" showDropDown=\"1\" showInputMessage=\"1\" showErrorMessage=\"1\" prompt=\"Invalid exchange rate. Enter a positive value, or exchange rate can only be 1\" sqref=\"C2\"><formula1>If(D2,C2=1,C2&gt;0)</formula1></dataValidation>",
+        "<dataValidation type=\"list\" allowBlank=\"1\" showErrorMessage=\"1\" sqref=\"C1\"><formula1>Currencies!$F:$F</formula1></dataValidation>",
+        "<dataValidation type=\"list\" allowBlank=\"1\" showInputMessage=\"1\" showErrorMessage=\"1\" prompt=\"Only names in the &quot;People&quot; sheet can be selected.\" sqref=\"C4\"><formula1>People!$A2:$A19</formula1></dataValidation>"
+      ],
+      "conditionalFormatting": [
+        "<conditionalFormatting sqref=\"A10:A19\"><cfRule type=\"expression\" dxfId=\"0\" priority=\"1\"><formula>COUNTIF(Indirect(&quot;$A$8:$A&quot;),$A10)  &gt;1</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"C10:C19\"><cfRule type=\"expression\" dxfId=\"0\" priority=\"2\"><formula>AND(Not(IsBlank($A10)), IsBlank($C10))</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"A10:A19\"><cfRule type=\"expression\" dxfId=\"1\" priority=\"3\"><formula>AND(CountA(Offset($A10,1,0,5000,2))&lt;&gt;0,IsBlank($A10))</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"C10:C19\"><cfRule type=\"expression\" dxfId=\"1\" priority=\"4\"><formula>AND(CountA(Offset($C10,1,-1,5000,2))&lt;&gt;0,IsBlank($C10))</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"A10:A19\"><cfRule type=\"expression\" dxfId=\"0\" priority=\"5\"><formula>AND(IsBlank($A10),Not(IsBlank($C10)))</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"C2\"><cfRule type=\"expression\" dxfId=\"2\" priority=\"6\"><formula>Not(IsError(B2))</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"C1\"><cfRule type=\"expression\" dxfId=\"3\" priority=\"7\"><formula>COUNTIF(INDIRECT(&quot;Currencies!F:F&quot;), C1) = 0</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"C4\"><cfRule type=\"expression\" dxfId=\"0\" priority=\"8\"><formula>AND(C4&lt;&gt;&quot;&quot;,SUMPRODUCT(COUNTIF(INDIRECT(&quot;People!A2:A&quot;),TRIM(SPLIT(SUBSTITUTE(C4,&quot;&quot;&quot;&quot;,&quot;&quot;),&quot;,&quot;)))=0)&gt;0)</formula></cfRule></conditionalFormatting>"
+      ]
+    },
+    {
+      "name": "Currencies",
+      "state": "hidden",
+      "dimensions": "A1:J617",
+      "truncatedTo": 12,
+      "cells": [
+        {
+          "ref": "A1",
+          "kind": "value",
+          "value": "Default"
+        },
+        {
+          "ref": "C1",
+          "kind": "value",
+          "value": ""
+        },
+        {
+          "ref": "D1",
+          "kind": "array-formula",
+          "spills": "D1:D617",
+          "formula": "=\"(\"&B:B&\")\"&REPT(\" \", 20)&A:A"
+        },
+        {
+          "ref": "F1",
+          "kind": "formula",
+          "formula": "LET(\n  data, FILTER(A:B, B:B<>SelectedMainCurrencyAbbr),\n  sheetNames, GETSHEETNAMES(Split!D9, TRUE),\n  usedCurrencies,\n    UNIQUE(\n      TOCOL(\n        MAP(\n          sheetNames,\n          LAMBDA(s, INDIRECT(s & \"!C1\"))\n        ),\n        1\n      )\n    ),\n  priority,\n    MAP(\n      INDEX(data,,1),\n      LAMBDA(cur,\n        IF(\n          cur=\"Default\",\n          0,\n          IF(COUNTIF(usedCurrencies, cur), 1, 2)\n        )\n      )\n    ),\n  SORT(\n    data,\n    priority, TRUE,\n    SEQUENCE(ROWS(data)), TRUE\n  )\n)",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"LET(\n  data, FILTER(A:B, B:B<>SelectedMainCurrencyAbbr),\n  sheetNames, GETSHEETNAMES(Split!D9, TRUE),\n  usedCurrencies,\n    UNIQUE(\n      TOCOL(\n        MAP(\n          sheetNames,\n          LAMBDA(s, INDIRECT(s & \"\"!C1\"\"))\n        ),\n        1\n      )\n   \"&\" ),\n  priority,\n    MAP(\n      INDEX(data,,1),\n      LAMBDA(cur,\n        IF(\n          cur=\"\"Default\"\",\n          0,\n          IF(COUNTIF(usedCurrencies, cur), 1, 2)\n        )\n      )\n    ),\n  SORT(\n    data,\n    priority, TRUE,\n    SEQUENCE(ROWS(data)), \"&\"TRUE\n  )\n)\"),\"Default\")",
+          "lastCachedValue": "\"Default\""
+        },
+        {
+          "ref": "I1",
+          "kind": "formula",
+          "formula": "=EXCHANGE_RATE_TO(SelectedMainCurrencyAbbr, SelectedMainCurrencyAbbr,Today())"
+        },
+        {
+          "ref": "J1",
+          "kind": "value",
+          "value": 12.25616623
+        },
+        {
+          "ref": "A2",
+          "kind": "value",
+          "value": "US Dollar"
+        },
+        {
+          "ref": "B2",
+          "kind": "value",
+          "value": "USD"
+        },
+        {
+          "ref": "C2",
+          "kind": "value",
+          "value": "$"
+        },
+        {
+          "ref": "D2",
+          "kind": "value",
+          "value": "(USD)                    US Dollar"
+        },
+        {
+          "ref": "F2",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"Euro\")",
+          "lastCachedValue": "\"Euro\""
+        },
+        {
+          "ref": "G2",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"EUR\")",
+          "lastCachedValue": "\"EUR\""
+        },
+        {
+          "ref": "I2",
+          "kind": "value",
+          "value": "aave"
+        },
+        {
+          "ref": "J2",
+          "kind": "value",
+          "value": 0.010838161
+        },
+        {
+          "ref": "A3",
+          "kind": "value",
+          "value": "Euro"
+        },
+        {
+          "ref": "B3",
+          "kind": "value",
+          "value": "EUR"
+        },
+        {
+          "ref": "C3",
+          "kind": "value",
+          "value": "€"
+        },
+        {
+          "ref": "D3",
+          "kind": "value",
+          "value": "(EUR)                    Euro"
+        },
+        {
+          "ref": "F3",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"Afghan Afghani\")",
+          "lastCachedValue": "\"Afghan Afghani\""
+        },
+        {
+          "ref": "G3",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"AFN\")",
+          "lastCachedValue": "\"AFN\""
+        },
+        {
+          "ref": "I3",
+          "kind": "value",
+          "value": "ada"
+        },
+        {
+          "ref": "J3",
+          "kind": "value",
+          "value": 5.8786785
+        },
+        {
+          "ref": "A4",
+          "kind": "value",
+          "value": "Afghan Afghani"
+        },
+        {
+          "ref": "B4",
+          "kind": "value",
+          "value": "AFN"
+        },
+        {
+          "ref": "C4",
+          "kind": "value",
+          "value": "؋"
+        },
+        {
+          "ref": "D4",
+          "kind": "value",
+          "value": "(AFN)                    Afghan Afghani"
+        },
+        {
+          "ref": "F4",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"Albanian Lek\")",
+          "lastCachedValue": "\"Albanian Lek\""
+        },
+        {
+          "ref": "G4",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"ALL\")",
+          "lastCachedValue": "\"ALL\""
+        },
+        {
+          "ref": "I4",
+          "kind": "value",
+          "value": "aed"
+        },
+        {
+          "ref": "J4",
+          "kind": "value",
+          "value": 3.6725
+        },
+        {
+          "ref": "A5",
+          "kind": "value",
+          "value": "Albanian Lek"
+        },
+        {
+          "ref": "B5",
+          "kind": "value",
+          "value": "ALL"
+        },
+        {
+          "ref": "C5",
+          "kind": "value",
+          "value": "L"
+        },
+        {
+          "ref": "D5",
+          "kind": "value",
+          "value": "(ALL)                    Albanian Lek"
+        },
+        {
+          "ref": "F5",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"Algerian Dinar\")",
+          "lastCachedValue": "\"Algerian Dinar\""
+        },
+        {
+          "ref": "G5",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"DZD\")",
+          "lastCachedValue": "\"DZD\""
+        },
+        {
+          "ref": "I5",
+          "kind": "value",
+          "value": "afn"
+        },
+        {
+          "ref": "J5",
+          "kind": "value",
+          "value": 65.91758473
+        },
+        {
+          "ref": "A6",
+          "kind": "value",
+          "value": "Algerian Dinar"
+        },
+        {
+          "ref": "B6",
+          "kind": "value",
+          "value": "DZD"
+        },
+        {
+          "ref": "C6",
+          "kind": "value",
+          "value": "دج"
+        },
+        {
+          "ref": "D6",
+          "kind": "value",
+          "value": "(DZD)                    Algerian Dinar"
+        },
+        {
+          "ref": "F6",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"Algorand\")",
+          "lastCachedValue": "\"Algorand\""
+        },
+        {
+          "ref": "G6",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"ALGO\")",
+          "lastCachedValue": "\"ALGO\""
+        },
+        {
+          "ref": "I6",
+          "kind": "value",
+          "value": "agix"
+        },
+        {
+          "ref": "J6",
+          "kind": "value",
+          "value": 16.35728791
+        },
+        {
+          "ref": "A7",
+          "kind": "value",
+          "value": "Algorand"
+        },
+        {
+          "ref": "B7",
+          "kind": "value",
+          "value": "ALGO"
+        },
+        {
+          "ref": "C7",
+          "kind": "value",
+          "value": "ALGO"
+        },
+        {
+          "ref": "D7",
+          "kind": "value",
+          "value": "(ALGO)                    Algorand"
+        },
+        {
+          "ref": "F7",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"Angolan Kwanza\")",
+          "lastCachedValue": "\"Angolan Kwanza\""
+        },
+        {
+          "ref": "G7",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"AOA\")",
+          "lastCachedValue": "\"AOA\""
+        },
+        {
+          "ref": "I7",
+          "kind": "value",
+          "value": "akt"
+        },
+        {
+          "ref": "J7",
+          "kind": "value",
+          "value": 2.27317891
+        },
+        {
+          "ref": "A8",
+          "kind": "value",
+          "value": "Angolan Kwanza"
+        },
+        {
+          "ref": "B8",
+          "kind": "value",
+          "value": "AOA"
+        },
+        {
+          "ref": "C8",
+          "kind": "value",
+          "value": "Kz"
+        },
+        {
+          "ref": "D8",
+          "kind": "value",
+          "value": "(AOA)                    Angolan Kwanza"
+        },
+        {
+          "ref": "F8",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"Argentine Peso\")",
+          "lastCachedValue": "\"Argentine Peso\""
+        },
+        {
+          "ref": "G8",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"ARS\")",
+          "lastCachedValue": "\"ARS\""
+        },
+        {
+          "ref": "I8",
+          "kind": "value",
+          "value": "algo"
+        },
+        {
+          "ref": "J8",
+          "kind": "value",
+          "value": 12.57685618
+        },
+        {
+          "ref": "A9",
+          "kind": "value",
+          "value": "Argentine Peso"
+        },
+        {
+          "ref": "B9",
+          "kind": "value",
+          "value": "ARS"
+        },
+        {
+          "ref": "C9",
+          "kind": "value",
+          "value": "$"
+        },
+        {
+          "ref": "D9",
+          "kind": "value",
+          "value": "(ARS)                    Argentine Peso"
+        },
+        {
+          "ref": "F9",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"Armenian Dram\")",
+          "lastCachedValue": "\"Armenian Dram\""
+        },
+        {
+          "ref": "G9",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"AMD\")",
+          "lastCachedValue": "\"AMD\""
+        },
+        {
+          "ref": "I9",
+          "kind": "value",
+          "value": "all"
+        },
+        {
+          "ref": "J9",
+          "kind": "value",
+          "value": 81.18405552
+        },
+        {
+          "ref": "A10",
+          "kind": "value",
+          "value": "Armenian Dram"
+        },
+        {
+          "ref": "B10",
+          "kind": "value",
+          "value": "AMD"
+        },
+        {
+          "ref": "C10",
+          "kind": "value",
+          "value": "֏"
+        },
+        {
+          "ref": "D10",
+          "kind": "value",
+          "value": "(AMD)                    Armenian Dram"
+        },
+        {
+          "ref": "F10",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"Aruban or Dutch Guilder\")",
+          "lastCachedValue": "\"Aruban or Dutch Guilder\""
+        },
+        {
+          "ref": "G10",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"AWG\")",
+          "lastCachedValue": "\"AWG\""
+        },
+        {
+          "ref": "I10",
+          "kind": "value",
+          "value": "amd"
+        },
+        {
+          "ref": "J10",
+          "kind": "value",
+          "value": 365.69280193
+        },
+        {
+          "ref": "A11",
+          "kind": "value",
+          "value": "Aruban or Dutch Guilder"
+        },
+        {
+          "ref": "B11",
+          "kind": "value",
+          "value": "AWG"
+        },
+        {
+          "ref": "C11",
+          "kind": "value",
+          "value": "ƒ"
+        },
+        {
+          "ref": "D11",
+          "kind": "value",
+          "value": "(AWG)                    Aruban or Dutch Guilder"
+        },
+        {
+          "ref": "F11",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"Australian Dollar\")",
+          "lastCachedValue": "\"Australian Dollar\""
+        },
+        {
+          "ref": "G11",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"AUD\")",
+          "lastCachedValue": "\"AUD\""
+        },
+        {
+          "ref": "I11",
+          "kind": "value",
+          "value": "amp"
+        },
+        {
+          "ref": "J11",
+          "kind": "value",
+          "value": 2545.98103687
+        },
+        {
+          "ref": "A12",
+          "kind": "value",
+          "value": "Australian Dollar"
+        },
+        {
+          "ref": "B12",
+          "kind": "value",
+          "value": "AUD"
+        },
+        {
+          "ref": "C12",
+          "kind": "value",
+          "value": "$"
+        },
+        {
+          "ref": "D12",
+          "kind": "value",
+          "value": "(AUD)                    Australian Dollar"
+        },
+        {
+          "ref": "F12",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"Azerbaijan Manat\")",
+          "lastCachedValue": "\"Azerbaijan Manat\""
+        },
+        {
+          "ref": "G12",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"AZN\")",
+          "lastCachedValue": "\"AZN\""
+        },
+        {
+          "ref": "I12",
+          "kind": "value",
+          "value": "ang"
+        },
+        {
+          "ref": "J12",
+          "kind": "value",
+          "value": 1.79702303
+        }
+      ],
+      "dataValidations": [],
+      "conditionalFormatting": []
+    },
+    {
+      "name": "3D8DE36231C",
+      "state": "hidden",
+      "dimensions": "A1:F19",
+      "truncatedTo": null,
+      "cells": [
+        {
+          "ref": "A1",
+          "kind": "formula",
+          "formula": "=If(F1<>E1,\"⏳    \",) & \"Currency:\""
+        },
+        {
+          "ref": "B1",
+          "kind": "array-formula",
+          "spills": "B1:C1",
+          "formula": "={\"\",Currencies!A1}"
+        },
+        {
+          "ref": "C1",
+          "kind": "value",
+          "value": "Default"
+        },
+        {
+          "ref": "D1",
+          "kind": "array-formula",
+          "spills": "D1:E1",
+          "formula": "=If(D2,{SelectedMainCurrencyAbbr,SelectedMainCurrencySymbol},XLookup(C1,Currencies!A:A,Currencies!B:C))"
+        },
+        {
+          "ref": "E1",
+          "kind": "value",
+          "value": "$"
+        },
+        {
+          "ref": "F1",
+          "kind": "formula",
+          "formula": "RegExExtract(TO_TEXT(C3),\"^\\s*([^0-9\\s]+)\\s*\\d{1,3}(?:,\\d{3})*\\.\\d{2}\")",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"RegExExtract(TO_TEXT(C3),\"\"^\\s*([^0-9\\s]+)\\s*\\d{1,3}(?:,\\d{3})*\\.\\d{2}\"\")\"),\"$\")",
+          "lastCachedValue": "\"$\""
+        },
+        {
+          "ref": "A2",
+          "kind": "formula",
+          "formula": "=IF(IsError(B2),2,1)"
+        },
+        {
+          "ref": "B2",
+          "kind": "array-formula",
+          "spills": "B2:C2",
+          "formula": "={\n  \"\",\n  If(D2,1,IfError(1/XLookup(D1,Currencies!I:I,Currencies!J:J),Exchange_Rate(D1,SelectedMainCurrencyAbbr,Today())))\n}"
+        },
+        {
+          "ref": "C2",
+          "kind": "value",
+          "value": 1.0
+        },
+        {
+          "ref": "D2",
+          "kind": "formula",
+          "formula": "=C1=Currencies!A1"
+        },
+        {
+          "ref": "E2",
+          "kind": "value",
+          "value": 10.0
+        },
+        {
+          "ref": "F2",
+          "kind": "formula",
+          "formula": "=Not(SUBTOTAL(103, E2))"
+        },
+        {
+          "ref": "A3",
+          "kind": "value",
+          "value": "Total:"
+        },
+        {
+          "ref": "C3",
+          "kind": "formula",
+          "formula": "=Round(Sum(EXPENSESHEET_COL(C:C))+ E5 + E6 - E7,2)"
+        },
+        {
+          "ref": "F3",
+          "kind": "formula",
+          "formula": "OR(OR(ARRAYFORMULA(COUNTIF(Indirect(\"$A$8:$A\"),$A10:$A19)  >1)),OR(ARRAYFORMULA((((Not(IsBlank($A10:$A19)))*(IsBlank($C10:$C19)))>0))),OR(ARRAYFORMULA((((IsBlank($A10:$A19))*(Not(IsBlank($C10:$C19))))>0))),COUNTIF(INDIRECT(\"Currencies!F:F\"), C1) = 0,(((C4<>\"\")*(SUMPRODUCT(COUNTIF(INDIRECT(\"People!A2:A\"),TRIM(SPLIT(SUBSTITUTE(C4,\"\"\"\",\"\"),\",\")))=0)>0))>0))",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"OR(OR(ARRAYFORMULA(COUNTIF(Indirect(\"\"$A$8:$A\"\"),$A10:$A19)  >1)),OR(ARRAYFORMULA((((Not(IsBlank($A10:$A19)))*(IsBlank($C10:$C19)))>0))),OR(ARRAYFORMULA((((IsBlank($A10:$A19))*(Not(IsBlank($C10:$C19))))>0))),COUNTIF(INDIRECT(\"\"Currencies!F:F\"\"), C1) = 0,(\"&\"((C4<>\"\"\"\")*(SUMPRODUCT(COUNTIF(INDIRECT(\"\"People!A2:A\"\"),TRIM(SPLIT(SUBSTITUTE(C4,\"\"\"\"\"\"\"\",\"\"\"\"),\"\",\"\")))=0)>0))>0))\"),FALSE)",
+          "lastCachedValue": "FALSE"
+        },
+        {
+          "ref": "A4",
+          "kind": "value",
+          "value": "Paid By:"
+        },
+        {
+          "ref": "F4",
+          "kind": "formula",
+          "formula": "=CountA(A10:A100000004)"
+        },
+        {
+          "ref": "A5",
+          "kind": "formula",
+          "formula": "ArrayFormula(Let(n,Now(),textValue,TO_TEXT($C5:$C7),sumOfC,Sum(EXPENSESHEET_COL(C:C)),If(RegExMatch(textValue,\"^((\\s*\\d+(\\.\\d*)?\\s*)|(0%))$\"),\"⏳  \",) & {\"Tax: \";\"Tip:  \";\"Discount:  \"} & If(sumOfC=0,\"\",If($E5:$E7=0,\"\",\"(\"& If(REGEXMATCH(textValue, \"%\") ,Text($E5:$E7,\"\"\"\"& F1 & \"\"\"##0.00\"),Text(Round($E5:$E7/sumOfC,2),\"0.00%\"))&\")\"))))",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"ArrayFormula(Let(n,Now(),textValue,TO_TEXT($C5:$C7),sumOfC,Sum(EXPENSESHEET_COL(C:C)),If(RegExMatch(textValue,\"\"^((\\s*\\d+(\\.\\d*)?\\s*)|(0%))$\"\"),\"\"⏳  \"\",) & {\"\"Tax: \"\";\"\"Tip:  \"\";\"\"Discount:  \"\"} & If(sumOfC=0,\"\"\"\",If($E5:$E7=0,\"\"\"\",\"\"(\"\"& If(REGEXMATCH(te\"&\"xtValue, \"\"%\"\") ,Text($E5:$E7,\"\"\"\"\"\"\"\"& F1 & \"\"\"\"\"\"##0.00\"\"),Text(Round($E5:$E7/sumOfC,2),\"\"0.00%\"\"))&\"\")\"\"))))\"),\"Tax: \")",
+          "lastCachedValue": "\"Tax: \""
+        },
+        {
+          "ref": "B5",
+          "kind": "formula",
+          "formula": "={\"\",0}"
+        },
+        {
+          "ref": "C5",
+          "kind": "value",
+          "value": 0.0
+        },
+        {
+          "ref": "D5",
+          "kind": "array-formula",
+          "spills": "D5:D7",
+          "formula": "=E5:E7*$C$2"
+        },
+        {
+          "ref": "E5",
+          "kind": "formula",
+          "formula": "ARRAYFORMULA(LET(\n  n,Now(),\n  vals, $C5:$C6,\n  txt, TO_TEXT(vals),\n  total, SUM(EXPENSESHEET_COL(C:C)),\n    IF(REGEXMATCH(txt, \"%\"),\n       vals * total,\n       vals\n    )\n  )\n)",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"ARRAYFORMULA(LET(\n  n,Now(),\n  vals, $C5:$C6,\n  txt, TO_TEXT(vals),\n  total, SUM(EXPENSESHEET_COL(C:C)),\n    IF(REGEXMATCH(txt, \"\"%\"\"),\n       vals * total,\n       vals\n    )\n  )\n)\"),0.0)",
+          "lastCachedValue": "0.0"
+        },
+        {
+          "ref": "A6",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"Tip:  \")",
+          "lastCachedValue": "\"Tip:  \""
+        },
+        {
+          "ref": "B6",
+          "kind": "formula",
+          "formula": "={\"\",0}"
+        },
+        {
+          "ref": "C6",
+          "kind": "value",
+          "value": 0.0
+        },
+        {
+          "ref": "D6",
+          "kind": "value",
+          "value": 0.0
+        },
+        {
+          "ref": "E6",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),0.0)",
+          "lastCachedValue": "0.0"
+        },
+        {
+          "ref": "A7",
+          "kind": "formula",
+          "formula": "\"COMPUTED_VALUE\"",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"\"\"COMPUTED_VALUE\"\"\"),\"Discount:  \")",
+          "lastCachedValue": "\"Discount:  \""
+        },
+        {
+          "ref": "B7",
+          "kind": "formula",
+          "formula": "={\"\",0}"
+        },
+        {
+          "ref": "C7",
+          "kind": "value",
+          "value": 0.0
+        },
+        {
+          "ref": "D7",
+          "kind": "value",
+          "value": 0.0
+        },
+        {
+          "ref": "E7",
+          "kind": "formula",
+          "formula": "LET(\n  n,Now(),\n  val, $C7,\n  txt, TO_TEXT(val),\n  total, SUM(EXPENSESHEET_COL(C:C)),\n  amount,IF(REGEXMATCH(txt, \"%\"),\n       val * total,\n       val\n    ),\n   Min(total,amount)\n  )\n",
+          "exportedAs": "=IFERROR(__xludf.DUMMYFUNCTION(\"LET(\n  n,Now(),\n  val, $C7,\n  txt, TO_TEXT(val),\n  total, SUM(EXPENSESHEET_COL(C:C)),\n  amount,IF(REGEXMATCH(txt, \"\"%\"\"),\n       val * total,\n       val\n    ),\n   Min(total,amount)\n  )\n\"),0.0)",
+          "lastCachedValue": "0.0"
+        },
+        {
+          "ref": "A8",
+          "kind": "value",
+          "value": "Item"
+        },
+        {
+          "ref": "C8",
+          "kind": "value",
+          "value": "Amount"
+        },
+        {
+          "ref": "D9",
+          "kind": "array-formula",
+          "spills": "D9:D19",
+          "formula": "=If(IsBlank($C$9:$C19)+($C$9:$C19=0),,Let(itemSum,SUM($C$9:$C19),if(itemSum=0,0,(($D$5+$D$6 - MIN(itemSum,$D$7))/itemSum) * $C$9:$C19*$C$2)))"
+        },
+        {
+          "ref": "E9",
+          "kind": "array-formula",
+          "spills": "E9:E19",
+          "formula": "=If(IsBlank(C9:C19),,C9:C19*$C$2)"
+        }
+      ],
+      "dataValidations": [
+        "<dataValidation type=\"custom\" allowBlank=\"1\" showDropDown=\"1\" showErrorMessage=\"1\" sqref=\"C10:C19\"><formula1>AND(ISNUMBER($C10),$C10&gt;=0)</formula1></dataValidation>",
+        "<dataValidation type=\"custom\" allowBlank=\"1\" showDropDown=\"1\" showInputMessage=\"1\" showErrorMessage=\"1\" prompt=\"Invalid exchange rate. Enter a positive value, or exchange rate can only be 1\" sqref=\"C2\"><formula1>If(D2,C2=1,C2&gt;0)</formula1></dataValidation>",
+        "<dataValidation type=\"list\" allowBlank=\"1\" showErrorMessage=\"1\" sqref=\"C1\"><formula1>Currencies!$F:$F</formula1></dataValidation>",
+        "<dataValidation type=\"list\" allowBlank=\"1\" showInputMessage=\"1\" showErrorMessage=\"1\" prompt=\"Only names in the &quot;People&quot; sheet can be selected.\" sqref=\"C4\"><formula1>People!$A2:$A19</formula1></dataValidation>"
+      ],
+      "conditionalFormatting": [
+        "<conditionalFormatting sqref=\"A10:A19\"><cfRule type=\"expression\" dxfId=\"0\" priority=\"1\"><formula>COUNTIF(Indirect(&quot;$A$8:$A&quot;),$A10)  &gt;1</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"C10:C19\"><cfRule type=\"expression\" dxfId=\"0\" priority=\"2\"><formula>AND(Not(IsBlank($A10)), IsBlank($C10))</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"A10:A19\"><cfRule type=\"expression\" dxfId=\"1\" priority=\"3\"><formula>AND(CountA(Offset($A10,1,0,5000,2))&lt;&gt;0,IsBlank($A10))</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"C10:C19\"><cfRule type=\"expression\" dxfId=\"1\" priority=\"4\"><formula>AND(CountA(Offset($C10,1,-1,5000,2))&lt;&gt;0,IsBlank($C10))</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"A10:A19\"><cfRule type=\"expression\" dxfId=\"0\" priority=\"5\"><formula>AND(IsBlank($A10),Not(IsBlank($C10)))</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"C2\"><cfRule type=\"expression\" dxfId=\"2\" priority=\"6\"><formula>Not(IsError(B2))</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"C1\"><cfRule type=\"expression\" dxfId=\"3\" priority=\"7\"><formula>COUNTIF(INDIRECT(&quot;Currencies!F:F&quot;), C1) = 0</formula></cfRule></conditionalFormatting>",
+        "<conditionalFormatting sqref=\"C4\"><cfRule type=\"expression\" dxfId=\"0\" priority=\"8\"><formula>AND(C4&lt;&gt;&quot;&quot;,SUMPRODUCT(COUNTIF(INDIRECT(&quot;People!A2:A&quot;),TRIM(SPLIT(SUBSTITUTE(C4,&quot;&quot;&quot;&quot;,&quot;&quot;),&quot;,&quot;)))=0)&gt;0)</formula></cfRule></conditionalFormatting>"
+      ]
+    }
+  ],
+  "comments": {
+    "xl/comments1.xml": {
+      "H3": "<t xml:space=\"preserve\">is payer missing",
+      "I3": "<t xml:space=\"preserve\">Sheets were changed and aggregate formula needs to be updated. This causes an onEdit to raise as well, when sheets are deleted, otherwise, no event would be raised.",
+      "L4": "<t xml:space=\"preserve\">use only for conditional formatting, otherwise, use EXPAND_TO_LAST_NAME_COL"
+    },
+    "xl/comments2.xml": {
+      "B2": "<t xml:space=\"preserve\">Implements fallback mechanism, since sometimes the custom function in currencies sheet doesn't load correctly and gets stuck on Loading...",
+      "F4": "<t xml:space=\"preserve\">This serves to force trigger edit event on row deletion",
+      "F3": "<t xml:space=\"preserve\">If conditional formatting on any area are updated, uncomment the buildRedIndicator call in code to rebuild this formula based on them.",
+      "C5": "<t xml:space=\"preserve\">Entering amount, or % for Tax, Tip and Discount. Clear the cell to reset."
+    },
+    "xl/comments3.xml": {
+      "B2": "<t xml:space=\"preserve\">Implements fallback mechanism, since sometimes the custom function in currencies sheet doesn't load correctly and gets stuck on Loading...",
+      "F4": "<t xml:space=\"preserve\">This serves to force trigger edit event on row deletion",
+      "F3": "<t xml:space=\"preserve\">If conditional formatting on any area are updated, uncomment the buildRedIndicator call in code to rebuild this formula based on them.",
+      "C5": "<t xml:space=\"preserve\">Entering amount, or % for Tax, Tip and Discount. Clear the cell to reset."
+    }
+  }
+}

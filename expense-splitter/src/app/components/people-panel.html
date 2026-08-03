@@ -1,0 +1,70 @@
+<h2>People</h2>
+<p class="intro">
+  Everyone taking part in the split. The order here sets the column order on the Split tab.
+</p>
+
+@if (store.people().length) {
+  <ul>
+    @for (person of store.people(); track person.id; let i = $index, last = $last) {
+      <li>
+        <span class="index">{{ i + 1 }}</span>
+
+        <input
+          #nameInput
+          class="field"
+          type="text"
+          placeholder="Name"
+          [value]="person.name"
+          (input)="rename(person.id, $event)"
+          (keydown)="onNameKey($event, last)"
+          [attr.aria-label]="'Person ' + (i + 1) + ' name'"
+        />
+
+        <span
+          class="balance numeric"
+          [class.credit]="(balanceOf(person.id) ?? 0) < 0"
+          [title]="
+            (balanceOf(person.id) ?? 0) < 0 ? 'Is owed this much' : 'Still owes this much'
+          "
+        >
+          {{ balanceOf(person.id) | money: store.baseSymbol() }}
+        </span>
+
+        <span class="row-actions">
+          <button
+            class="btn ghost icon"
+            type="button"
+            title="Move up"
+            [disabled]="i === 0"
+            (click)="store.movePerson(person.id, -1)"
+          >
+            ↑
+          </button>
+          <button
+            class="btn ghost icon"
+            type="button"
+            title="Move down"
+            [disabled]="last"
+            (click)="store.movePerson(person.id, 1)"
+          >
+            ↓
+          </button>
+          <button
+            class="btn ghost icon"
+            type="button"
+            title="Remove this person and all their shares"
+            (click)="store.removePerson(person.id)"
+          >
+            ✕
+          </button>
+        </span>
+      </li>
+    }
+  </ul>
+} @else {
+  <div class="card empty">No one here yet. Add the people sharing these costs.</div>
+}
+
+<div class="toolbar">
+  <button class="btn primary" type="button" (click)="addPerson()">Add person</button>
+</div>

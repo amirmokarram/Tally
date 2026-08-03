@@ -1,0 +1,51 @@
+<input
+  class="picker-input"
+  type="text"
+  role="combobox"
+  autocomplete="off"
+  autocapitalize="off"
+  spellcheck="false"
+  aria-autocomplete="list"
+  [attr.aria-label]="label()"
+  [attr.aria-expanded]="open()"
+  [attr.aria-controls]="listId"
+  [attr.aria-activedescendant]="open() && matches().length ? optionId(activeIndex()) : null"
+  [value]="open() ? query() : displayLabel()"
+  [attr.placeholder]="open() ? displayLabel() : null"
+  (mousedown)="openList()"
+  (focus)="openList()"
+  (blur)="close()"
+  (input)="onInput($event)"
+  (keydown)="onKeydown($event)"
+/>
+
+@if (open()) {
+  <!--
+    Blocking mousedown keeps focus in the box, so the blur that would otherwise
+    close the list before the click lands never happens.
+  -->
+  <ul class="picker-list" role="listbox" [id]="listId" (mousedown)="$event.preventDefault()">
+    @for (option of matches(); track option.code; let i = $index) {
+      <li
+        #optionEl
+        class="picker-option"
+        role="option"
+        [id]="optionId(i)"
+        [class.active]="i === activeIndex()"
+        [class.selected]="option.code === value()"
+        [attr.aria-selected]="option.code === value()"
+        (mousemove)="activeIndex.set(i)"
+        (click)="choose(option)"
+      >
+        @if (option.code === DEFAULT_CURRENCY) {
+          <span class="name">{{ option.label }}</span>
+        } @else {
+          <span class="code">{{ option.code }}</span>
+          <span class="name">{{ option.name }}</span>
+        }
+      </li>
+    } @empty {
+      <li class="picker-empty">No currency matches “{{ query().trim() }}”.</li>
+    }
+  </ul>
+}

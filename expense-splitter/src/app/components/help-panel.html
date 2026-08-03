@@ -1,0 +1,193 @@
+<h2>How this works</h2>
+
+<section>
+  <p>
+    Splitting costs between friends is rarely an even divide: one person books the flights,
+    another covers dinner, and nobody ate the same number of pizza slices. This app records
+    what was bought and who benefited, then works out the smallest set of payments that makes
+    everyone square.
+  </p>
+
+  <h4>The five steps</h4>
+  <ol>
+    <li><strong>People</strong> — list everyone taking part.</li>
+    <li>
+      <strong>Expenses</strong> — one sheet per check or category. Enter the lines, plus any
+      tax, tip or discount.
+    </li>
+    <li>
+      <strong>Paid by</strong> — say who covered each sheet, or record payments line by line
+      on the Split tab.
+    </li>
+    <li><strong>Split</strong> — say how much of each line each person is on the hook for.</li>
+    <li><strong>Settle up</strong> — read off who pays whom.</li>
+  </ol>
+</section>
+
+<section>
+  <h3>Share ratios</h3>
+  <p>
+    Share values are <em>relative</em>, not amounts. Within a row they only mean something
+    compared to each other, so the app never asks you to do arithmetic.
+  </p>
+  <ul>
+    <li><code>1 1 1</code> — three people split a line evenly.</li>
+    <li><code>2 2</code> — also an even split. The ratio is what counts, not the size.</li>
+    <li><code>1 3 4</code> — an 8-slice pizza where one had 1 slice, another 3, the last 4.</li>
+    <li>Leave a cell empty for anyone who did not benefit from that line.</li>
+  </ul>
+  <p>
+    Tax, tip and discount are spread across the lines of their sheet in proportion to price,
+    then follow the same share ratios.
+  </p>
+
+  <h4>Recording who paid</h4>
+  <p>There are two ways, and you would normally use whichever fits the receipt:</p>
+  <ul>
+    <li>
+      <strong>Per sheet</strong> — tick people under <em>Paid by</em> on the Expenses tab. They
+      cover that whole sheet, split equally between them. This is the usual case: one person
+      hands over a card for the whole check.
+    </li>
+    <li>
+      <strong>Per line</strong> — use the decimal part of a split cell. <code>1.2</code> means
+      "owes one share, and already paid two shares' worth". That covers a camping trip where
+      everyone brought something different.
+    </li>
+  </ul>
+  <div class="callout">
+    The two cannot be mixed on the same sheet — if a sheet declares payers, its per-line
+    payments are ignored and the app says so. And once <em>anyone</em> is recorded as paying,
+    every priced line needs a payer, otherwise the balances silently understate what is owed.
+  </div>
+</section>
+
+<section>
+  <h3>Reading the balances</h3>
+  <p>
+    The row above the names is what each person's card should be charged. A figure in
+    parentheses and red means the opposite: that person is <em>owed</em> money.
+  </p>
+  <ul>
+    <li>
+      When nobody is marked as paying, the balances simply add up to the trip total — this is
+      the "split the check" case.
+    </li>
+    <li>
+      When payers are recorded, the balances net to zero: every debt has a matching credit.
+    </li>
+  </ul>
+
+  <h4>Settlement groups</h4>
+  <p>
+    Usually the simplest way to settle is for everyone to pay whoever is owed the most, and
+    for that person to pay the rest. Sometimes the balances break into independent subsets
+    that can each settle among themselves, which needs fewer payments. When that happens the
+    app colours each group with a dot and lists the payments separately.
+  </p>
+
+  <h4>The odd cent</h4>
+  <p>
+    Rounding each person's balance to the nearest cent can leave the column a cent or two off
+    the total. The app nudges as many people as needed by ±0.01 so the figures always
+    reconcile exactly.
+  </p>
+</section>
+
+<section>
+  <h3>Different currencies</h3>
+  <p>
+    Each expense sheet can keep its own currency while the split happens in the trip's base
+    currency. Both currency boxes can be typed into — “forint”, “huf” or “hungarian” all
+    find the same one. Pick a currency on the Expenses tab and a rate appears:
+  </p>
+  <ul>
+    <li>Leave it alone to use the built-in rate.</li>
+    <li>Type your own to pin it — useful when you know what the card actually charged.</li>
+    <li>Clear the box to go back to the built-in rate.</li>
+  </ul>
+  <p class="muted" style="font-size: 13px">
+    Rates are a fixed snapshot bundled with the app, not a live feed.
+  </p>
+</section>
+
+<section>
+  <h3>Worked examples</h3>
+  <p>
+    These are the scenarios from the original guide, with the real numbers. Loading one
+    replaces whatever is currently entered.
+  </p>
+  <div class="samples">
+    @for (sample of store.samples; track sample.id) {
+      <div class="card sample">
+        <span class="text">
+          <span class="title">{{ sample.title }}</span>
+          <span class="blurb">{{ sample.blurb }}</span>
+        </span>
+        <button class="btn" type="button" (click)="load(sample.id)">Load</button>
+      </div>
+    }
+  </div>
+</section>
+
+<section>
+  <h3>Keeping several splits</h3>
+  <p>
+    The <strong>Splits</strong> tab lists everything you have saved, most recently edited
+    first — a trip, last week's dinner, the flat's bills. Open one to work on it; the others
+    are left exactly as they were.
+  </p>
+  <ul>
+    <li><strong>New split</strong> starts an empty one.</li>
+    <li><strong>Duplicate</strong> copies a split, which is handy when the same people split
+      costs the same way every month.</li>
+    <li><strong>Delete</strong> removes one for good. Deleting your last split leaves a fresh
+      empty one, so there is always something to work on.</li>
+  </ul>
+  <p>
+    Once the list grows, the search box narrows it. It looks at more than the name — the
+    people, the expense sheets and the items are all searchable, so “sarah”, “peruvian” or
+    “plane tickets” each find the right split even when it is still called
+    <em>New Split</em>. Several words narrow further, and each result says what it matched.
+  </p>
+  <p>
+    <strong>Sort by</strong> reorders the list: by when you last worked on a split, when you
+    added it, its name, or its total. The choice is remembered, and applies to search results
+    too.
+  </p>
+</section>
+
+<section>
+  <h3>Where the data lives</h3>
+  <p>
+    In this browser, on this device. Splits are saved as you type, so closing the tab or
+    reloading picks up where you left off. Nothing is sent anywhere — there is no account and
+    no server.
+  </p>
+  <p>Two consequences worth knowing:</p>
+  <ul>
+    <li>
+      Another device, another browser, or a private window will not see these splits. There
+      is no sharing yet.
+    </li>
+    <li>Clearing your browsing data clears them too.</li>
+  </ul>
+  <p>
+    If you have the app open in more than one tab, they stay in step, and each tab remembers
+    which split <em>it</em> was showing — you can keep two splits open side by side. Should
+    you happen to be editing the same split in two tabs at once, the app asks which version
+    to keep rather than picking for you.
+  </p>
+
+  <h4>Moving splits somewhere else</h4>
+  <p>
+    <strong>Export</strong> downloads a split as a JSON file: people, every expense sheet,
+    every share. <strong>Export all</strong> on the Splits tab puts the whole library in one
+    file. Either is the way to keep a backup, move splits to another device, or send one to
+    somebody who can open it with <strong>Import</strong>.
+  </p>
+  <div class="callout">
+    Importing <em>adds</em> to your splits — it never overwrites what is already saved. A file
+    imported twice gives you two independent copies.
+  </div>
+</section>

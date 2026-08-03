@@ -1,0 +1,175 @@
+<header class="topbar" [class.menu-open]="menuOpen()">
+  <div class="topbar-inner">
+    <div class="identity">
+      <input
+        class="title-input"
+        type="text"
+        placeholder="Name this split"
+        aria-label="Split title"
+        [value]="store.title()"
+        (input)="onTitle($event)"
+      />
+
+      <app-currency-picker
+        class="currency-select dark"
+        label="Base currency"
+        [value]="store.baseCurrency()"
+        (changed)="store.setBaseCurrency($event)"
+      />
+
+      <span class="total">
+        <span class="label">Total</span><br />
+        <span class="value">{{ store.grandTotal() | money: store.baseSymbol() }}</span>
+      </span>
+
+      <!--
+        Outside `.actions`: on a phone that whole group is hidden until the menu
+        is opened, and an input inside a `display: none` subtree is a fragile
+        thing to call `.click()` on.
+      -->
+      <input
+        #importInput
+        class="visually-hidden"
+        type="file"
+        accept="application/json,.json"
+        aria-label="Import splits from a JSON file"
+        (change)="importFile($event)"
+      />
+
+      <span class="actions">
+        <button
+          class="btn reset"
+          type="button"
+          title="Download this split as a JSON file"
+          (click)="exportActive()"
+        >
+          Export
+        </button>
+        <button class="btn reset" type="button" (click)="newSplit()">New split</button>
+      </span>
+
+      <!--
+        Phones only — the six tabs need two lines there, and the identity row
+        three. Everything but the title and the total folds behind this.
+      -->
+      <button
+        class="menu-toggle"
+        type="button"
+        aria-controls="topbar-menu"
+        aria-haspopup="menu"
+        [attr.aria-label]="menuOpen() ? 'Close menu' : 'Menu'"
+        [attr.aria-expanded]="menuOpen()"
+        (click)="toggleMenu()"
+      >
+        <span aria-hidden="true">{{ menuOpen() ? '✕' : '☰' }}</span>
+        <!-- The Split tab's badge is folded away with it; this stands in. -->
+        @if (errorCount() && !menuOpen()) {
+          <span class="badge">{{ errorCount() }}</span>
+        }
+      </button>
+    </div>
+
+    <nav class="tabs" id="topbar-menu">
+      @for (t of tabs; track t.id) {
+        <button
+          class="tab"
+          type="button"
+          [class.active]="tab() === t.id"
+          (click)="select(t.id)"
+        >
+          {{ t.label }}
+          @if (t.id === 'split' && errorCount()) {
+            <span class="badge">{{ errorCount() }}</span>
+          }
+        </button>
+      }
+    </nav>
+  </div>
+</header>
+
+@if (store.primaryIssue(); as issue) {
+  <div class="alert" [class.warning]="issue.severity === 'warning'" role="status">
+    {{ issue.message }}
+  </div>
+}
+
+<main>
+  @switch (tab()) {
+    @case ('splits') {
+      <app-splits-panel
+        (opened)="select('split')"
+        (exportRequested)="exportSplits([$event])"
+        (exportAllRequested)="exportAll()"
+        (importRequested)="importInput.click()"
+      />
+    }
+    @case ('people') {
+      <app-people-panel />
+    }
+    @case ('expenses') {
+      <app-expenses-panel />
+    }
+    @case ('split') {
+      <app-split-grid />
+    }
+    @case ('settle') {
+      <app-settle-panel />
+    }
+    @case ('help') {
+      <app-help-panel />
+    }
+  }
+</main>
+
+@if (store.saveFailed()) {
+  <div class="alert warning" role="status">
+    Changes could not be saved — browser storage is full or unavailable. This split will be
+    lost if you reload.
+  </div>
+}
+
+@if (importError(); as message) {
+  <div class="alert conflict with-actions" role="alert">
+    <span>{{ message }}</span>
+    <span class="alert-actions">
+      <button class="btn" type="button" (click)="dismissImportError()">Dismiss</button>
+    </span>
+  </div>
+} @else if (importNotice(); as message) {
+  <div class="alert info with-actions" role="status">
+    <span>{{ message }}</span>
+    <span class="alert-actions">
+      <button class="btn" type="button" (click)="dismissImportNotice()">Dismiss</button>
+    </span>
+  </div>
+}
+
+@if (store.pendingRemote()) {
+  <div class="alert conflict with-actions" role="alertdialog" aria-label="Conflicting change">
+    <span>
+      This split was changed in another tab while you were editing here. Keeping both is not
+      possible — choose which version to continue with.
+    </span>
+    <span class="alert-actions">
+      <button class="btn" type="button" (click)="store.acceptRemoteChange()">
+        Use the other tab's
+      </button>
+      <button class="btn primary" type="button" (click)="store.keepLocalVersion()">
+        Keep this one
+      </button>
+    </span>
+  </div>
+} @else if (store.syncedFromOtherTab()) {
+  <div class="alert info" role="status">Updated with a change made in another tab.</div>
+}
+
+<footer>
+  @if (store.saveFailed()) {
+    Saving is currently failing.
+  } @else if (store.persistenceAvailable) {
+    Saved automatically in this browser.
+  } @else {
+    This browser will not let the app save, so the split will be lost on reload.
+  }
+  Exchange rates are a bundled snapshot.
+</footer>

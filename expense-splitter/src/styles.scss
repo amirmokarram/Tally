@@ -1,0 +1,191 @@
+/* Global design tokens and base styles.
+   The palette echoes the original spreadsheet's navy headers and pale blue
+   banding, so the app still feels like the thing it replaces. */
+
+:root {
+  --navy-900: #14355f;
+  --navy-800: #1b4681;
+  --navy-700: #2b5ea6;
+  --navy-100: #dbe6f5;
+  --navy-050: #eef4fc;
+
+  --bg: #f4f6fa;
+  --surface: #ffffff;
+  --surface-alt: #f8fafd;
+  --border: #d8dfea;
+  --border-strong: #b6c2d6;
+
+  --text: #16233a;
+  --text-muted: #5c6b83;
+  --text-invert: #ffffff;
+
+  --credit: #b3261e;
+  --credit-bg: #fdecea;
+  --paid-bg: #e2f4ef;
+  --warn: #8a5a00;
+  --warn-bg: #fdf3dc;
+
+  /* Settlement group colours — the workbook had seven. */
+  --group-1: #6b1f4d;
+  --group-2: #8a5314;
+  --group-3: #1f5f4f;
+  --group-4: #3d3a86;
+  --group-5: #7a1f1f;
+  --group-6: #2c5f7a;
+  --group-7: #5b6b1f;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow: 0 1px 2px rgb(20 53 95 / 8%), 0 4px 16px rgb(20 53 95 / 6%);
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+/* --- Reusable primitives ------------------------------------------------ */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 550;
+  transition: background 0.12s, border-color 0.12s;
+
+  &:hover:not(:disabled) {
+    background: var(--navy-050);
+    border-color: var(--navy-700);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  &.primary {
+    background: var(--navy-800);
+    border-color: var(--navy-800);
+    color: var(--text-invert);
+
+    &:hover:not(:disabled) {
+      background: var(--navy-700);
+      border-color: var(--navy-700);
+    }
+  }
+
+  &.ghost {
+    border-color: transparent;
+    background: transparent;
+    color: var(--text-muted);
+
+    &:hover:not(:disabled) {
+      background: var(--navy-050);
+      color: var(--navy-800);
+    }
+  }
+
+  &.icon {
+    padding: 4px 7px;
+    font-size: 13px;
+    line-height: 1;
+  }
+}
+
+.field {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+
+  &:focus {
+    outline: 2px solid var(--navy-700);
+    outline-offset: -1px;
+  }
+
+  &.numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &.invalid {
+    border-color: var(--credit);
+    background: var(--credit-bg);
+  }
+
+  /* Under 16px, iOS zooms the whole page in when a field takes focus, and
+     never zooms back out. */
+  @media (max-width: 640px) {
+    font-size: 16px;
+  }
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+.credit {
+  color: var(--credit);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

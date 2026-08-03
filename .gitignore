@@ -1,0 +1,10 @@
+# Claude Code local overrides — machine-specific, not shared.
+.claude/settings.local.json
+
+# Python bytecode from tools/
+__pycache__/
+*.pyc
+
+# System files
+.DS_Store
+Thumbs.db

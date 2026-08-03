@@ -1,0 +1,89 @@
+<h2>Settle up</h2>
+
+<div class="summary">
+  <div class="card stat">
+    <div class="label">Trip total</div>
+    <div class="value">{{ store.grandTotal() | money: store.baseSymbol() }}</div>
+  </div>
+  <div class="card stat">
+    <div class="label">People</div>
+    <div class="value">{{ store.people().length }}</div>
+  </div>
+  <div class="card stat">
+    <div class="label">Payments needed</div>
+    <div class="value">{{ transfers().length }}</div>
+  </div>
+</div>
+
+<section>
+  <h3>Balances</h3>
+  @if (store.balances().length) {
+    <ul>
+      @for (balance of store.balances(); track balance.personId) {
+        <li>
+          <span class="group-dot" [style.background]="groupColor(balance.group)"></span>
+          <span class="who">{{ balance.name || 'Unnamed' }}</span>
+          <span class="muted">
+            @if (balance.balance > 0) {
+              owes
+            } @else if (balance.balance < 0) {
+              is owed
+            } @else {
+              settled
+            }
+          </span>
+          <span class="amount" [class.credit]="balance.balance < 0">
+            {{ balance.balance | money: store.baseSymbol() }}
+          </span>
+        </li>
+      }
+    </ul>
+    @if (store.groupCount() > 1) {
+      <p class="note">
+        These balances break into {{ store.groupCount() }} independent groups (shown by the
+        coloured dots). Settling within each group needs fewer payments than routing
+        everything through one person.
+      </p>
+    }
+  } @else {
+    <div class="card settled">Nothing to settle yet.</div>
+  }
+</section>
+
+<section>
+  <h3>Who pays whom</h3>
+  @if (blocked().length) {
+    <div class="blocked">
+      <strong>Not ready yet.</strong>
+      <ul style="margin: 8px 0 0; padding-left: 18px; list-style: disc; border: none">
+        @for (issue of blocked(); track $index) {
+          <li style="padding: 2px 0; background: none; display: list-item">
+            {{ issue.message }}
+          </li>
+        }
+      </ul>
+    </div>
+  } @else if (transfers().length) {
+    <ul>
+      @for (transfer of transfers(); track $index) {
+        <li>
+          <span class="group-dot" [style.background]="groupColor(transfer.group)"></span>
+          <span class="who">
+            {{ transfer.fromName }} <span class="arrow">→</span> {{ transfer.toName }}
+          </span>
+          <span class="amount">{{ transfer.amount | money: store.baseSymbol() }}</span>
+        </li>
+      }
+    </ul>
+    <p class="note">
+      {{ transfers().length }}
+      {{ transfers().length === 1 ? 'payment' : 'payments' }} clears everything.
+      @if (baselineTransfers() > transfers().length) {
+        Routing every payment through a single person would have taken
+        {{ baselineTransfers() }}.
+      }
+    </p>
+  } @else {
+    <div class="card settled">Everyone is square — no payments needed.</div>
+  }
+</section>

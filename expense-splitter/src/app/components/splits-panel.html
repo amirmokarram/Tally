@@ -1,0 +1,135 @@
+<h2>Splits</h2>
+<p class="intro">
+  Every split saved in this browser, most recently edited first. Open one to work on it.
+</p>
+
+<div class="toolbar">
+  <button class="btn primary" type="button" (click)="store.createSplit(); opened.emit('')">
+    New split
+  </button>
+  <button class="btn" type="button" (click)="importRequested.emit()">Import from file…</button>
+  <button
+    class="btn"
+    type="button"
+    [disabled]="total() < 2"
+    title="Download every saved split as one file"
+    (click)="exportAllRequested.emit()"
+  >
+    Export all
+  </button>
+</div>
+
+@if (showSearch()) {
+  <div class="search">
+    <span class="search-box">
+      <input
+        class="field"
+        type="search"
+        placeholder="Search by name, person, sheet or item…"
+        aria-label="Search splits"
+        [value]="query()"
+        (input)="onQuery($event)"
+        (keydown.escape)="clearQuery()"
+      />
+      @if (isFiltering()) {
+        <button class="search-clear" type="button" aria-label="Clear search" (click)="clearQuery()">
+          ✕
+        </button>
+      }
+    </span>
+
+    @if (isFiltering()) {
+      <span class="result-count" role="status">
+        {{ rows().length }} of {{ total() }}
+      </span>
+    }
+
+    <label class="sort">
+      Sort by
+      <!--
+        `[selected]` per option rather than `[value]` on the select: the value
+        binding is applied before @for has rendered the options, so it matches
+        nothing and the select silently falls back to showing the first one.
+      -->
+      <select class="field" (change)="onSort($event)">
+        @for (option of sortOptions; track option.id) {
+          <option [value]="option.id" [selected]="option.id === sortOrder()">
+            {{ option.label }}
+          </option>
+        }
+      </select>
+    </label>
+  </div>
+}
+
+@if (rows().length) {
+  <ul>
+    @for (row of rows(); track row.split.id) {
+      <li class="card" [class.active]="row.isActive">
+        <div>
+          <div class="title">
+            {{ row.split.trip.title || 'Untitled split' }}
+            @if (row.isActive) {
+              <span class="badge-current">Open</span>
+            }
+          </div>
+          <div class="meta">
+            <span class="total">{{ row.total | money: row.symbol }}</span>
+            <span>·</span>
+            <span>{{ row.people }} {{ row.people === 1 ? 'person' : 'people' }}</span>
+            <span>·</span>
+            <span>{{ row.items }} {{ row.items === 1 ? 'item' : 'items' }}</span>
+            <span>·</span>
+            <span>edited {{ row.updated }}</span>
+          </div>
+
+          @if (row.reasons.length) {
+            <div class="reasons">
+              <span>matched</span>
+              @for (reason of row.reasons.slice(0, 4); track $index) {
+                <span class="reason">
+                  <span class="kind">{{ reason.kind }}</span>{{ reason.label }}
+                </span>
+              }
+              @if (row.reasons.length > 4) {
+                <span>+{{ row.reasons.length - 4 }} more</span>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="row-actions">
+          @if (!row.isActive) {
+            <button class="btn" type="button" (click)="open(row.split.id)">Open</button>
+          }
+          <button
+            class="btn ghost"
+            type="button"
+            title="Download this split as a JSON file"
+            (click)="exportRequested.emit(row.split)"
+          >
+            Export
+          </button>
+          <button class="btn ghost" type="button" (click)="duplicate(row.split.id)">
+            Duplicate
+          </button>
+          <button
+            class="btn ghost"
+            type="button"
+            title="Delete this split"
+            (click)="remove(row)"
+          >
+            Delete
+          </button>
+        </div>
+      </li>
+    }
+  </ul>
+} @else if (isFiltering()) {
+  <div class="card empty">
+    <p style="margin: 0 0 12px">Nothing matches “{{ query().trim() }}”.</p>
+    <button class="btn" type="button" (click)="clearQuery()">Clear search</button>
+  </div>
+} @else {
+  <div class="card empty">No splits saved yet.</div>
+}

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "expense-splitter",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "expense-splitter", "start"],
+      "port": 4200
+    }
+  ]
+}
