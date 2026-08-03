@@ -1,7 +1,7 @@
 # Spreadsheet formula reference
 
 Every formula, named range, validation rule and conditional format in
-`Expenses.xlsx`, with what it does and where the equivalent lives in the app.
+`Expenses.xlsx`, with what it does and where the equivalent lives in **Tally**.
 
 The complete machine-readable dump is
 [`workbook-export.json`](workbook-export.json), regenerated with:

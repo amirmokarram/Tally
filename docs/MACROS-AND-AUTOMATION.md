@@ -1,5 +1,10 @@
 # Macros and automation
 
+What the spreadsheet's automation layer did, reconstructed from the traces it
+left behind, and what became of each responsibility in **Tally**.
+
+---
+
 ## 1. There are no macros in the file
 
 `Expenses.xlsx` contains **no VBA**. There is no `xl/vbaProject.bin`, and the

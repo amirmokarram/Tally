@@ -1,7 +1,7 @@
 # Business rules
 
 What the Split Spreadsheet actually does, stated independently of how it was
-built. This is the specification the Angular app implements; every rule below is
+built. This is the specification **Tally** implements; every rule below is
 traceable to a formula in [SPREADSHEET-FORMULAS.md](SPREADSHEET-FORMULAS.md) and
 to code in `tally/src/app/core/`.
 

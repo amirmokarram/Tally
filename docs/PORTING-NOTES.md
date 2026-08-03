@@ -1,7 +1,7 @@
 # Porting notes
 
-Where the app deliberately differs from the spreadsheet, and why. Everything not
-listed here is a faithful port — the four worked examples from the original
+Where **Tally** deliberately differs from the spreadsheet, and why. Everything
+not listed here is a faithful port — the four worked examples from the original
 guide are asserted to the cent in `split-engine.spec.ts`.
 
 ---
