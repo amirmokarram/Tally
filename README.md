@@ -9,7 +9,7 @@ who actually paid. It turns those two facts into the shortest list of payments
 that leaves everybody square.
 
 ```bash
-cd tally
+cd web
 npm install
 npm start          # http://localhost:4200
 npm test           # engine + component tests
@@ -19,15 +19,15 @@ npm run build
 ## Layout
 
 ```
-tally/                     Angular 20 application
+web/                       Angular 20 application
   src/app/models/          Trip, Person, ExpenseSheet, Item, Share, SavedSplit
   src/app/core/            calculation engine, settlement, validation, store,
                            storage, multi-tab sync, file import/export
   src/app/data/            currency catalogue + rate snapshot, worked examples
   src/app/components/      Splits, People, Expenses, Split, Settle up, Help
 docs/                      reverse-engineering and specification — start here
+reference/                 the original workbook and its user guide
 tools/export_workbook.py   dumps the source workbook to JSON
-Expenses.xlsx, Help.pdf    the originals
 ```
 
 ## The model in one page
@@ -108,7 +108,7 @@ asserted against its published figures — sheet totals, per-person balances,
 settlement groups and payment counts:
 
 ```bash
-cd tally && npm test
+cd web && npm test
 ```
 
 They are also loadable from the app's **Help** tab.

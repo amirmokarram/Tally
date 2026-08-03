@@ -8,7 +8,7 @@ This script extracts all of them so the rules can be reviewed and diffed
 rather than clicked through.
 
 Usage:
-    python tools/export_workbook.py Expenses.xlsx docs/workbook-export.json
+    python tools/export_workbook.py reference/Expenses.xlsx docs/workbook-export.json
 """
 
 from __future__ import annotations

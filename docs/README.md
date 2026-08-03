@@ -16,7 +16,7 @@ Read in this order:
 | [SPREADSHEET-FORMULAS.md](SPREADSHEET-FORMULAS.md) | Every formula, named range, LAMBDA, validation rule, conditional format and developer comment in the workbook — recovered, explained, and mapped to the code that replaces it. |
 | [MACROS-AND-AUTOMATION.md](MACROS-AND-AUTOMATION.md) | The Apps Script layer: what it did, reconstructed from the traces it left, and what happened to each responsibility. |
 | [PORTING-NOTES.md](PORTING-NOTES.md) | Every deliberate difference between the app and the spreadsheet, with the reasoning. §10 covers persistence. |
-| [workbook-export.json](workbook-export.json) | Machine-readable dump of the whole workbook. Regenerate with `python tools/export_workbook.py Expenses.xlsx docs/workbook-export.json`. |
+| [workbook-export.json](workbook-export.json) | Machine-readable dump of the whole workbook. Regenerate with `python tools/export_workbook.py reference/Expenses.xlsx docs/workbook-export.json`. |
 
 ## Two things worth knowing up front
 
@@ -36,11 +36,11 @@ strings. `tools/export_workbook.py` unwraps them.
 ## Verification
 
 The four worked examples from the original user guide are encoded as data in
-`tally/src/app/data/sample-trips.ts` and asserted against the guide's
-published figures in `tally/src/app/core/split-engine.spec.ts`:
+`web/src/app/data/sample-trips.ts` and asserted against the guide's
+published figures in `web/src/app/core/split-engine.spec.ts`:
 
 ```bash
-cd tally && npm test
+cd web && npm test
 ```
 
 They are loadable from the app's Help tab, so any explanation in these documents

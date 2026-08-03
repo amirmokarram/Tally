@@ -7,7 +7,7 @@ The complete machine-readable dump is
 [`workbook-export.json`](workbook-export.json), regenerated with:
 
 ```bash
-python tools/export_workbook.py Expenses.xlsx docs/workbook-export.json
+python tools/export_workbook.py reference/Expenses.xlsx docs/workbook-export.json
 ```
 
 > **A note on the export.** The file is a Google Sheets workbook saved as

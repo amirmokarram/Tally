@@ -4,7 +4,7 @@
     {
       "name": "tally",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "tally", "start"],
+      "runtimeArgs": ["--prefix", "web", "start"],
       "port": 4200
     }
   ]
