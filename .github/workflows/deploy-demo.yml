@@ -1,0 +1,66 @@
+# Builds the app and publishes it to GitHub Pages as a live demo.
+#
+# The tests run first and the deploy needs them: a broken demo is worse than a
+# stale one, and this is the only place the app is visible to anyone but its
+# author.
+name: Deploy demo
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Two pushes in quick succession should publish the later one, not race.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      - name: Test
+        run: npx ng test --watch=false --browsers=ChromeHeadless
+
+      # Pages serves this repo from /Tally/, but index.html declares
+      # `<base href="/">`. Without the override every asset 404s and the page
+      # comes up blank.
+      - name: Build
+        run: npm run build -- --base-href /Tally/
+
+      # Path is relative to the workspace, not the `working-directory` above —
+      # that only applies to `run` steps. The folder is named for the Angular
+      # project (tally), which is not the folder it lives in (web).
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: web/dist/tally/browser
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5
