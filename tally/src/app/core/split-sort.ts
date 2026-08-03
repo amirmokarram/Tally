@@ -108,7 +108,10 @@ export function sortSplits<T extends SortableSplit>(
 
 // --- Remembering the choice ---------------------------------------------
 
-export const SORT_ORDER_KEY = 'split-expenses.sort';
+export const SORT_ORDER_KEY = 'tally.sort';
+
+/** The same preference, under the pre-rename name. Read, never written. */
+export const PRE_RENAME_SORT_ORDER_KEY = 'split-expenses.sort';
 
 /**
  * How the list is ordered is a durable preference rather than a per-tab
@@ -117,7 +120,8 @@ export const SORT_ORDER_KEY = 'split-expenses.sort';
  */
 export function readSortOrder(storage: Storage | null): SplitSortOrder {
   try {
-    const stored = storage?.getItem(SORT_ORDER_KEY);
+    const stored =
+      storage?.getItem(SORT_ORDER_KEY) ?? storage?.getItem(PRE_RENAME_SORT_ORDER_KEY);
     return SPLIT_SORT_OPTIONS.some((option) => option.id === stored)
       ? (stored as SplitSortOrder)
       : DEFAULT_SORT_ORDER;

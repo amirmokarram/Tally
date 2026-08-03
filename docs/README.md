@@ -31,11 +31,11 @@ strings. `tools/export_workbook.py` unwraps them.
 ## Verification
 
 The four worked examples from the original user guide are encoded as data in
-`expense-splitter/src/app/data/sample-trips.ts` and asserted against the guide's
-published figures in `expense-splitter/src/app/core/split-engine.spec.ts`:
+`tally/src/app/data/sample-trips.ts` and asserted against the guide's
+published figures in `tally/src/app/core/split-engine.spec.ts`:
 
 ```bash
-cd expense-splitter && npm test
+cd tally && npm test
 ```
 
 They are loadable from the app's Help tab, so any explanation in these documents

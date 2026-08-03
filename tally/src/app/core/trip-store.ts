@@ -49,6 +49,7 @@ import {
 } from '../models/library.model';
 import {
   ACTIVE_SPLIT_KEY,
+  PRE_RENAME_ACTIVE_SPLIT_KEY,
   SESSION_STORAGE,
   STORAGE_KEY,
   TRIP_STORAGE,
@@ -199,7 +200,13 @@ export class TripStore {
 
   private readActiveId(): string | null {
     try {
-      return this.session?.getItem(ACTIVE_SPLIT_KEY) ?? null;
+      // The pre-rename key is read so a tab open across the rename keeps its
+      // place; writes go to the current key, so it heals itself.
+      return (
+        this.session?.getItem(ACTIVE_SPLIT_KEY) ??
+        this.session?.getItem(PRE_RENAME_ACTIVE_SPLIT_KEY) ??
+        null
+      );
     } catch {
       return null;
     }

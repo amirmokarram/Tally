@@ -19,15 +19,30 @@ import { Trip } from '../models/trip.model';
 import { SavedSplit, nowIso } from '../models/library.model';
 import { reviveTrip } from './trip-revive';
 
-export const APP_MARKER = 'split-expenses';
+export const APP_MARKER = 'tally';
 
-export const STORAGE_KEY = 'split-expenses.library';
+/**
+ * The marker written before the app was named Tally.
+ *
+ * Every file a user has already exported carries it, and a file the app
+ * refuses to read back is a file the user has lost — so it stays accepted on
+ * import for good, even though nothing writes it any more.
+ */
+export const PRE_RENAME_APP_MARKER = 'split-expenses';
+
+export const STORAGE_KEY = 'tally.library';
+
+/** Library key from before the rename. Migrated across on first load. */
+export const PRE_RENAME_STORAGE_KEY = 'split-expenses.library';
 
 /** Single-split key written by builds before the library existed. */
 export const LEGACY_STORAGE_KEY = 'split-expenses.trip';
 
 /** Per-tab pointer at the split being viewed. Two tabs can show different splits. */
-export const ACTIVE_SPLIT_KEY = 'split-expenses.active';
+export const ACTIVE_SPLIT_KEY = 'tally.active';
+
+/** The same pointer, under the pre-rename name. Read, never written. */
+export const PRE_RENAME_ACTIVE_SPLIT_KEY = 'split-expenses.active';
 
 /**
  * Document format version.
@@ -124,8 +139,13 @@ export function readDocument(raw: string): DocumentResult {
     return { ok: false, reason: 'That file does not contain any splits.' };
   }
 
-  // Absent on version 1 documents, which predate the marker.
-  if ('app' in parsed && parsed['app'] !== APP_MARKER) {
+  // Absent on version 1 documents, which predate the marker; the pre-rename
+  // marker is still this app's own file and is read as one.
+  if (
+    'app' in parsed &&
+    parsed['app'] !== APP_MARKER &&
+    parsed['app'] !== PRE_RENAME_APP_MARKER
+  ) {
     return { ok: false, reason: 'That file was not exported from this app.' };
   }
 
@@ -198,10 +218,12 @@ function reviveSavedSplit(input: unknown, seen: Set<string>): SavedSplit | null 
 }
 
 /**
- * Loads the library, migrating a single-split document from an earlier build.
+ * Loads the library, migrating a document left by an earlier build: one saved
+ * under the app's pre-rename key, or a single split from before the library
+ * existed at all.
  *
- * The migration is one-way and tidies up after itself: once the library has
- * been written, the old key is removed.
+ * Each migration is one-way and tidies up after itself: once the library has
+ * been written under the current key, the old one is removed.
  */
 export function loadLibrary(storage: Storage | null): SavedSplit[] | null {
   if (!storage) {
@@ -212,6 +234,14 @@ export function loadLibrary(storage: Storage | null): SavedSplit[] | null {
     const current = parseDocument(storage.getItem(STORAGE_KEY));
     if (current?.length) {
       return current;
+    }
+
+    const renamed = parseDocument(storage.getItem(PRE_RENAME_STORAGE_KEY));
+    if (renamed?.length) {
+      if (saveLibrary(storage, renamed)) {
+        storage.removeItem(PRE_RENAME_STORAGE_KEY);
+      }
+      return renamed;
     }
 
     const legacy = parseDocument(storage.getItem(LEGACY_STORAGE_KEY));

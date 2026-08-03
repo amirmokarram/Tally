@@ -1,6 +1,7 @@
 import { FakeStorage } from './library-storage.spec';
 import {
   DEFAULT_SORT_ORDER,
+  PRE_RENAME_SORT_ORDER_KEY,
   SORT_ORDER_KEY,
   SPLIT_SORT_OPTIONS,
   SortableSplit,
@@ -161,6 +162,15 @@ describe('remembering the sort order', () => {
   it('defaults for a value it does not recognise', () => {
     storage.setItem(SORT_ORDER_KEY, 'by-vibes');
     expect(readSortOrder(storage)).toBe(DEFAULT_SORT_ORDER);
+  });
+
+  it('honours a choice made before the app was renamed', () => {
+    storage.setItem(PRE_RENAME_SORT_ORDER_KEY, 'name');
+    expect(readSortOrder(storage)).toBe('name');
+
+    // And the current key wins when both are there.
+    writeSortOrder(storage, 'total');
+    expect(readSortOrder(storage)).toBe('total');
   });
 
   it('survives storage being unavailable', () => {

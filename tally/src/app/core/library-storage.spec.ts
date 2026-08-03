@@ -3,6 +3,8 @@ import { SavedSplit, newSavedSplit } from '../models/library.model';
 import {
   APP_MARKER,
   LEGACY_STORAGE_KEY,
+  PRE_RENAME_APP_MARKER,
+  PRE_RENAME_STORAGE_KEY,
   SCHEMA_VERSION,
   STORAGE_KEY,
   buildDocument,
@@ -182,6 +184,84 @@ describe('library storage — migrating from the single-split format', () => {
     const result = readDocument(raw);
     expect(result.ok).toBe(true);
     expect(result.ok && result.splits[0].trip.people.length).toBe(6);
+  });
+});
+
+/**
+ * The app was called "Split Expenses" before it was called Tally, and both its
+ * storage keys and the marker inside every exported file carried that name. A
+ * rename that loses somebody's saved splits is not a rename, it is a deletion.
+ */
+describe('library storage — migrating across the rename', () => {
+  let storage: FakeStorage;
+
+  beforeEach(() => {
+    storage = new FakeStorage();
+  });
+
+  /** Exactly what a build before the rename left in localStorage. */
+  function writePreRename(): void {
+    storage.setItem(
+      PRE_RENAME_STORAGE_KEY,
+      JSON.stringify({
+        app: PRE_RENAME_APP_MARKER,
+        version: SCHEMA_VERSION,
+        savedAt: '2026-08-01T12:00:00.000Z',
+        splits: libraryOf('kept'),
+      }),
+    );
+  }
+
+  it('finds a library saved under the old name', () => {
+    writePreRename();
+    expect(loadLibrary(storage)!.map((s) => s.id)).toEqual(['kept']);
+  });
+
+  it('rewrites it under the new key and clears the old one', () => {
+    writePreRename();
+    loadLibrary(storage);
+
+    expect(storage.getItem(PRE_RENAME_STORAGE_KEY)).toBeNull();
+    expect(parseDocument(storage.getItem(STORAGE_KEY))!.map((s) => s.id)).toEqual(['kept']);
+  });
+
+  it('leaves the old key alone if the migration could not be written', () => {
+    writePreRename();
+    storage.failWrites = true;
+
+    expect(loadLibrary(storage)!.map((s) => s.id)).toEqual(['kept']);
+    expect(storage.getItem(PRE_RENAME_STORAGE_KEY)).not.toBeNull();
+  });
+
+  it('prefers the current key when both are present', () => {
+    writePreRename();
+    saveLibrary(storage, libraryOf('current'));
+    expect(loadLibrary(storage)!.map((s) => s.id)).toEqual(['current']);
+  });
+
+  it('still reads a file exported under the old name', () => {
+    const raw = JSON.stringify({
+      app: PRE_RENAME_APP_MARKER,
+      version: SCHEMA_VERSION,
+      splits: libraryOf('exported-long-ago'),
+    });
+
+    const result = readDocument(raw);
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.splits[0].id).toBe('exported-long-ago');
+  });
+
+  it('still turns away a file from somewhere else entirely', () => {
+    const raw = JSON.stringify({ app: 'some-other-app', version: SCHEMA_VERSION, splits: [] });
+    const result = readDocument(raw);
+
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reason).toContain('not exported from this app');
+  });
+
+  it('writes the new marker from now on', () => {
+    expect(APP_MARKER).toBe('tally');
+    expect(buildDocument(libraryOf('a')).app).toBe(APP_MARKER);
   });
 });
 

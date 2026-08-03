@@ -1,4 +1,4 @@
-# Split Expenses
+# Tally
 
 A web app for splitting costs between friends, ported from a Google Sheets
 workbook (`Expenses.xlsx`) and its user guide (`Help.pdf`).
@@ -9,7 +9,7 @@ who actually paid. It turns those two facts into the shortest list of payments
 that leaves everybody square.
 
 ```bash
-cd expense-splitter
+cd tally
 npm install
 npm start          # http://localhost:4200
 npm test           # engine + component tests
@@ -19,7 +19,7 @@ npm run build
 ## Layout
 
 ```
-expense-splitter/          Angular 20 application
+tally/                     Angular 20 application
   src/app/models/          Trip, Person, ExpenseSheet, Item, Share, SavedSplit
   src/app/core/            calculation engine, settlement, validation, store,
                            storage, multi-tab sync, file import/export
@@ -108,7 +108,7 @@ asserted against its published figures — sheet totals, per-person balances,
 settlement groups and payment counts:
 
 ```bash
-cd expense-splitter && npm test
+cd tally && npm test
 ```
 
 They are also loadable from the app's **Help** tab.

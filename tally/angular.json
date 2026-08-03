@@ -6,7 +6,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "expense-splitter": {
+    "tally": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -64,10 +64,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "expense-splitter:build:production"
+              "buildTarget": "tally:build:production"
             },
             "development": {
-              "buildTarget": "expense-splitter:build:development"
+              "buildTarget": "tally:build:development"
             }
           },
           "defaultConfiguration": "development"

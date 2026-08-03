@@ -3,7 +3,7 @@
 What the Split Spreadsheet actually does, stated independently of how it was
 built. This is the specification the Angular app implements; every rule below is
 traceable to a formula in [SPREADSHEET-FORMULAS.md](SPREADSHEET-FORMULAS.md) and
-to code in `expense-splitter/src/app/core/`.
+to code in `tally/src/app/core/`.
 
 ---
 
@@ -290,5 +290,5 @@ Nobody is marked as paying, so R4.3 applies and the balances are pure charges:
 
 Three more worked examples — item-level payments, multiple sheets with
 sheet-level payers, and a case where grouping cuts the payment count — ship as
-loadable fixtures in `expense-splitter/src/app/data/sample-trips.ts` and are
+loadable fixtures in `tally/src/app/data/sample-trips.ts` and are
 asserted in `split-engine.spec.ts`.

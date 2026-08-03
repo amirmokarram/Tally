@@ -2,9 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "expense-splitter",
+      "name": "tally",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "expense-splitter", "start"],
+      "runtimeArgs": ["--prefix", "tally", "start"],
       "port": 4200
     }
   ]
