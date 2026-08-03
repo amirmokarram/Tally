@@ -1,7 +1,12 @@
 # Documentation
 
 Reverse-engineering of the Split Spreadsheet (`Expenses.xlsx` + `Help.pdf`) and
-the specification of the Angular app that replaces it.
+the specification of **Tally**, the Angular app that replaces it.
+
+Tally splits a bill by what each person actually had rather than by headcount,
+keeps track of who paid for it, and turns the two into the shortest list of
+payments that leaves everybody square. It runs entirely in the browser, saves
+there, and has no accounts.
 
 Read in this order:
 
