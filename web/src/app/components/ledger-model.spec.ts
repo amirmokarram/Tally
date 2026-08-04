@@ -61,12 +61,13 @@ describe('the ledger row array', () => {
       'item:i1',
       'item:i2',
       'add-item:s1',
-      // Both blocks are padded to the same height, from wherever they start.
-      'filler:s1:3',
+      // Both blocks are padded to the same height, from wherever they start —
+      // one filler row each, whatever height it takes to get there. The count
+      // rides in the id too — see the note on {@link ledgerRowId}.
+      'filler:s1:1',
       'item:i3',
       'add-item:s2',
       'filler:s2:2',
-      'filler:s2:3',
     ]);
   });
 
@@ -77,12 +78,7 @@ describe('the ledger row array', () => {
     // with no way to put anything on it. The rest is padding: the sheet's name
     // and charges are written down the side of the block, and one row is too
     // short a block to write them on.
-    expect(ledger.map(ledgerRowId)).toEqual([
-      'add-item:s1',
-      'filler:s1:1',
-      'filler:s1:2',
-      'filler:s1:3',
-    ]);
+    expect(ledger.map(ledgerRowId)).toEqual(['add-item:s1', 'filler:s1:3']);
   });
 
   it('stops padding once the sheet has lines of its own', () => {
@@ -115,9 +111,20 @@ describe('the ledger row array', () => {
     const ledger = buildLedgerRows([row('s1', 'i1')], [sheet('s1', 'Dinner')]);
 
     // This value is what AG Grid spans on: same sheet id on adjacent rows is
-    // what draws them as one block. The filler rows carry it too — they are
-    // part of the block, which is the whole reason they exist.
-    expect(ledger.map((r) => r.sheetId)).toEqual(['s1', 's1', 's1', 's1']);
+    // what draws them as one block. The filler row carries it too — it is
+    // part of the block, which is the whole reason it exists.
+    expect(ledger.map((r) => r.sheetId)).toEqual(['s1', 's1', 's1']);
+  });
+
+  it('sizes the filler row to whatever padding the block still needs', () => {
+    const oneItem = buildLedgerRows([row('s1', 'i1')], [sheet('s1', 'Dinner')]);
+    // One item plus its "add" line is two of the four MIN_BLOCK_ROWS; the
+    // filler row stands in for the other two.
+    expect(oneItem.at(-1)).toEqual({ kind: 'filler', sheetId: 's1', rows: 2 });
+
+    const noItems = buildLedgerRows([], [sheet('s1', 'Dinner')]);
+    // The "add" line is one of the four; the filler row is the rest.
+    expect(noItems.at(-1)).toEqual({ kind: 'filler', sheetId: 's1', rows: 3 });
   });
 });
 

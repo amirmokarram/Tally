@@ -17,7 +17,8 @@
 
 <div class="toolbar">
   <button class="btn" type="button" (click)="addPerson()">+ Add person</button>
-  <button class="btn" type="button" (click)="addSheet()">+ Add expense sheet</button>
+  <!-- Adding a sheet is the `+` at the head of the Sheet column, next to the
+       blocks it makes. -->
   <!-- What used to be three buttons on every row. They appear only once lines
        are ticked, so nothing is reserved for them the rest of the time. -->
   @if (ticked().length; as count) {
@@ -55,6 +56,7 @@
   [columnDefs]="columns()"
   [pinnedTopRowData]="pinnedTop()"
   (gridReady)="onGridReady($event)"
+  (modelUpdated)="onModelUpdated()"
   (cellMouseDown)="onCellMouseDown($event)"
   (cellMouseOver)="onCellMouseOver($event)"
   [getRowId]="getRowId"
@@ -67,6 +69,7 @@
   [rowSelection]="rowSelection"
   (selectionChanged)="onSelectionChanged($event)"
   [rowHeight]="rowHeight"
+  [getRowHeight]="getRowHeight"
   [headerHeight]="52"
 />
 

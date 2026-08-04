@@ -164,27 +164,38 @@ describe('the ledger grid', () => {
     );
   });
 
-  it('adds a person and a sheet from the toolbar above the grid', async () => {
+  it('adds a person from the toolbar above the grid', async () => {
     const { fixture, store, api } = await grid();
     const people = store.people().length;
-    const sheets = store.sheets().length;
 
-    const buttons = Array.from(
+    // The person column has no home inside the grid: it was removed to give the
+    // ledger its space back, and the button that makes one went with it.
+    const button = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
         '.toolbar button',
       ),
-    );
-
-    // Neither has a home inside the grid any more: the person column and the
-    // add-sheet row were both removed to give the ledger its space back.
-    buttons.find((b) => b.textContent!.includes('person'))!.click();
-    buttons.find((b) => b.textContent!.includes('sheet'))!.click();
+    ).find((b) => b.textContent!.includes('person'))!;
+    button.click();
     await settle(fixture);
 
     expect(store.people().length).toBe(people + 1);
-    expect(store.sheets().length).toBe(sheets + 1);
     expect(columnIds(api)).toContain(`person:${store.people().at(-1)!.id}`);
     expect(columnIds(api)).not.toContain('add-person');
+  });
+
+  it('adds a sheet from the button at the head of the Sheet column', async () => {
+    const { fixture, store } = await grid();
+    const sheets = store.sheets().length;
+
+    const button = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+      '.ag-header-cell[col-id="sheet"] button[aria-label="Add expense sheet"]',
+    );
+    expect(button).withContext('the add-sheet button in the Sheet header').not.toBeNull();
+
+    button!.click();
+    await settle(fixture);
+
+    expect(store.sheets().length).toBe(sheets + 1);
   });
 
   it('grows a column when a person is added and drops it when removed', async () => {

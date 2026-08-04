@@ -30,7 +30,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  effect,
   inject,
   isDevMode,
   signal,
@@ -55,6 +54,7 @@ import {
   RenderApiModule,
   RowApiModule,
   RowClassParams,
+  RowHeightParams,
   RowSelectionModule,
   RowSelectionOptions,
   ScrollApiModule,
@@ -80,7 +80,7 @@ import {
   toClipboardText,
 } from './cell-range';
 import { LEDGER_ROW_HEIGHT, ledgerTheme } from './grid-theme';
-import { SheetCell } from './sheet-cell';
+import { AddSheetHeader, SheetCell } from './sheet-cell';
 import { SheetEditor } from './sheet-editor';
 import { PersonHeader } from './person-header';
 import { SelectAllHeader, SelectCell } from './select-cell';
@@ -312,38 +312,82 @@ const money = new MoneyPipe();
       padding: 0;
       line-height: 1.35;
     }
+
+    /* The header over that column holds one 26-pixel button, and AG Grid's
+       16 either side would leave it 6 off the centre of a column the cells
+       below fill edge to edge. */
+    :host ::ng-deep .ledger-sheet-header {
+      /* Through the variable AG Grid's own rule reads, not over the top of it:
+         the theme's stylesheet is injected at runtime, after this one, so a
+         \`padding\` of ours at the same specificity loses. */
+      --ag-cell-horizontal-padding: 0px;
+    }
+
+    /* AG Grid raises a row to \`z-index: 1\` for as long as one of its cells is
+       being edited — headroom meant for an editor's own dropdown to sit above
+       the *other* rows around it. The layer that paints every spanned cell,
+       \`.ag-spanning-container\`, sits at that same \`z-index: 1\`, one level away
+       from the ordinary rows it is meant to always paint over. A tie is broken
+       by DOM order, not by which one is "supposed" to win, and the row being
+       edited is later in it — so for as long as editing lasts, that row's own
+       (Sheet-less) background paints over the merged Sheet cell for the width
+       of its own band, cutting a stripe out of whichever name or charge box the
+       edited row's height happens to fall across.
+       Raised a level above what AG Grid gives an editing row, so the spanned
+       layer — and the whole Sheet column drawn inside it — wins the tie
+       outright rather than by DOM-order luck.
+       The layer itself is transparent and stretches the full width of every
+       row, not just the Sheet column's — only its own spanned-cell children
+       (the merged Sheet cell, here) draw anything. Raising it a level without
+       also punching a hole in its hit-testing would let that transparent
+       stretch swallow clicks meant for the Item, Amount and person cells
+       beneath it, so the layer itself is taken out of pointer handling and
+       given back only where a spanned cell actually is. */
+    :host ::ng-deep .ag-spanning-container {
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    :host ::ng-deep .ag-spanned-cell-wrapper {
+      pointer-events: auto;
+    }
   `,
 })
 export class SplitGrid {
   private readonly store = inject(TripStore);
 
-  constructor() {
-    // AG Grid loses the renderer on a spanned cell whenever its block changes
-    // size: the cell that covered the old block is destroyed with it, and the
-    // one that takes its place comes back *empty* — an `.ag-cell` with nothing
-    // inside, no error and no warning. Deleting the last line of a sheet is
-    // enough, and it takes the sheet's name, charges and panel button off the
-    // ledger with it.
-    //
-    // The same failure `onGridReady` works around, and the same fix: told to
-    // paint again, the column resolves its renderer and the cell comes back.
-    effect(() => {
-      // The dependency. A block changes size when its line count does and at no
-      // other time — keyed on the rows instead, every keystroke in a sheet's
-      // name box would repaint the box being typed in.
-      this.blockShape();
-      // Deferred: the effect runs while the new rows are still on their way to
-      // the grid, and a cell that has not been rebuilt yet cannot be repainted.
-      setTimeout(() => {
-        const api = this.api;
-        if (api && !api.isDestroyed()) {
-          api.refreshCells({ columns: ['sheet'], force: true });
-        }
-      });
-    });
+  /**
+   * AG Grid loses the renderer on a spanned cell whenever its block changes
+   * size: the cell that covered the old block is destroyed with it, and the
+   * one that takes its place comes back wrong — sometimes *empty*, an
+   * `.ag-cell` with nothing inside; sometimes split across several un-merged
+   * cells, each painting a fragment of the same sheet (its name on one row,
+   * a charge box on another) instead of the one cell the block is supposed to
+   * be. No error, no warning, either way.
+   *
+   * The same failure `onGridReady` works around, and the same fix: told to
+   * paint again, the column resolves its renderer and the cell comes back.
+   *
+   * `onModelUpdated` — the grid's own signal that it has finished applying a
+   * new set of rows — is the trigger rather than a guessed delay: a
+   * `setTimeout` races the grid's own rendering and can fire before the new
+   * row is actually in the DOM, which is exactly the gap this bug lives in.
+   * {@link blockShape} still gates it, so a keystroke in a sheet's name box —
+   * which also sends new row data down, just none that changes any block's
+   * size — does not repaint the box being typed in.
+   */
+  protected onModelUpdated(): void {
+    const shape = this.blockShape();
+    if (shape === this.lastRefreshedShape) {
+      return;
+    }
+    this.lastRefreshedShape = shape;
+    this.api?.refreshCells({ columns: ['sheet'], force: true });
   }
 
-  /** How many lines each sheet has, as one string — see the constructor. */
+  private lastRefreshedShape: string | null = null;
+
+  /** How many lines each sheet has, as one string — see {@link onModelUpdated}. */
   private readonly blockShape = computed(() =>
     this.store.sheets().map((sheet) => sheet.items.length).join(','),
   );
@@ -352,6 +396,16 @@ export class SplitGrid {
 
   /** Shared with the Sheet cell, which has to size a spanned block itself. */
   protected readonly rowHeight = LEDGER_ROW_HEIGHT;
+
+  /**
+   * Every row is one line tall except the filler row that closes a short
+   * block, which is as many as {@link LedgerFillerRow.rows} says — the padding
+   * a block needs collapsed into one row rather than spread across several
+   * identical ones. AG Grid calls this per row in place of the flat
+   * `rowHeight` once it is supplied.
+   */
+  protected readonly getRowHeight = (params: RowHeightParams<LedgerRowData>): number =>
+    params.data?.kind === 'filler' ? params.data.rows * LEDGER_ROW_HEIGHT : LEDGER_ROW_HEIGHT;
 
   /**
    * Which lines are ticked is AG Grid's; the boxes are not.
@@ -712,10 +766,14 @@ export class SplitGrid {
     const columns: ColDef<LedgerRowData>[] = [
       {
         colId: 'sheet',
-        // No header: the cell's boxes are turned on their side (`sheet-cell.ts`)
-        // and the column is now too narrow for a label that is not. The names
-        // running down it are the label.
+        // No header *text*: the cell's boxes are turned on their side
+        // (`sheet-cell.ts`) and the column is now too narrow for a label that is
+        // not. The names running down it are the label, which leaves the header
+        // free for the button that makes one.
         headerName: '',
+        headerComponent: AddSheetHeader,
+        headerComponentParams: { addSheet: () => this.addSheet() },
+        headerClass: 'ledger-sheet-header',
         // Three lines of sideways text and the room around them, measured
         // rather than guessed: the name box, the charges and the "Paid by"
         // caption come to 63 across, plus the cell's padding and borders.

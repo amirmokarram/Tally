@@ -39,9 +39,19 @@ export interface LedgerItemRow {
  *
  * The Sheet cell is written down the side of the block (`sheet-cell.ts`), so the
  * block's height is the length of the boxes in it — and a sheet with no lines is
- * one row, 37 pixels, which is not a name. Filler rows take it to
+ * one row, 37 pixels, which is not a name. A filler row takes it to
  * {@link MIN_BLOCK_ROWS}, where the name, the `⋯` and the three charge boxes
  * all have room.
+ *
+ * One row rather than one per row of padding needed: there is nothing to
+ * distinguish between them, so stacking several identical blanks would only be
+ * more of them to build, size and paint. `rows` carries what its own height
+ * would otherwise have said — the grid reads it back in `split-grid.ts`'s
+ * `getRowHeight` to give this one row the height the padding needs.
+ *
+ * `rows` is also folded into the row's own id, in {@link ledgerRowId} — see
+ * the note there for why a row that only *looks* the same as before is not
+ * enough.
  *
  * Nothing can be typed on it: the row above it, the one that ends every block,
  * is where a line is added. It is padding for the heading beside it and nothing
@@ -50,8 +60,8 @@ export interface LedgerItemRow {
 export interface LedgerFillerRow {
   kind: 'filler';
   sheetId: string;
-  /** Distinguishes one filler row in a block from the next — see {@link ledgerRowId}. */
-  index: number;
+  /** How many rows of blank space this one stands in for. Always at least 1. */
+  rows: number;
 }
 
 export type LedgerRow =
@@ -122,9 +132,11 @@ export function buildLedgerRows(
     // "add" line reads as part of the sheet rather than as a stray row.
     out.push({ kind: 'add-item', sheetId: sheet.id });
     // Padding, under the row that ends the block: a sheet with no lines is
-    // otherwise a block too short to write its own name down.
-    for (let n = index + 1; n < MIN_BLOCK_ROWS; n++) {
-      out.push({ kind: 'filler', sheetId: sheet.id, index: n });
+    // otherwise a block too short to write its own name down. One row taken to
+    // whatever height the remainder needs, not one row per unit of it.
+    const fillerRows = MIN_BLOCK_ROWS - index - 1;
+    if (fillerRows > 0) {
+      out.push({ kind: 'filler', sheetId: sheet.id, rows: fillerRows });
     }
   }
   return out;
@@ -148,6 +160,14 @@ export function ledgerBlockSize(sheet: ExpenseSheet): number {
  * This is what lets AG Grid update in place instead of rebuilding: the store
  * hands back a whole new trip object on every keystroke, and without an id the
  * grid would tear down the row being typed into and take the caret with it.
+ *
+ * The filler row is the one place that cuts against its own rule: `rows` rides
+ * along in its id instead of being left to change quietly underneath it. AG
+ * Grid reads each row's height once, the first time it meets that row's id,
+ * and caches the answer against the id — so a filler row updated in place
+ * would keep the height it had before the edit, not the height `getRowHeight`
+ * would now give it. Changing the id when `rows` does turns that update into a
+ * delete and an insert, which is what makes AG Grid ask again.
  */
 export function ledgerRowId(row: LedgerRowData): string {
   switch (row.kind) {
@@ -156,7 +176,7 @@ export function ledgerRowId(row: LedgerRowData): string {
     case 'add-item':
       return `add-item:${row.sheetId}`;
     case 'filler':
-      return `filler:${row.sheetId}:${row.index}`;
+      return `filler:${row.sheetId}:${row.rows}`;
     case 'balances':
       return 'balances';
   }

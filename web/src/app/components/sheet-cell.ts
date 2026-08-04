@@ -22,11 +22,15 @@
  *
  * The Sheet column is present on every kind of row, so this also draws the
  * label for the pinned summary strip.
+ *
+ * {@link AddSheetHeader} sits at the top of the same column: adding a sheet is
+ * what this column is *for*, so the button belongs at the head of it rather than
+ * in the toolbar over the grid.
  */
 
 import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
-import { ICellRendererAngularComp } from 'ag-grid-angular';
-import { ICellRendererParams } from 'ag-grid-community';
+import { ICellRendererAngularComp, IHeaderAngularComp } from 'ag-grid-angular';
+import { ICellRendererParams, IHeaderParams } from 'ag-grid-community';
 
 import { TripStore } from '../core/trip-store';
 import { ExpenseSheet, formatCharge, parseCharge } from '../models/trip.model';
@@ -419,5 +423,103 @@ export class SheetCell implements ICellRendererAngularComp {
     if (data && 'sheetId' in data) {
       this.params?.openEditor(data.sheetId);
     }
+  }
+}
+
+/** Passed down through `headerComponentParams` — see {@link AddSheetHeader}. */
+export interface AddSheetHeaderParams extends IHeaderParams<LedgerRowData> {
+  addSheet(): void;
+}
+
+/**
+ * The Sheet column's header: the button that adds a sheet.
+ *
+ * A sheet is a block of this column, so this is the head of the thing it makes —
+ * which is worth more than the word "Add expense sheet" was in the toolbar. The
+ * column is 70 pixels wide and its names are written on their side, so there is
+ * no room for the label anyway: the plus is the whole button, and the tooltip
+ * and the accessible name carry the words.
+ *
+ * Adding a sheet from a *row* at the bottom of the grid was the first design,
+ * and AG Grid renders no cell for it in a spanned column — see the note in
+ * `ledger-model.ts`.
+ */
+@Component({
+  selector: 'app-add-sheet-header',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <button
+      type="button"
+      title="Add expense sheet"
+      aria-label="Add expense sheet"
+      (click)="add()"
+    >
+      <!-- Drawn rather than typed: a `+` glyph is set on a text baseline and
+           sits high in a button this small, and its weight follows whatever
+           font the browser falls back to. -->
+      <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+        <path
+          d="M8 3.25v9.5M3.25 8h9.5"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+        />
+      </svg>
+    </button>
+  `,
+  styles: `
+    :host {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* Centred on the column, which the cells below fill edge to edge — the
+         header cell's own side padding is taken off in \`split-grid.ts\`. */
+      width: 100%;
+      height: 100%;
+    }
+
+    button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--navy-800);
+      cursor: pointer;
+      transition:
+        background 120ms,
+        border-color 120ms;
+
+      &:hover {
+        background: var(--navy-050);
+        border-color: var(--navy-700);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--navy-700);
+        outline-offset: 1px;
+      }
+    }
+  `,
+})
+export class AddSheetHeader implements IHeaderAngularComp {
+  private params?: AddSheetHeaderParams;
+
+  agInit(params: AddSheetHeaderParams): void {
+    this.params = params;
+  }
+
+  refresh(params: AddSheetHeaderParams): boolean {
+    this.params = params;
+    return true;
+  }
+
+  protected add(): void {
+    this.params?.addSheet();
   }
 }
