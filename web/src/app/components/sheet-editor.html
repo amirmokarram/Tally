@@ -1,0 +1,119 @@
+@if (sheet(); as sheet) {
+  <div class="panel">
+    <div class="row">
+      <label [attr.for]="'sheet-name-' + sheet.id">Sheet name</label>
+      <input
+        #nameInput
+        class="field"
+        type="text"
+        [id]="'sheet-name-' + sheet.id"
+        [value]="sheet.name"
+        placeholder="e.g. the restaurant's name"
+        (input)="store.renameSheet(sheet.id, $any($event.target).value)"
+      />
+    </div>
+
+    <h3>Currency</h3>
+    <app-currency-picker
+      label="Sheet currency"
+      [value]="sheet.currency"
+      [defaultLabel]="'Default (' + store.baseCurrency() + ')'"
+      (changed)="store.setSheetCurrency(sheet.id, $event)"
+    />
+
+    @if (usesOwnCurrency(sheet)) {
+      <div class="row" style="margin-top: 10px">
+        <label [attr.for]="'rate-' + sheet.id">Exchange rate</label>
+        <input
+          class="field numeric"
+          type="number"
+          step="any"
+          min="0"
+          [id]="'rate-' + sheet.id"
+          [value]="rateText(sheet)"
+          (change)="onRate(sheet.id, $event)"
+        />
+      </div>
+      <p class="rate-hint">
+        @if (store.ratePinned(sheet)) {
+          📌 pinned — clear the box to follow the daily rate ({{ autoRateText(sheet) }})
+        } @else {
+          🔄 daily rate — 1 {{ sheet.currency }} = {{ autoRateText(sheet) }}
+          {{ store.baseCurrency() }}
+        }
+      </p>
+    }
+
+    <h3>Tax, tip &amp; discount</h3>
+    <div class="charge-grid">
+      <label class="visually-hidden" [attr.for]="'tax-' + sheet.id">Tax</label>
+      <input
+        class="field"
+        [id]="'tax-' + sheet.id"
+        placeholder="Tax — 5.61 or 8%"
+        [value]="chargeText(sheet, 'tax')"
+        (change)="onCharge(sheet.id, 'tax', $event)"
+      />
+      <span class="charge-complement">{{ chargeComplement(sheet, 'tax') }}</span>
+
+      <label class="visually-hidden" [attr.for]="'tip-' + sheet.id">Tip</label>
+      <input
+        class="field"
+        [id]="'tip-' + sheet.id"
+        placeholder="Tip — 12.00 or 15%"
+        [value]="chargeText(sheet, 'tip')"
+        (change)="onCharge(sheet.id, 'tip', $event)"
+      />
+      <span class="charge-complement">{{ chargeComplement(sheet, 'tip') }}</span>
+
+      <label class="visually-hidden" [attr.for]="'disc-' + sheet.id">Discount</label>
+      <input
+        class="field"
+        [id]="'disc-' + sheet.id"
+        placeholder="Discount — 5.00 or 10%"
+        [value]="chargeText(sheet, 'discount')"
+        (change)="onCharge(sheet.id, 'discount', $event)"
+      />
+      <span class="charge-complement">{{ chargeComplement(sheet, 'discount') }}</span>
+    </div>
+    <p class="hint">
+      Enter an amount or a percentage of the subtotal. All three are spread across the items
+      in proportion to their price.
+    </p>
+
+    <h3>Paid by</h3>
+    @if (store.people().length) {
+      <div class="payers">
+        @for (person of store.people(); track person.id) {
+          <label class="payer">
+            <input
+              type="checkbox"
+              [checked]="sheet.paidBy.includes(person.id)"
+              (change)="store.toggleSheetPayer(sheet.id, person.id)"
+            />
+            {{ person.name || 'Unnamed' }}
+          </label>
+        }
+      </div>
+      <p class="hint">
+        Whoever is ticked covered this whole sheet, split equally between them. Leave everyone
+        unticked to record payments item by item in the grid instead.
+      </p>
+    } @else {
+      <p class="hint">Add people first — <em>+ Add person</em>, above the grid.</p>
+    }
+
+    <div class="footer">
+      <button
+        class="btn ghost"
+        type="button"
+        [disabled]="store.sheets().length < 2"
+        title="Delete this expense sheet and everything on it"
+        (click)="removeSheet(sheet.id)"
+      >
+        Delete sheet
+      </button>
+      <button class="btn primary" type="button" (click)="close()">Done</button>
+    </div>
+  </div>
+}

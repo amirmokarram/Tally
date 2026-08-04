@@ -24,11 +24,25 @@ web/                       Angular 20 application
   src/app/core/            calculation engine, settlement, validation, store,
                            storage, multi-tab sync, file import/export
   src/app/data/            currency catalogue + rate snapshot, worked examples
-  src/app/components/      Splits, People, Expenses, Split, Settle up, Help
+  src/app/components/      Splits, Split (the ledger grid), Settle up, Help
 docs/                      reverse-engineering and specification — start here
 reference/                 the original workbook and its user guide
 tools/export_workbook.py   dumps the source workbook to JSON
 ```
+
+## One page, not three
+
+People, expense sheets and the owe/pay grid used to be three tabs, which meant
+entering a figure in one place and walking to another to see what it did. They
+are now a single AG Grid ledger on the **Split** tab: people are the columns,
+named from their headers; each expense sheet spans a block of rows, with its
+currency, tax, tip, discount and payers behind a panel its cell opens; and the
+blank row at the end of a block adds a line.
+
+AG Grid **Community** only — MIT, no licence key. Its own row grouping is an
+Enterprise feature, so the sheet blocks are cell spanning (`enableCellSpan` +
+`spanRows`) over a flat row array built in `components/ledger-model.ts`. Nothing
+may import `ag-grid-enterprise`.
 
 ## The model in one page
 

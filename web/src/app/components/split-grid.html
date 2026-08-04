@@ -8,141 +8,42 @@
   <span><code>1 1 1</code> splits evenly</span>
   <span><code>1 3 4</code> splits an 8-slice pizza 1 / 3 / 4</span>
   <span><code>1.2</code> owes 1 share and already paid 2</span>
+  <span>Click a <strong>sheet</strong> cell for its currency, tax, tip and payers.</span>
 </p>
 
-@if (hasRows() && store.people().length) {
-  <div class="scroller">
-    <table>
-      <thead>
-        <tr class="balance-row">
-          <th class="sheet-col balance-label" scope="row">Each person pays</th>
-          <th class="balance-label"></th>
-          <th class="amount-col balance-label numeric">
-            {{ store.grandTotal() | money: store.baseSymbol() }}
-          </th>
-          @for (balance of store.balances(); track balance.personId) {
-            <th class="person-col numeric" [class.credit]="balance.balance < 0">
-              <!--
-                The name is redundant under a named column, and the only way to
-                tell the figures apart once the card layout drops the columns.
-              -->
-              <span class="person-name">{{ balance.name || 'Unnamed' }}</span>
-              @if (balance.group > 0) {
-                <span
-                  class="group-dot"
-                  [style.background]="groupColor(balance.group)"
-                  [title]="'Settlement group ' + balance.group"
-                ></span>
-              }
-              <span class="balance-amount">{{ balance.balance | money }}</span>
-            </th>
-          }
-          <th class="row-tools"></th>
-        </tr>
-        <tr>
-          <th class="sheet-col" scope="col">Sheet</th>
-          <th scope="col">Item</th>
-          <th class="amount-col" scope="col">Amount ({{ store.baseCurrency() }})</th>
-          @for (person of store.people(); track person.id) {
-            <th class="person-col" scope="col">{{ person.name || 'Unnamed' }}</th>
-          }
-          <th class="row-tools" scope="col"><span class="visually-hidden">Row actions</span></th>
-        </tr>
-      </thead>
+<div class="toolbar">
+  <button class="btn" type="button" (click)="addPerson()">+ Add person</button>
+  <button class="btn" type="button" (click)="addSheet()">+ Add expense sheet</button>
+  <span class="toolbar-hint">
+    A person is a column; a sheet is a block of rows with its own currency and tax.
+  </span>
+</div>
 
-      @for (group of groups(); track group.sheetId) {
-        <tbody>
-          @for (row of group.rows; track row.item.id; let first = $first) {
-            <tr>
-              @if (first) {
-                <td class="sheet-cell" [attr.rowspan]="group.rows.length">
-                  {{ group.sheetName }}
-                  @if (group.caption) {
-                    <span class="sheet-caption">{{ group.caption }}</span>
-                  }
-                  @if (row.usesSheetPayers) {
-                    <span class="sheet-caption">Paid by {{ payerNames(row) }}</span>
-                  }
-                </td>
-              }
+<ag-grid-angular
+  class="grid"
+  [theme]="theme"
+  [rowData]="rows()"
+  [columnDefs]="columns()"
+  [pinnedTopRowData]="pinnedTop()"
+  [pinnedBottomRowData]="pinnedBottom()"
+  (gridReady)="onGridReady($event)"
+  [getRowId]="getRowId"
+  [defaultColDef]="defaultColDef"
+  [enableCellSpan]="true"
+  [stopEditingWhenCellsLoseFocus]="true"
+  [suppressMovableColumns]="true"
+  [animateRows]="false"
+  [getRowClass]="getRowClass"
+  [rowHeight]="38"
+  [headerHeight]="52"
+/>
 
-              <td class="item-cell">{{ row.item.name || '—' }}</td>
-
-              <td class="amount">
-                {{ row.lineTotal | money: store.baseSymbol() }}
-                @if (row.chargeShare) {
-                  <span class="sheet-caption"
-                    >incl. {{ row.chargeShare | money: store.baseSymbol() }}</span
-                  >
-                }
-              </td>
-
-              @for (person of store.people(); track person.id) {
-                <!-- `data-person` is the card layout's label for this box. -->
-                <td
-                  class="share-cell"
-                  [attr.data-person]="person.name || 'Unnamed'"
-                  [class.paid]="isPayer(row, person.id)"
-                  [class.missing]="isRowUnassigned(row)"
-                >
-                  @if (row.usesSheetPayers && isPayer(row, person.id)) {
-                    <input
-                      class="share-input"
-                      type="number"
-                      step="1"
-                      min="0"
-                      max="10"
-                      [title]="'Paid for the whole ' + group.sheetName + ' sheet'"
-                      [value]="shareText(row.item.id, person.id)"
-                      (change)="onShare(row.item.id, person.id, $event)"
-                    />
-                  } @else {
-                    <input
-                      class="share-input"
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="10"
-                      [value]="shareText(row.item.id, person.id)"
-                      [attr.aria-label]="
-                        (person.name || 'Unnamed') + ' share of ' + row.item.name
-                      "
-                      (change)="onShare(row.item.id, person.id, $event)"
-                    />
-                  }
-                </td>
-              }
-
-              <td class="row-tools">
-                <button
-                  class="btn ghost icon"
-                  type="button"
-                  title="Give everyone an equal share"
-                  (click)="store.splitItemEvenly(row.item.id)"
-                >
-                  Everyone
-                </button>
-                <button
-                  class="btn ghost icon"
-                  type="button"
-                  title="Clear this row"
-                  (click)="store.clearItemShares(row.item.id)"
-                >
-                  ✕
-                </button>
-              </td>
-            </tr>
-          }
-        </tbody>
-      }
-    </table>
-  </div>
-} @else {
-  <div class="card empty">
-    @if (!store.people().length) {
-      Add people first — they become the columns of this grid.
-    } @else {
-      Add some items on the Expenses tab and they will show up here.
-    }
-  </div>
+@if (editingSheetId(); as sheetId) {
+  <div class="editor-backdrop" (click)="closeEditor()"></div>
+  <app-sheet-editor
+    class="editor-panel"
+    [sheetId]="sheetId"
+    (closed)="closeEditor()"
+    (keydown.escape)="closeEditor()"
+  />
 }

@@ -5,6 +5,10 @@
  * Two things matter beyond the filtering itself: the closed box always reads
  * back what the model holds, and a query that was typed but never confirmed
  * changes nothing.
+ *
+ * The sheet's picker used to sit on an Expenses tab. It is now in the panel a
+ * Sheet cell opens, so those tests mount {@link SheetEditor} directly rather
+ * than going through the grid to reach it — the picker is what is under test.
  */
 
 import { ComponentFixture, TestBed } from '@angular/core/testing';
@@ -13,6 +17,7 @@ import { App } from '../app';
 import { TripStore } from '../core/trip-store';
 import { SESSION_STORAGE, TRIP_STORAGE } from '../core/library-storage';
 import { FakeStorage } from '../core/library-storage.spec';
+import { SheetEditor } from './sheet-editor';
 
 function configure() {
   TestBed.configureTestingModule({
@@ -24,7 +29,27 @@ function configure() {
   });
 }
 
-type Fixture = ComponentFixture<App>;
+/** Mounts the panel a Sheet cell opens. */
+function sheetEditor(): { fixture: ComponentFixture<SheetEditor>; store: TripStore } {
+  TestBed.configureTestingModule({
+    imports: [SheetEditor],
+    providers: [
+      { provide: TRIP_STORAGE, useValue: new FakeStorage() },
+      { provide: SESSION_STORAGE, useValue: new FakeStorage() },
+    ],
+  });
+
+  const store = TestBed.inject(TripStore);
+  const fixture = TestBed.createComponent(SheetEditor);
+  return { fixture, store };
+}
+
+function openOn(fixture: ComponentFixture<SheetEditor>, sheetId: string): void {
+  fixture.componentRef.setInput('sheetId', sheetId);
+  fixture.detectChanges();
+}
+
+type Fixture = ComponentFixture<unknown>;
 
 function tab(fixture: Fixture, id: string): void {
   (fixture.componentInstance as unknown as { tab: { set(v: string): void } }).tab.set(id);
@@ -189,27 +214,23 @@ describe('currency picker', () => {
   });
 
   describe('sheet currency', () => {
-    const scope = 'app-expenses-panel app-currency-picker';
+    const scope = 'app-currency-picker';
 
     it('shows the currency the sheet actually uses', () => {
-      configure();
-      const fixture = TestBed.createComponent(App);
-      const store = TestBed.inject(TripStore);
+      const { fixture, store } = sheetEditor();
 
       store.setSheetCurrency(store.sheets()[0].id, 'HUF');
-      tab(fixture, 'expenses');
+      openOn(fixture, store.sheets()[0].id);
 
       expect(box(fixture, scope).value).toBe('(HUF) Hungarian Forint');
     });
 
     it('offers the trip default alongside the catalogue', () => {
-      configure();
-      const fixture = TestBed.createComponent(App);
-      const store = TestBed.inject(TripStore);
+      const { fixture, store } = sheetEditor();
 
       store.setBaseCurrency('EUR');
       store.setSheetCurrency(store.sheets()[0].id, 'JPY');
-      tab(fixture, 'expenses');
+      openOn(fixture, store.sheets()[0].id);
 
       const input = box(fixture, scope);
       open(fixture, input);
@@ -224,10 +245,8 @@ describe('currency picker', () => {
     });
 
     it('takes a currency chosen with the mouse', () => {
-      configure();
-      const fixture = TestBed.createComponent(App);
-      const store = TestBed.inject(TripStore);
-      tab(fixture, 'expenses');
+      const { fixture, store } = sheetEditor();
+      openOn(fixture, store.sheets()[0].id);
 
       const input = box(fixture, scope);
       open(fixture, input);

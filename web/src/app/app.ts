@@ -12,13 +12,11 @@ import {
 import { SavedSplit } from './models/library.model';
 import { CurrencyPicker } from './components/currency-picker';
 import { SplitsPanel } from './components/splits-panel';
-import { PeoplePanel } from './components/people-panel';
-import { ExpensesPanel } from './components/expenses-panel';
 import { SplitGrid } from './components/split-grid';
 import { SettlePanel } from './components/settle-panel';
 import { HelpPanel } from './components/help-panel';
 
-type TabId = 'splits' | 'people' | 'expenses' | 'split' | 'settle' | 'help';
+type TabId = 'splits' | 'split' | 'settle' | 'help';
 
 interface Tab {
   id: TabId;
@@ -27,16 +25,7 @@ interface Tab {
 
 @Component({
   selector: 'app-root',
-  imports: [
-    MoneyPipe,
-    CurrencyPicker,
-    SplitsPanel,
-    PeoplePanel,
-    ExpensesPanel,
-    SplitGrid,
-    SettlePanel,
-    HelpPanel,
-  ],
+  imports: [MoneyPipe, CurrencyPicker, SplitsPanel, SplitGrid, SettlePanel, HelpPanel],
   templateUrl: './app.html',
   styleUrl: './app.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -46,8 +35,6 @@ export class App {
 
   protected readonly tabs: readonly Tab[] = [
     { id: 'splits', label: 'Splits' },
-    { id: 'people', label: 'People' },
-    { id: 'expenses', label: 'Expenses' },
     { id: 'split', label: 'Split' },
     { id: 'settle', label: 'Settle up' },
     { id: 'help', label: 'Help' },
@@ -88,7 +75,7 @@ export class App {
 
   protected newSplit(): void {
     this.store.createSplit();
-    this.select('people');
+    this.select('split');
   }
 
   // --- Export / import --------------------------------------------------

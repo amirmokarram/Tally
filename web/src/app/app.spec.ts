@@ -213,7 +213,7 @@ describe('App — the phone menu', () => {
     fixture.detectChanges();
 
     expect(toggle().getAttribute('aria-expanded')).toBe('false');
-    expect((fixture.nativeElement as HTMLElement).querySelector('app-people-panel')).toBeTruthy();
+    expect((fixture.nativeElement as HTMLElement).querySelector('app-split-grid')).toBeTruthy();
   });
 
   it('carries the error count while the Split tab is folded away', () => {
