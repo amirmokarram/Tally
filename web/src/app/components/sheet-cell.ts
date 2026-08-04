@@ -7,10 +7,17 @@
  * rather than a trip to a panel, the same way a person is named from their
  * column header.
  *
+ * They are turned a quarter turn to be read from the bottom up, so the block's
+ * *height* is what the name is written along and the column costs the ledger
+ * only the thickness of three lines of text — 70 pixels where it used to take
+ * 190. The column header is gone with it: a one-word label over a spine this
+ * narrow would have to be turned on its side too, and the names underneath
+ * already say what the column is.
+ *
  * The panel stays, and still holds the charges too. It is the long form — the
  * one place with room to say *amount or percent* in words rather than expecting
  * you to know that a trailing `%` switches between them — and the only place
- * for what will not fit in 190 pixels: currency, exchange rate, who paid, and
+ * for what will not fit in a spine: currency, exchange rate, who paid, and
  * deleting the sheet. `⋯` opens it.
  *
  * The Sheet column is present on every kind of row, so this also draws the
@@ -97,12 +104,35 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
     }
   `,
   styles: `
+    /* The quarter turn, in two halves. \`vertical-rl\` lays every line on its
+       side, and the half turn stands them back up the other way round: a line
+       is then read from the bottom up, and the lines stack left to right — the
+       name at the column's left edge, the charges next, the caption last.
+
+       \`sideways-lr\` is this in one word, and is what it was, but it is the one
+       writing mode older Chrome and Safari lack — and a fallback to horizontal
+       text in a 70-pixel column does not degrade, it breaks. A rotation is
+       understood everywhere.
+
+       The writing mode is still doing the work, though, and the transform only
+       turns the result around: a rotation on its own would leave the boxes laid
+       out for the width they no longer have, and each would have to be handed
+       the block's height in pixels. This way the block's height simply *is* the
+       line length. */
     :host {
       display: block;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      /* The cell is stretched to the block and the boxes to the cell — and the
+         host has to fill it exactly, or turning it about its own centre would
+         not put it back where it started. */
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
       line-height: 1.35;
-      padding: 5px 0;
-      /* Two rows of boxes and a caption have to sit inside the shortest block
-         there can be — a sheet of one line, which is two rows tall. */
+      padding: 4px 2px;
+      /* Two lines of boxes and a caption have to sit across a column 70 pixels
+         wide, which is what the turn bought. */
       font-size: 12px;
     }
 
@@ -114,9 +144,25 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
 
     /* The boxes read as text until they are reached for, the same way a
        person's name does in its header. Nothing here should look like a form
-       until someone wants it to be one. */
+       until someone wants it to be one.
+
+       Sized logically, not physically: a box's inline size is its length *down*
+       the cell now, and \`min-width: 0\` would squeeze the wrong side of it. */
     input {
-      min-width: 0;
+      min-inline-size: 0;
+      /* As long as a box needs to be, rather than as long as the block is: with
+         every box stretched to fill it, a sheet of twenty lines was a name box
+         twenty lines long. Both exceptions are below — the name, which *is* the
+         heading and takes what the line has, and the charges, which share a
+         short line rather than standing at 50 and losing the last of the three
+         over the cell's edge. */
+      height: 50px;
+      flex-shrink: 0;
+      /* — and never longer than the cell holding it, whatever the block does.
+         Nothing reaches this now a block is four rows at the least (see
+         \`MIN_BLOCK_ROWS\`), and it is what stands between a box and being sawn
+         off by the cell's edge if either figure is ever changed. */
+      max-height: 100%;
       padding: 1px 3px;
       border: 1px solid transparent;
       border-radius: 3px;
@@ -140,6 +186,9 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
       }
     }
 
+    /* The one box that takes the block rather than a fixed length: it is the
+       heading, and a name is as long as it is. \`flex: 1\` overrides the 50
+       above — the basis is what the line has left once \`⋯\` has its 18. */
     .name {
       flex: 1;
       font-weight: 600;
@@ -151,17 +200,21 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
       }
     }
 
-    /* Tax, tip and discount across one line: three boxes fit where three
-       labelled rows would not, and the placeholder names each while it is
-       empty. */
+    /* Tax, tip and discount down one line: three boxes fit where three labelled
+       rows would not, and the placeholder names each while it is empty. */
     .charges {
       display: flex;
       gap: 2px;
-      margin-top: 1px;
+      margin-block-start: 1px;
+      font-size: 11px;
 
+      /* The other exception to the fixed length above: three boxes want 154 of
+         line and the shortest block there is gives 141, so these share what is
+         there rather than standing at 50 and losing the last of the three to
+         the cell's edge. A charge is two to four characters and reads short at
+         46; a name does not. */
       input {
-        width: 0;
-        flex: 1;
+        flex-shrink: 1;
         font-variant-numeric: tabular-nums;
       }
     }
@@ -173,7 +226,7 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
       border: none;
       background: transparent;
       color: var(--text-muted);
-      padding: 0 3px;
+      padding-inline: 3px;
       font-size: 14px;
       line-height: 1;
       cursor: pointer;
@@ -193,15 +246,17 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
 
     .caption {
       display: block;
-      font-size: 11px;
+      font-size: 10px;
       color: var(--text-muted);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
+    /* On its side like everything else in this column, and small enough to fit
+       inside the one row the pinned strip is. */
     .balance-label {
-      font-size: 13px;
+      font-size: 11px;
       font-weight: 550;
       color: var(--text-muted);
     }

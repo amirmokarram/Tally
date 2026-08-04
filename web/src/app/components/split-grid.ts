@@ -30,6 +30,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   isDevMode,
   signal,
@@ -247,7 +248,19 @@ const money = new MoneyPipe();
     }
 
 
-    :host ::ng-deep .ledger-add-row .ag-cell {
+    /* Padding under the add row, there only to give a short block the height
+       its heading is written down. Nothing sits on it and nothing can be typed
+       on it, so it should read as part of the block rather than as a line: no
+       rules of its own, and none of the striping the rows carry. */
+    :host ::ng-deep .ledger-filler-row {
+      --ag-cell-horizontal-border: none;
+      background: var(--surface);
+    }
+
+    /* All of them but the sheet's own heading: a sheet with no lines yet is a
+       block of one row, so its name, charges and panel button sit *on* the add
+       row — and they are the sheet, not scaffolding for it. */
+    :host ::ng-deep .ledger-add-row .ag-cell:not(.ledger-sheet-cell) {
       color: var(--text-muted);
       font-style: italic;
     }
@@ -291,16 +304,49 @@ const money = new MoneyPipe();
       box-shadow: inset 0 0 0 1px var(--navy-700);
     }
 
-    /* The Sheet cell holds a name, two captions and a hint; it cannot be
-       centred on a single text line like every other cell. */
+    /* The Sheet cell is a spine of sideways boxes rather than a line of text:
+       it takes the whole cell, and the cell's own side padding — which would be
+       half of a column this narrow — has to go. */
     :host ::ng-deep .ledger-sheet-cell {
-      align-items: flex-start;
+      align-items: stretch;
+      padding: 0;
       line-height: 1.35;
     }
   `,
 })
 export class SplitGrid {
   private readonly store = inject(TripStore);
+
+  constructor() {
+    // AG Grid loses the renderer on a spanned cell whenever its block changes
+    // size: the cell that covered the old block is destroyed with it, and the
+    // one that takes its place comes back *empty* — an `.ag-cell` with nothing
+    // inside, no error and no warning. Deleting the last line of a sheet is
+    // enough, and it takes the sheet's name, charges and panel button off the
+    // ledger with it.
+    //
+    // The same failure `onGridReady` works around, and the same fix: told to
+    // paint again, the column resolves its renderer and the cell comes back.
+    effect(() => {
+      // The dependency. A block changes size when its line count does and at no
+      // other time — keyed on the rows instead, every keystroke in a sheet's
+      // name box would repaint the box being typed in.
+      this.blockShape();
+      // Deferred: the effect runs while the new rows are still on their way to
+      // the grid, and a cell that has not been rebuilt yet cannot be repainted.
+      setTimeout(() => {
+        const api = this.api;
+        if (api && !api.isDestroyed()) {
+          api.refreshCells({ columns: ['sheet'], force: true });
+        }
+      });
+    });
+  }
+
+  /** How many lines each sheet has, as one string — see the constructor. */
+  private readonly blockShape = computed(() =>
+    this.store.sheets().map((sheet) => sheet.items.length).join(','),
+  );
 
   protected readonly theme = ledgerTheme;
 
@@ -666,8 +712,14 @@ export class SplitGrid {
     const columns: ColDef<LedgerRowData>[] = [
       {
         colId: 'sheet',
-        headerName: 'Sheet',
-        width: 190,
+        // No header: the cell's boxes are turned on their side (`sheet-cell.ts`)
+        // and the column is now too narrow for a label that is not. The names
+        // running down it are the label.
+        headerName: '',
+        // Three lines of sideways text and the room around them, measured
+        // rather than guessed: the name box, the charges and the "Paid by"
+        // caption come to 63 across, plus the cell's padding and borders.
+        width: 70,
         cellRenderer: SheetCell,
         cellClass: 'ledger-sheet-cell',
         // What makes a sheet a block: adjacent rows sharing this value are
@@ -821,8 +873,16 @@ export class SplitGrid {
   protected readonly getRowId = (params: GetRowIdParams<LedgerRowData>): string =>
     ledgerRowId(params.data);
 
-  protected readonly getRowClass = (params: RowClassParams<LedgerRowData>): string =>
-    params.data?.kind === 'add-item' ? 'ledger-add-row' : '';
+  protected readonly getRowClass = (params: RowClassParams<LedgerRowData>): string => {
+    switch (params.data?.kind) {
+      case 'add-item':
+        return 'ledger-add-row';
+      case 'filler':
+        return 'ledger-filler-row';
+      default:
+        return '';
+    }
+  };
 
   /**
    * Writes a field of an item, creating the item first when the edit landed on

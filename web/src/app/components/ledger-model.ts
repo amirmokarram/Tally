@@ -34,7 +34,47 @@ export interface LedgerItemRow {
   row: SplitRow;
 }
 
-export type LedgerRow = LedgerItemRow | { kind: 'add-item'; sheetId: string };
+/**
+ * A blank row that exists to make a block tall enough to hold its own heading.
+ *
+ * The Sheet cell is written down the side of the block (`sheet-cell.ts`), so the
+ * block's height is the length of the boxes in it — and a sheet with no lines is
+ * one row, 37 pixels, which is not a name. Filler rows take it to
+ * {@link MIN_BLOCK_ROWS}, where the name, the `⋯` and the three charge boxes
+ * all have room.
+ *
+ * Nothing can be typed on it: the row above it, the one that ends every block,
+ * is where a line is added. It is padding for the heading beside it and nothing
+ * else — see {@link MIN_BLOCK_ROWS}.
+ */
+export interface LedgerFillerRow {
+  kind: 'filler';
+  sheetId: string;
+  /** Distinguishes one filler row in a block from the next — see {@link ledgerRowId}. */
+  index: number;
+}
+
+export type LedgerRow =
+  | LedgerItemRow
+  | { kind: 'add-item'; sheetId: string }
+  | LedgerFillerRow;
+
+/**
+ * The shortest a sheet's block may be.
+ *
+ * Two rows are all the name box and the `⋯` beside it need — 70 pixels of line
+ * against the 73 a two-row block gives. Four is for the line beside them: three
+ * charge boxes want 154, and a four-row block's 141 brings them to 46 apiece
+ * against the 50 they ask for, where a two-row block leaves them 20.
+ *
+ * It is paid for in blank rows — three on a sheet with no lines, two on a sheet
+ * with one, none from three lines on, by which point the block is this tall on
+ * its own.
+ *
+ * Held here rather than in the cell that needs it because it is the *rows* that
+ * have to be built, and only this file builds them.
+ */
+export const MIN_BLOCK_ROWS = 4;
 
 /**
  * The pinned top row: the answer, never scrolled away. Each person's balance
@@ -81,19 +121,25 @@ export function buildLedgerRows(
     // Inside the sheet's block, so the spanned Sheet cell covers it and the
     // "add" line reads as part of the sheet rather than as a stray row.
     out.push({ kind: 'add-item', sheetId: sheet.id });
+    // Padding, under the row that ends the block: a sheet with no lines is
+    // otherwise a block too short to write its own name down.
+    for (let n = index + 1; n < MIN_BLOCK_ROWS; n++) {
+      out.push({ kind: 'filler', sheetId: sheet.id, index: n });
+    }
   }
   return out;
 }
 
 /**
  * How many ledger rows a sheet's block occupies: one per item, plus the "add"
- * line {@link buildLedgerRows} closes every block with.
+ * line {@link buildLedgerRows} closes every block with — and never fewer than
+ * {@link MIN_BLOCK_ROWS}, the filler rows making up the difference.
  *
  * Only the spanned Sheet cell needs this — it is sized by row count rather than
  * by content, and AG Grid does not resize it once the block grows.
  */
 export function ledgerBlockSize(sheet: ExpenseSheet): number {
-  return sheet.items.length + 1;
+  return Math.max(sheet.items.length + 1, MIN_BLOCK_ROWS);
 }
 
 /**
@@ -109,6 +155,8 @@ export function ledgerRowId(row: LedgerRowData): string {
       return `item:${row.row.item.id}`;
     case 'add-item':
       return `add-item:${row.sheetId}`;
+    case 'filler':
+      return `filler:${row.sheetId}:${row.index}`;
     case 'balances':
       return 'balances';
   }
