@@ -27,6 +27,15 @@ const TOKENS = {
   textInvert: '#ffffff',
 } as const;
 
+/**
+ * Every ledger row is this tall.
+ *
+ * Fixed rather than auto, and shared rather than inlined, because a spanned
+ * Sheet cell's height has to be worked out from a row count — see
+ * `sheet-cell.ts`, which re-applies it.
+ */
+export const LEDGER_ROW_HEIGHT = 38;
+
 export const ledgerTheme = themeQuartz.withParams({
   accentColor: TOKENS.navy700,
   backgroundColor: TOKENS.surface,

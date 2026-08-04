@@ -138,6 +138,13 @@ select {
     font-size: 13px;
     line-height: 1;
   }
+
+  /* Loses data when pressed. Reads like any other button until it is reached
+     for, which is when the warning is worth anything. */
+  &.danger:hover:not(:disabled) {
+    background: var(--credit-bg);
+    color: var(--credit);
+  }
 }
 
 .field {

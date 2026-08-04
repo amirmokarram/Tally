@@ -37,12 +37,23 @@ entering a figure in one place and walking to another to see what it did. They
 are now a single AG Grid ledger on the **Split** tab: people are the columns,
 named from their headers; each expense sheet spans a block of rows, with its
 currency, tax, tip, discount and payers behind a panel its cell opens; and the
-blank row at the end of a block adds a line.
+blank row at the end of a block adds a line, numbered within its own sheet.
 
-AG Grid **Community** only — MIT, no licence key. Its own row grouping is an
-Enterprise feature, so the sheet blocks are cell spanning (`enableCellSpan` +
-`spanRows`) over a flat row array built in `components/ledger-model.ts`. Nothing
-may import `ag-grid-enterprise`.
+Two selections, because they answer different questions. **Tick** the box at the
+start of a line to choose *lines* — removing them, giving everyone a share, or
+clearing their shares are all buttons above the grid, acting on everything
+ticked. **Drag** across cells to choose a *block* of values, then
+<kbd>Ctrl/⌘ C</kbd> and <kbd>Ctrl/⌘ V</kbd>; one value pasted over a block fills
+it, which is how a whole column of shares is set at once.
+
+AG Grid **Community** only — MIT, no licence key. Nothing may import
+`ag-grid-enterprise`, so two of its features are the app's own:
+
+- **row grouping** → the sheet blocks are cell spanning (`enableCellSpan` +
+  `spanRows`) over the flat row array built in `components/ledger-model.ts`;
+- **range selection and clipboard** → the rectangle in `components/cell-range.ts`,
+  driven from `components/split-grid.ts`, writing through the columns' own
+  `valueSetter`s so a paste obeys exactly the rules typing does.
 
 ## The model in one page
 

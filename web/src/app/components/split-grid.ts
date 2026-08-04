@@ -8,13 +8,19 @@
  *   - people are the columns, named and reordered from their headers;
  *   - each expense sheet spans a block of rows, its settings behind a popup
  *     editor on the spanned cell;
- *   - the last row of a block adds an item; the last row of the grid adds a
- *     sheet.
+ *   - the last row of a block adds an item;
+ *   - lines are ticked down the left and acted on together from the toolbar,
+ *     which is where the buttons that used to ride every row now live.
  *
  * A cell in a person column holds the workbook's packed `owe.pay` number: the
  * whole part is how much of the item that person is on the hook for *relative
  * to the others in the same row*, and the first decimal is how much of it they
  * already paid. `1.2` therefore reads "owes one share, paid two".
+ *
+ * Selecting a block of cells and copying or pasting it is this file's own work
+ * for the same reason the sheet blocks are: AG Grid's range selection and
+ * clipboard are both Enterprise. See {@link SplitGrid.onCellMouseDown} down to
+ * {@link SplitGrid.onPaste}, over the rectangle in `cell-range.ts`.
  *
  * AG Grid Community only — see `docs/PORTING-NOTES.md`. Nothing here may import
  * `ag-grid-enterprise`.
@@ -34,18 +40,25 @@ import {
   CellStyleModule,
   ClientSideRowModelModule,
   CellApiModule,
+  CellMouseDownEvent,
+  CellMouseOverEvent,
   ColDef,
   ColumnApiModule,
   GetRowIdParams,
   GridApi,
   GridReadyEvent,
+  IRowNode,
   ModuleRegistry,
   NumberEditorModule,
   PinnedRowModule,
+  RenderApiModule,
   RowApiModule,
   RowClassParams,
+  RowSelectionModule,
+  RowSelectionOptions,
   ScrollApiModule,
   RowStyleModule,
+  SelectionChangedEvent,
   TextEditorModule,
   ValidationModule,
   ValueGetterParams,
@@ -55,12 +68,21 @@ import {
 import { TripStore } from '../core/trip-store';
 import { MoneyPipe } from '../core/money.pipe';
 import { packShare, unpackShare } from '../models/trip.model';
-import { LedgerRowData, buildLedgerRows, ledgerRowId } from './ledger-model';
-import { ledgerTheme } from './grid-theme';
+import { LedgerItemRow, LedgerRowData, buildLedgerRows, ledgerRowId } from './ledger-model';
+import {
+  CellRange,
+  CellRef,
+  fromClipboardText,
+  isSingleCell,
+  rangeBounds,
+  rangeHas,
+  toClipboardText,
+} from './cell-range';
+import { LEDGER_ROW_HEIGHT, ledgerTheme } from './grid-theme';
 import { SheetCell } from './sheet-cell';
 import { SheetEditor } from './sheet-editor';
 import { PersonHeader } from './person-header';
-import { RowToolsCell } from './row-tools-cell';
+import { SelectAllHeader, SelectCell } from './select-cell';
 
 // Community modules only, and named one by one rather than pulled in as
 // `AllCommunityModule`: the bundle is shipped to a GitHub Pages demo, and the
@@ -75,6 +97,7 @@ ModuleRegistry.registerModules([
   CellStyleModule, // cellClass / cellClassRules
   RowStyleModule, // getRowClass
   PinnedRowModule, // the balance strip
+  RowSelectionModule, // the tick boxes, and the column they live in
   TextEditorModule, // the Item column
   NumberEditorModule, // Amount and the share cells
   // `api.getColumns()`, `api.getRowNode()`, `api.getCellValue()`. Nothing in
@@ -86,6 +109,8 @@ ModuleRegistry.registerModules([
   // `api.ensureColumnVisible` — a person added from the toolbar is a column off
   // the right-hand edge until the grid is scrolled to it.
   ScrollApiModule,
+  // `api.refreshCells` — repaints the selected block as a drag moves over it.
+  RenderApiModule,
   // Turns AG Grid's numbered warnings into readable ones. Dropped from the
   // production bundle, which is a large part of the saving.
   ...(isDevMode() ? [ValidationModule] : []),
@@ -107,9 +132,24 @@ const money = new MoneyPipe();
   imports: [AgGridAngular, SheetEditor],
   templateUrl: './split-grid.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    // The clipboard events are taken on the host rather than on the document:
+    // they reach here by bubbling from the focused cell, so a copy aimed at
+    // something else on the page is left alone.
+    '(copy)': 'onCopy($event)',
+    '(paste)': 'onPaste($event)',
+    // A drag can end anywhere, including outside the grid.
+    '(document:mouseup)': 'endDrag()',
+    '[class.dragging]': 'dragging',
+  },
   styles: `
     :host {
       display: block;
+    }
+
+    /* A drag across cells would otherwise sweep up the text under it. */
+    :host(.dragging) ::ng-deep .ag-center-cols-viewport {
+      user-select: none;
     }
 
     .legend {
@@ -172,6 +212,12 @@ const money = new MoneyPipe();
       color: var(--text-muted);
     }
 
+    .toolbar-count {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--navy-800);
+    }
+
     /* The panel floats over the grid rather than inside a cell: the grid clips
        its own viewport, and the rows carry a transform, so neither absolute nor
        fixed positioning escapes from in there. */
@@ -200,6 +246,7 @@ const money = new MoneyPipe();
       --ag-cell-horizontal-border: none;
     }
 
+
     :host ::ng-deep .ledger-add-row .ag-cell {
       color: var(--text-muted);
       font-style: italic;
@@ -212,6 +259,14 @@ const money = new MoneyPipe();
     /* A priced row nobody has claimed a share of — the workbook's red cells. */
     :host ::ng-deep .ledger-missing {
       background: var(--credit-bg);
+    }
+
+    /* Scaffolding for the eye, not data: it should sit behind everything. */
+    :host ::ng-deep .ledger-index {
+      justify-content: flex-end;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      font-size: 12px;
     }
 
     :host ::ng-deep .ledger-numeric {
@@ -229,6 +284,13 @@ const money = new MoneyPipe();
       color: var(--credit);
     }
 
+    /* The selected block. An inset ring rather than a fill, so the paid and
+       unassigned colours underneath still read through it. */
+    :host ::ng-deep .ledger-selected {
+      background: var(--navy-050);
+      box-shadow: inset 0 0 0 1px var(--navy-700);
+    }
+
     /* The Sheet cell holds a name, two captions and a hint; it cannot be
        centred on a single text line like every other cell. */
     :host ::ng-deep .ledger-sheet-cell {
@@ -242,8 +304,47 @@ export class SplitGrid {
 
   protected readonly theme = ledgerTheme;
 
+  /** Shared with the Sheet cell, which has to size a spanned block itself. */
+  protected readonly rowHeight = LEDGER_ROW_HEIGHT;
+
+  /**
+   * Which lines are ticked is AG Grid's; the boxes are not.
+   *
+   * `checkboxes` is off because AG Grid draws them only in a selection column
+   * it prepends to the column list on every rebuild — it cannot sit after Sheet
+   * and the line number. {@link SelectCell} draws them in a column of ours
+   * instead, and writes back through the node.
+   *
+   * No selection by clicking a cell either: a click in the grid starts a *cell*
+   * block for copy and paste, which is a different thing from choosing lines to
+   * act on, and one click cannot mean both.
+   */
+  protected readonly rowSelection: RowSelectionOptions<LedgerRowData> = {
+    mode: 'multiRow',
+    checkboxes: false,
+    headerCheckbox: false,
+    enableClickSelection: false,
+    enableSelectionWithoutKeys: false,
+    /**
+     * Only the lines can be ticked. The blank row that ends a block is not a
+     * line yet, and the pinned strip is a result; there is nothing to do to
+     * either of them here.
+     *
+     * It belongs *inside* this object: given `rowSelection` as options rather
+     * than a bare mode string, AG Grid reads `isRowSelectable` from here and
+     * ignores the grid option of the same name, silently.
+     */
+    isRowSelectable: (node) => node.data?.kind === 'item',
+  };
+
   /** The sheet whose settings panel is open, or null. */
   protected readonly editingSheetId = signal<string | null>(null);
+
+  /** The block of cells a copy or a paste applies to, or null. */
+  private readonly selection = signal<CellRange | null>(null);
+
+  /** True between mousedown on a cell and the mouseup that ends the drag. */
+  protected dragging = false;
 
   private api: GridApi | null = null;
 
@@ -313,8 +414,222 @@ export class SplitGrid {
     setTimeout(() => this.api?.ensureColumnVisible(colId));
   }
 
+  // --- Selecting a block of cells, and the clipboard ---------------------
+  //
+  // Both are Enterprise in AG Grid, so both are done here. The rectangle lives
+  // in `cell-range.ts`; what follows is the grid's half of it — turning cell
+  // events into corners, painting the block, and reading and writing the
+  // tab-separated text a spreadsheet puts on the clipboard.
+
+  /**
+   * The columns a selection can cover, in the order they are drawn.
+   *
+   * An allow-list rather than a list of exceptions, so a column added later is
+   * left out until someone decides it holds a value worth pasting. The tick box,
+   * the line number and the spanned sheet heading are all things you read or
+   * press, not things you would paste over. The index into *this* list is a
+   * cell's `col` — see {@link CellRef}.
+   */
+  private readonly selectableColumns = computed<string[]>(() =>
+    this.columns()
+      .map((column) => column.colId!)
+      .filter((colId) => colId === 'item' || colId === 'amount' || colId.startsWith('person:')),
+  );
+
+  protected onCellMouseDown(event: CellMouseDownEvent<LedgerRowData>): void {
+    const ref = this.cellRef(event.node, event.column.getColId());
+    if (!ref) {
+      this.select(null);
+      return;
+    }
+    // Shift keeps the anchor where it was, which is how you widen a selection
+    // without dragging the whole way back.
+    const anchor = ((event.event as MouseEvent | null)?.shiftKey && this.selection()?.anchor) || ref;
+    this.select({ anchor, head: ref });
+    this.dragging = true;
+  }
+
+  protected onCellMouseOver(event: CellMouseOverEvent<LedgerRowData>): void {
+    const anchor = this.selection()?.anchor;
+    if (!this.dragging || !anchor) {
+      return;
+    }
+    const ref = this.cellRef(event.node, event.column.getColId());
+    if (ref) {
+      this.select({ anchor, head: ref });
+    }
+  }
+
+  protected endDrag(): void {
+    this.dragging = false;
+  }
+
+  // --- Ticked lines, and what can be done to them ------------------------
+  //
+  // These used to be three buttons on every row, in a column that carried them
+  // the whole length of the trip to be used on one line at a time. Ticking the
+  // lines and acting on them once gives the width back and works on a phone,
+  // where a row of buttons per line was unusable.
+
+  /** The lines whose box is ticked, in ledger order. */
+  protected readonly ticked = signal<LedgerItemRow[]>([]);
+
+  protected onSelectionChanged(event: SelectionChangedEvent<LedgerRowData>): void {
+    const lines: LedgerItemRow[] = [];
+    for (const node of event.api.getSelectedNodes()) {
+      if (node.data?.kind === 'item') {
+        lines.push(node.data);
+      }
+    }
+    this.ticked.set(lines);
+
+    // The boxes are ours, so keeping them in step with the selection is too —
+    // a tick can be set from the header box, or dropped by a removal, without
+    // the cell that draws it hearing anything.
+    event.api.refreshCells({ columns: ['select'], force: true });
+    event.api.refreshHeader();
+  }
+
+  protected removeTicked(): void {
+    for (const line of this.tickedItems()) {
+      this.store.removeItem(line.sheetId, line.itemId);
+    }
+    this.api?.deselectAll();
+  }
+
+  protected splitTickedEvenly(): void {
+    for (const line of this.tickedItems()) {
+      this.store.splitItemEvenly(line.itemId);
+    }
+  }
+
+  protected clearTickedShares(): void {
+    for (const line of this.tickedItems()) {
+      this.store.clearItemShares(line.itemId);
+    }
+  }
+
+  /**
+   * The ticked lines as plain ids, read once before any of them is written to:
+   * every store call replaces the trip, and the row data held by the tick would
+   * be from the trip before it.
+   */
+  private tickedItems(): { sheetId: string; itemId: string }[] {
+    return this.ticked().map((line) => ({ sheetId: line.sheetId, itemId: line.row.item.id }));
+  }
+
+  /**
+   * Where a cell sits in the selectable grid, or null if it is not one.
+   *
+   * The pinned summary strip is not: it holds results rather than entries, so
+   * there is nothing there to paste over.
+   */
+  private cellRef(node: IRowNode<LedgerRowData>, colId: string): CellRef | null {
+    const col = this.selectableColumns().indexOf(colId);
+    if (col < 0 || node.rowPinned || node.rowIndex == null) {
+      return null;
+    }
+    return { row: node.rowIndex, col };
+  }
+
+  /**
+   * Moves the selection and repaints it.
+   *
+   * The repaint is explicit because the block is drawn by a `cellClassRules`
+   * entry, and AG Grid only re-runs those when it is told the cells changed —
+   * the underlying values have not.
+   */
+  private select(range: CellRange | null): void {
+    this.selection.set(range);
+    this.api?.refreshCells({ columns: this.selectableColumns(), force: true });
+  }
+
+  private isSelected(node: IRowNode<LedgerRowData>, colId: string): boolean {
+    const range = this.selection();
+    const ref = range && this.cellRef(node, colId);
+    return !!range && !!ref && rangeHas(range, ref.row, ref.col);
+  }
+
+  /**
+   * Copies the selected block as the tab-separated text every spreadsheet
+   * speaks — raw values, not formatted ones, so what comes back on a paste is
+   * what was there.
+   */
+  protected onCopy(event: ClipboardEvent): void {
+    const api = this.api;
+    const range = this.selection();
+    if (!api || !range || isTyping(event.target)) {
+      return;
+    }
+    const columns = this.selectableColumns();
+    const { top, left, bottom, right } = rangeBounds(range);
+
+    const rows: string[][] = [];
+    for (let row = top; row <= bottom; row++) {
+      const node = api.getDisplayedRowAtIndex(row);
+      const line: string[] = [];
+      for (let col = left; col <= right; col++) {
+        const value = node ? api.getCellValue({ rowNode: node, colKey: columns[col] }) : null;
+        line.push(value == null ? '' : String(value));
+      }
+      rows.push(line);
+    }
+
+    event.clipboardData?.setData('text/plain', toClipboardText(rows));
+    event.preventDefault();
+  }
+
+  /**
+   * Writes the clipboard into the selected block.
+   *
+   * Every cell goes through the column's own `valueSetter`, so a paste is held
+   * to exactly the rules typing is: a share outside 0 – 10 is refused, an
+   * amount that is not a number is dropped, and the store is the only thing
+   * written to.
+   */
+  protected onPaste(event: ClipboardEvent): void {
+    const api = this.api;
+    const range = this.selection();
+    const text = event.clipboardData?.getData('text/plain');
+    if (!api || !range || !text || isTyping(event.target)) {
+      return;
+    }
+    event.preventDefault();
+
+    const block = fromClipboardText(text);
+    const columns = this.selectableColumns();
+    const { top, left, bottom, right } = rangeBounds(range);
+
+    // One selected cell means "start here"; a block of them is the extent to
+    // fill, repeating the clipboard as a spreadsheet does — which is what makes
+    // one value paste across many rows.
+    const width = Math.max(...block.map((line) => line.length));
+    const lastRow = isSingleCell(range) ? top + block.length - 1 : bottom;
+    const lastCol = isSingleCell(range) ? left + width - 1 : right;
+
+    for (let row = top; row <= lastRow; row++) {
+      const node = api.getDisplayedRowAtIndex(row);
+      // Clipped to the lines that exist: a paste fills a sheet, it does not
+      // grow one. The blank row at the end of a block is left to be typed on.
+      if (node?.data?.kind !== 'item') {
+        continue;
+      }
+      const line = block[(row - top) % block.length];
+      for (let col = left; col <= lastCol && col < columns.length; col++) {
+        const value = line[(col - left) % line.length];
+        if (value !== undefined) {
+          node.setDataValue(columns[col], value);
+        }
+      }
+    }
+  }
+
   protected readonly defaultColDef: ColDef<LedgerRowData> = {
-    resizable: true,
+    // Every column here is sized for exactly what it holds — a tick, a line
+    // number, a share of at most four characters — and Item takes whatever is
+    // left over. There is nothing a drag could improve, and a grab handle on
+    // every border is one more thing to catch on the way to a cell.
+    resizable: false,
     sortable: false,
     filter: false,
     suppressMovable: true,
@@ -329,32 +644,25 @@ export class SplitGrid {
   );
 
   /**
-   * The balance strip, pinned so the answer stays on screen while the rows
-   * scroll. Its cells read the store directly, so this only has to produce a
-   * fresh array whenever the balances move — otherwise AG Grid, seeing the same
-   * reference, leaves the pinned row alone.
+   * The summary strip, pinned so the answer stays on screen while the rows
+   * scroll: each person's balance under their column, the trip total under
+   * Amount. Its cells read the store directly, so this only has to produce a
+   * fresh array whenever either figure moves — otherwise AG Grid, seeing the
+   * same reference, leaves the pinned row showing the old numbers.
    */
   protected readonly pinnedTop = computed<LedgerRowData[]>(() => {
     this.store.balances();
-    return [{ kind: 'balances' }];
-  });
-
-  /**
-   * The trip total, pinned under the Amount column.
-   *
-   * A fresh array whenever the total moves, for the same reason as
-   * {@link pinnedTop}: the cell reads the store, so an unchanged reference
-   * would leave the row showing the old figure.
-   */
-  protected readonly pinnedBottom = computed<LedgerRowData[]>(() => {
     this.store.grandTotal();
-    return [{ kind: 'total' }];
+    return [{ kind: 'balances' }];
   });
 
   protected readonly columns = computed<ColDef<LedgerRowData>[]>(() => {
     const people = this.store.people();
     const baseSymbol = this.store.baseSymbol();
 
+    // Sheet leads, because it is what the rows are grouped under: the block
+    // heading belongs at the edge the eye starts from, with the line numbers it
+    // covers beside it rather than outside it.
     const columns: ColDef<LedgerRowData>[] = [
       {
         colId: 'sheet',
@@ -375,6 +683,25 @@ export class SplitGrid {
         },
       },
       {
+        colId: 'index',
+        headerName: '#',
+        width: 54,
+        editable: false,
+        // Derived, so it is not part of a copy: pasting a line number over
+        // another line would mean nothing.
+        cellClass: 'ledger-index',
+        valueGetter: (p: ValueGetterParams<LedgerRowData>) =>
+          p.data?.kind === 'item' ? p.data.index : '',
+      },
+      {
+        colId: 'select',
+        headerName: '',
+        headerComponent: SelectAllHeader,
+        width: 44,
+        editable: false,
+        cellRenderer: SelectCell,
+      },
+      {
         colId: 'item',
         headerName: 'Item',
         flex: 1,
@@ -390,6 +717,7 @@ export class SplitGrid {
         cellClassRules: {
           'ledger-missing': (p) =>
             p.data?.kind === 'item' && this.itemHasError(p.data.row.item.id),
+          'ledger-selected': (p) => this.isSelected(p.node, 'item'),
         },
       },
       {
@@ -399,23 +727,39 @@ export class SplitGrid {
         type: 'numericColumn',
         editable: (p) => p.data?.kind === 'item' || p.data?.kind === 'add-item',
         valueGetter: (p: ValueGetterParams<LedgerRowData>) => {
-          if (p.data?.kind === 'total') {
+          // The trip total rides the pinned strip, under this column's own
+          // header — the same place a person's balance sits under theirs. It
+          // needs no label of its own: the header names the column, and the
+          // figure is the only one on the row not attached to a person.
+          if (p.data?.kind === 'balances') {
             return this.store.grandTotal();
           }
           return p.data?.kind === 'item' ? p.data.row.item.amount : null;
         },
-        // Only the total is formatted. An amount is a box you type in, and
-        // rewriting what was typed while the caret is still in the row is the
-        // fastest way to make a grid feel like it is fighting you.
-        valueFormatter: (p) =>
-          p.data?.kind === 'total' ? money.transform(p.value, baseSymbol) : (p.value ?? ''),
+        // Money on the way out, a plain number on the way in. A formatter only
+        // ever draws the *resting* cell — AG Grid hands the editor the raw
+        // value — so the symbol and separators are there to read and gone the
+        // moment you type over them.
+        //
+        // In the sheet's own currency, not the trip's: this column carries
+        // whatever each block was billed in, which is why its header falls back
+        // to naming no currency at all when the sheets disagree.
+        valueFormatter: (p) => {
+          if (p.data?.kind === 'balances') {
+            return money.transform(p.value, baseSymbol);
+          }
+          return p.data?.kind === 'item' ? money.transform(p.value, this.symbolForRow(p.data)) : '';
+        },
         cellClass: (p) =>
-          p.data?.kind === 'total' ? 'ledger-numeric ledger-total' : 'ledger-numeric',
+          p.data?.kind === 'balances' ? 'ledger-numeric ledger-total' : 'ledger-numeric',
         valueSetter: (p: ValueSetterParams<LedgerRowData>) => {
           const amount = parseAmount(p.newValue);
           return this.setItemField(p, (sheetId, itemId) =>
             this.store.updateItem(sheetId, itemId, { amount }),
           );
+        },
+        cellClassRules: {
+          'ledger-selected': (p) => this.isSelected(p.node, 'amount'),
         },
       },
     ];
@@ -439,9 +783,12 @@ export class SplitGrid {
             ? packShare(this.store.share(p.data.row.item.id, person.id))
             : null;
         },
+        // A balance is money and reads like the trip total above it, symbol and
+        // all. A share is a ratio and is left exactly as typed — putting a
+        // currency symbol on `1.2` would be a lie about what it means.
         valueFormatter: (p) => {
           if (p.data?.kind === 'balances') {
-            return money.transform(p.value);
+            return money.transform(p.value, baseSymbol);
           }
           return p.value == null ? '' : String(p.value);
         },
@@ -463,17 +810,10 @@ export class SplitGrid {
             p.data?.kind === 'item' && isRowUnassigned(p.data.row),
           'ledger-credit': (p) =>
             p.data?.kind === 'balances' && this.balanceOf(person.id) < 0,
+          'ledger-selected': (p) => this.isSelected(p.node, `person:${person.id}`),
         },
       });
     }
-
-    columns.push({
-      colId: 'tools',
-      headerName: '',
-      width: 120,
-      editable: false,
-      cellRenderer: RowToolsCell,
-    });
 
     return columns;
   });
@@ -520,6 +860,13 @@ export class SplitGrid {
     return symbols.size === 1 ? [...symbols][0] : 'sheet ccy';
   }
 
+  /** The symbol a row's amount is in — its sheet's, which need not be the trip's. */
+  private symbolForRow(data: LedgerRowData): string {
+    const sheet =
+      'sheetId' in data ? this.store.sheets().find((s) => s.id === data.sheetId) : undefined;
+    return sheet ? this.store.symbolFor(sheet) : this.store.baseSymbol();
+  }
+
   private balanceOf(personId: string): number {
     return this.store.balances().find((b) => b.personId === personId)?.balance ?? 0;
   }
@@ -539,6 +886,15 @@ export class SplitGrid {
       .issues()
       .some((i) => i.itemId === itemId && i.severity === 'error');
   }
+}
+
+/**
+ * True when the copy or paste belongs to something being typed in — a cell
+ * editor, or the name box in a person's header. Those get the clipboard the way
+ * any text box does, and the grid must keep its hands off.
+ */
+function isTyping(target: EventTarget | null): boolean {
+  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
 }
 
 /** A priced row nobody has claimed a share of — the workbook's red cells. */

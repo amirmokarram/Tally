@@ -26,21 +26,26 @@ import { SheetTotals, SplitRow } from '../core/split-engine';
  * column at all — and a control you must scroll past every line of the trip to
  * reach was the worse design anyway.
  */
-export type LedgerRow =
-  | { kind: 'item'; sheetId: string; row: SplitRow }
-  | { kind: 'add-item'; sheetId: string };
+/** A line of a sheet, numbered within its own block — see {@link buildLedgerRows}. */
+export interface LedgerItemRow {
+  kind: 'item';
+  sheetId: string;
+  index: number;
+  row: SplitRow;
+}
 
-/** The pinned top row carrying each person's balance. Never scrolls away. */
+export type LedgerRow = LedgerItemRow | { kind: 'add-item'; sheetId: string };
+
+/**
+ * The pinned top row: the answer, never scrolled away. Each person's balance
+ * under their own column, and the trip total under Amount — the summary sits in
+ * one strip directly under the headers rather than at both ends of the grid.
+ */
 export interface BalanceRow {
   kind: 'balances';
 }
 
-/** The pinned bottom row carrying the trip total, under the Amount column. */
-export interface TotalRow {
-  kind: 'total';
-}
-
-export type LedgerRowData = LedgerRow | BalanceRow | TotalRow;
+export type LedgerRowData = LedgerRow | BalanceRow;
 
 /**
  * Rows for the whole trip, in sheet order.
@@ -65,14 +70,30 @@ export function buildLedgerRows(
 
   const out: LedgerRow[] = [];
   for (const sheet of sheets) {
+    // Numbered from one *within the sheet*, not across the trip: a block is a
+    // check, and its lines are that check's lines. The number restarting is
+    // what says where one block ends and the next begins.
+    let index = 0;
     for (const row of bySheet.get(sheet.id) ?? []) {
-      out.push({ kind: 'item', sheetId: sheet.id, row });
+      index += 1;
+      out.push({ kind: 'item', sheetId: sheet.id, index, row });
     }
     // Inside the sheet's block, so the spanned Sheet cell covers it and the
     // "add" line reads as part of the sheet rather than as a stray row.
     out.push({ kind: 'add-item', sheetId: sheet.id });
   }
   return out;
+}
+
+/**
+ * How many ledger rows a sheet's block occupies: one per item, plus the "add"
+ * line {@link buildLedgerRows} closes every block with.
+ *
+ * Only the spanned Sheet cell needs this — it is sized by row count rather than
+ * by content, and AG Grid does not resize it once the block grows.
+ */
+export function ledgerBlockSize(sheet: ExpenseSheet): number {
+  return sheet.items.length + 1;
 }
 
 /**
@@ -90,8 +111,6 @@ export function ledgerRowId(row: LedgerRowData): string {
       return `add-item:${row.sheetId}`;
     case 'balances':
       return 'balances';
-    case 'total':
-      return 'total';
   }
 }
 

@@ -140,7 +140,17 @@ export class PersonHeader implements IHeaderAngularComp {
     this.store.renamePerson(this.personId(), (event.target as HTMLInputElement).value);
   }
 
+  /**
+   * Enter finishes the name — and has to be kept from the grid on the way out.
+   *
+   * AG Grid listens for keydown on the whole header cell, and blurring the
+   * input clears the grid's focused header out from under the event that is
+   * still bubbling towards that listener; it reads the header back without
+   * checking and throws. Nothing is lost by keeping the key: a header has no
+   * Enter behaviour of its own.
+   */
   protected blur(event: Event): void {
+    event.stopPropagation();
     (event.target as HTMLInputElement).blur();
   }
 
