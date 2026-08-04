@@ -62,6 +62,39 @@ export function isSingleCell(range: CellRange): boolean {
 }
 
 /**
+ * The rectangle a fill handle drag makes: the base selection stretched by
+ * exactly one edge, toward wherever the pointer is now.
+ *
+ * A spreadsheet's fill handle only ever grows a selection in the single
+ * direction dragged furthest past it — up, down, left or right, never two at
+ * once — so this reads all four overshoots and moves only the edge with the
+ * largest. A pointer that never left the base rectangle overshoots nothing;
+ * `base` comes back unchanged, which is what makes a click of the handle
+ * without a drag a no-op rather than a fill of nothing.
+ */
+export function extendRange(base: RangeBounds, target: CellRef): RangeBounds {
+  const down = target.row - base.bottom;
+  const up = base.top - target.row;
+  const right = target.col - base.right;
+  const left = base.left - target.col;
+  const most = Math.max(down, up, right, left, 0);
+
+  if (most <= 0) {
+    return base;
+  }
+  if (most === down) {
+    return { ...base, bottom: target.row };
+  }
+  if (most === up) {
+    return { ...base, top: target.row };
+  }
+  if (most === right) {
+    return { ...base, right: target.col };
+  }
+  return { ...base, left: target.col };
+}
+
+/**
  * The clipboard's own format: tab between cells, newline between rows.
  *
  * Plain `\n`, not `\r\n`. Excel and Sheets both read either, and a lone `\n` is

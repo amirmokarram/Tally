@@ -73,8 +73,10 @@ import { LedgerItemRow, LedgerRowData, buildLedgerRows, ledgerRowId } from './le
 import {
   CellRange,
   CellRef,
+  extendRange,
   fromClipboardText,
   isSingleCell,
+  RangeBounds,
   rangeBounds,
   rangeHas,
   toClipboardText,
@@ -141,7 +143,8 @@ const money = new MoneyPipe();
     '(paste)': 'onPaste($event)',
     // A drag can end anywhere, including outside the grid.
     '(document:mouseup)': 'endDrag()',
-    '[class.dragging]': 'dragging',
+    '[class.dragging]': 'dragging || fillDragging',
+    '[class.filling]': 'fillDragging',
   },
   styles: `
     :host {
@@ -151,6 +154,14 @@ const money = new MoneyPipe();
     /* A drag across cells would otherwise sweep up the text under it. */
     :host(.dragging) ::ng-deep .ag-center-cols-viewport {
       user-select: none;
+    }
+
+    /* A crosshair over the whole grid while the fill handle is out, not just
+       over the handle itself — the pointer is over other cells for most of
+       the drag, and a lingering text-input cursor there would read as if
+       nothing were happening. */
+    :host(.filling) ::ng-deep .ag-center-cols-viewport {
+      cursor: crosshair;
     }
 
     .legend {
@@ -304,6 +315,35 @@ const money = new MoneyPipe();
       box-shadow: inset 0 0 0 1px var(--navy-700);
     }
 
+    /* The little square a spreadsheet leaves at a selection's own
+       bottom-right corner — this app's stand-in for the fill handle AG Grid
+       keeps behind Enterprise's range selection. It sits on the cell's own
+       border rather than inside it, the way the real thing does, which is why
+       the cell needs \`position: relative\` under it. */
+    :host ::ng-deep .ledger-fill-handle {
+      position: relative;
+    }
+
+    :host ::ng-deep .ledger-fill-handle::after {
+      content: '';
+      position: absolute;
+      right: -1px;
+      bottom: -1px;
+      width: 7px;
+      height: 7px;
+      background: var(--navy-700);
+      border: 1px solid var(--surface);
+      cursor: crosshair;
+    }
+
+    /* The block a fill drag is about to cover, while the handle is still
+       out — dashed rather than the selection's own solid ring, so mid-drag it
+       reads as a preview of what letting go would do, not as chosen yet. */
+    :host ::ng-deep .ledger-fill-preview {
+      outline: 1px dashed var(--navy-700);
+      outline-offset: -1px;
+    }
+
     /* The Sheet cell is a spine of sideways boxes rather than a line of text:
        it takes the whole cell, and the cell's own side padding — which would be
        half of a column this narrow — has to go. */
@@ -446,6 +486,17 @@ export class SplitGrid {
   /** True between mousedown on a cell and the mouseup that ends the drag. */
   protected dragging = false;
 
+  /**
+   * True between mousedown on the fill handle and the mouseup that ends that
+   * drag — a different thing from {@link dragging}: this one leaves
+   * {@link selection} alone as the block being repeated, and grows a second
+   * rectangle, {@link fillPreview}, out from its corner instead.
+   */
+  protected fillDragging = false;
+
+  /** Where the fill handle is being dragged to, while {@link fillDragging}. */
+  private readonly fillPreview = signal<CellRef | null>(null);
+
   private api: GridApi | null = null;
 
   protected onGridReady(event: GridReadyEvent): void {
@@ -542,6 +593,10 @@ export class SplitGrid {
       this.select(null);
       return;
     }
+    if (this.isFillHandleTarget(event)) {
+      this.startFill(event.node, event.column.getColId());
+      return;
+    }
     // Shift keeps the anchor where it was, which is how you widen a selection
     // without dragging the whole way back.
     const anchor = ((event.event as MouseEvent | null)?.shiftKey && this.selection()?.anchor) || ref;
@@ -550,18 +605,209 @@ export class SplitGrid {
   }
 
   protected onCellMouseOver(event: CellMouseOverEvent<LedgerRowData>): void {
+    const ref = this.cellRef(event.node, event.column.getColId());
+    if (this.fillDragging) {
+      if (ref) {
+        this.fillPreview.set(ref);
+        this.api?.refreshCells({ columns: this.selectableColumns(), force: true });
+      }
+      return;
+    }
     const anchor = this.selection()?.anchor;
     if (!this.dragging || !anchor) {
       return;
     }
-    const ref = this.cellRef(event.node, event.column.getColId());
     if (ref) {
       this.select({ anchor, head: ref });
     }
   }
 
   protected endDrag(): void {
+    if (this.fillDragging) {
+      this.fillDragging = false;
+      // Guaranteed by how `fillDragging` is set in the first place —
+      // {@link startFill} never runs without a selection to drag the handle
+      // off of, and it seeds `fillPreview` with that same cell.
+      const base = rangeBounds(this.selection()!);
+      const target = this.fillPreview()!;
+      this.fillPreview.set(null);
+      this.fill(base, target);
+      return;
+    }
     this.dragging = false;
+  }
+
+  /**
+   * Starts dragging the fill handle out from the selection's own corner.
+   *
+   * Takes a node and a column id — the same shape {@link onCellMouseDown}
+   * itself is handed — rather than a bare {@link CellRef}, so a test can call
+   * it exactly the way it calls that, without also having to reproduce
+   * {@link cellRef}'s own arithmetic.
+   *
+   * Split out so the part with a rule in it — where the drag ends up, and
+   * what it copies — can be called directly, the same way
+   * {@link onCellMouseDown} itself is; {@link isFillHandleTarget}, the part
+   * that decides whether a mousedown landed on the handle at all, is real
+   * pixel geometry with nothing to unit-test.
+   */
+  protected startFill(node: IRowNode<LedgerRowData>, colId: string): void {
+    const ref = this.cellRef(node, colId);
+    // Guards the invariant `endDrag` leans on below: `fillDragging` is never
+    // true without a selection for the fill to have come from.
+    if (ref && this.selection()) {
+      this.fillDragging = true;
+      this.fillPreview.set(ref);
+    }
+  }
+
+  /**
+   * Extends the base selection toward wherever the handle was dropped and, if
+   * that grew the rectangle, repeats its pattern into the new cells — the
+   * same tiling a paste does, just starting from whichever edge was dragged
+   * past instead of always the top-left. The selection grows to cover the
+   * filled cells too, the way a spreadsheet leaves it after a fill.
+   */
+  private fill(base: RangeBounds, target: CellRef): void {
+    const extended = extendRange(base, target);
+    const grew =
+      extended.top !== base.top ||
+      extended.bottom !== base.bottom ||
+      extended.left !== base.left ||
+      extended.right !== base.right;
+    if (!grew) {
+      // Dropped back inside the selection: nothing to fill, but the preview's
+      // dashed outline still needs clearing.
+      this.api?.refreshCells({ columns: this.selectableColumns(), force: true });
+      return;
+    }
+    this.applyFill(base, extended);
+    this.select({
+      anchor: { row: extended.top, col: extended.left },
+      head: { row: extended.bottom, col: extended.right },
+    });
+  }
+
+  /**
+   * Writes the base block's values into the cells the fill grew into,
+   * repeating it the way a paste repeats the clipboard — through the same
+   * `valueSetter` typing goes through, so a fill is held to the same rules.
+   */
+  private applyFill(base: RangeBounds, extended: RangeBounds): void {
+    const api = this.api;
+    if (!api) {
+      return;
+    }
+    const columns = this.selectableColumns();
+    const baseWidth = base.right - base.left + 1;
+    const baseHeight = base.bottom - base.top + 1;
+
+    // Read the base block once, before writing anything — every store call
+    // below replaces the trip, and reading mid-fill would pick up values this
+    // same fill just wrote.
+    const source: (string | null)[][] = [];
+    for (let row = base.top; row <= base.bottom; row++) {
+      const node = api.getDisplayedRowAtIndex(row);
+      const line: (string | null)[] = [];
+      for (let col = base.left; col <= base.right; col++) {
+        const value = node ? api.getCellValue({ rowNode: node, colKey: columns[col] }) : null;
+        line.push(value == null ? null : String(value));
+      }
+      source.push(line);
+    }
+
+    for (let row = extended.top; row <= extended.bottom; row++) {
+      const node = api.getDisplayedRowAtIndex(row);
+      // Clipped to the lines that exist, the same as a paste: a fill spreads
+      // a sheet's own pattern over its own lines, not into the blank row that
+      // ends the block or a neighbouring sheet's heading.
+      if (node?.data?.kind !== 'item') {
+        continue;
+      }
+      const srcRow = (((row - base.top) % baseHeight) + baseHeight) % baseHeight;
+      for (let col = extended.left; col <= extended.right; col++) {
+        if (row >= base.top && row <= base.bottom && col >= base.left && col <= base.right) {
+          continue; // Already holds this value — it is the source.
+        }
+        const srcCol = (((col - base.left) % baseWidth) + baseWidth) % baseWidth;
+        const value = source[srcRow][srcCol];
+        if (value !== null) {
+          node.setDataValue(columns[col], value);
+        }
+      }
+    }
+  }
+
+  /**
+   * True for the one cell at the current selection's own bottom-right
+   * corner — the only place the handle is drawn, in {@link columns} below.
+   *
+   * Held to a line, the same as {@link applyFill} itself is: the "add" row
+   * and the filler beneath a short block are not lines to fill from or into,
+   * only padding and a place to type a new one. A selection that reaches down
+   * into either has its corner *on* one of them — the last row of a block
+   * always is — so this is also what keeps the handle from being drawn at
+   * all once a drag has swept either one up.
+   */
+  private isFillHandle(node: IRowNode<LedgerRowData>, colId: string): boolean {
+    const range = this.selection();
+    if (!range || node.data?.kind !== 'item') {
+      return false;
+    }
+    const { bottom, right } = rangeBounds(range);
+    const ref = this.cellRef(node, colId);
+    return !!ref && ref.row === bottom && ref.col === right;
+  }
+
+  /**
+   * True for a cell inside the block a fill drag is about to cover, but not
+   * already inside the selection it started from — that block stays marked
+   * {@link isSelected} throughout, so the two together are what draw the
+   * whole preview.
+   *
+   * Excludes the "add" row and the filler beneath a short block for the same
+   * reason {@link isFillHandle} does: dragging the handle past either into
+   * one would otherwise dash a promise {@link applyFill} does not keep, since
+   * it already skips writing to a line that is not one.
+   */
+  private isFillPreview(node: IRowNode<LedgerRowData>, colId: string): boolean {
+    if (!this.fillDragging || node.data?.kind !== 'item') {
+      return false;
+    }
+    const base = this.selection();
+    const target = this.fillPreview();
+    const ref = base && target && this.cellRef(node, colId);
+    if (!base || !target || !ref) {
+      return false;
+    }
+    const extended = extendRange(rangeBounds(base), target);
+    return (
+      ref.row >= extended.top &&
+      ref.row <= extended.bottom &&
+      ref.col >= extended.left &&
+      ref.col <= extended.right &&
+      !rangeHas(base, ref.row, ref.col)
+    );
+  }
+
+  /**
+   * True when a mousedown landed on the little square at the selection's own
+   * corner rather than on the cell around it — real pixel geometry, with
+   * nothing in it to unit-test; the drag it starts, {@link startFill}, is
+   * tested directly instead.
+   */
+  private isFillHandleTarget(event: CellMouseDownEvent<LedgerRowData>): boolean {
+    if (!this.isFillHandle(event.node, event.column.getColId())) {
+      return false;
+    }
+    const native = event.event as MouseEvent | null;
+    const cell = (native?.target as HTMLElement | null)?.closest('.ag-cell');
+    if (!native || !cell) {
+      return false;
+    }
+    const rect = cell.getBoundingClientRect();
+    const HANDLE_HIT_PX = 8;
+    return native.clientX >= rect.right - HANDLE_HIT_PX && native.clientY >= rect.bottom - HANDLE_HIT_PX;
   }
 
   // --- Ticked lines, and what can be done to them ------------------------
@@ -828,6 +1074,8 @@ export class SplitGrid {
           'ledger-missing': (p) =>
             p.data?.kind === 'item' && this.itemHasError(p.data.row.item.id),
           'ledger-selected': (p) => this.isSelected(p.node, 'item'),
+          'ledger-fill-handle': (p) => this.isFillHandle(p.node, 'item'),
+          'ledger-fill-preview': (p) => this.isFillPreview(p.node, 'item'),
         },
       },
       {
@@ -870,6 +1118,8 @@ export class SplitGrid {
         },
         cellClassRules: {
           'ledger-selected': (p) => this.isSelected(p.node, 'amount'),
+          'ledger-fill-handle': (p) => this.isFillHandle(p.node, 'amount'),
+          'ledger-fill-preview': (p) => this.isFillPreview(p.node, 'amount'),
         },
       },
     ];
@@ -921,6 +1171,8 @@ export class SplitGrid {
           'ledger-credit': (p) =>
             p.data?.kind === 'balances' && this.balanceOf(person.id) < 0,
           'ledger-selected': (p) => this.isSelected(p.node, `person:${person.id}`),
+          'ledger-fill-handle': (p) => this.isFillHandle(p.node, `person:${person.id}`),
+          'ledger-fill-preview': (p) => this.isFillPreview(p.node, `person:${person.id}`),
         },
       });
     }

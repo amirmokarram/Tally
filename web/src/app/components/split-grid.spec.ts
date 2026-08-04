@@ -34,6 +34,8 @@ interface Harness {
 interface Selecting {
   onCellMouseDown(event: unknown): void;
   onCellMouseOver(event: unknown): void;
+  endDrag(): void;
+  startFill(node: unknown, colId: string): void;
 }
 
 function selecting(fixture: ComponentFixture<SplitGrid>): Selecting {
@@ -57,6 +59,21 @@ function drag(harness: Harness, from: [string, string], to: [string, string]): v
   const grid = selecting(harness.fixture);
   grid.onCellMouseDown(onCell(harness.api, ...from));
   grid.onCellMouseOver(onCell(harness.api, ...to));
+}
+
+/**
+ * Drags the fill handle from the cell at a selection's own corner out to
+ * another cell, and lets go — the handle's own hit-test is real pixel
+ * geometry with nothing to unit-test, so `startFill` is called directly, the
+ * cell it would have landed on standing in for the corner AG Grid would have
+ * drawn the handle on.
+ */
+function fillDrag(harness: Harness, corner: [string, string], to: [string, string]): void {
+  const grid = selecting(harness.fixture);
+  const node = (onCell(harness.api, ...corner) as { node: unknown }).node;
+  grid.startFill(node, corner[1]);
+  grid.onCellMouseOver(onCell(harness.api, ...to));
+  grid.endDrag();
 }
 
 /** Ticks the given lines, the way their check boxes would. */
@@ -716,6 +733,190 @@ describe('the ledger grid', () => {
 
       expect(selectedCells(harness.fixture)).toEqual([]);
       expect(copyFrom(harness.fixture)).toBe('');
+    });
+  });
+
+  /**
+   * The fill handle — the little square at a selection's own corner that
+   * repeats its value, or a block's pattern, into whatever it is dragged
+   * over. AG Grid's own is Enterprise, so this is the component's, built the
+   * same way the selection and clipboard are — see `cell-range.spec.ts` for
+   * the rectangle it grows by.
+   */
+  describe('the fill handle', () => {
+    function fillHandleCells(fixture: ComponentFixture<SplitGrid>): string[] {
+      return Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('.ledger-fill-handle'),
+      ).map(
+        (cell) =>
+          `${cell.closest('.ag-row')!.getAttribute('row-id')}/${cell.getAttribute('col-id')}`,
+      );
+    }
+
+    it('sits at the selection’s own bottom-right corner, and nowhere else', async () => {
+      const harness = await grid();
+      const [beer, pizza] = harness.store.sheets()[0].items;
+
+      drag(harness, [`item:${beer.id}`, 'item'], [`item:${pizza.id}`, 'amount']);
+      await settle(harness.fixture);
+
+      expect(fillHandleCells(harness.fixture)).toEqual([`item:${pizza.id}/amount`]);
+    });
+
+    it('draws no handle on the row that adds a new line', async () => {
+      const harness = await grid();
+      const sheet = harness.store.sheets()[0];
+
+      drag(harness, [`add-item:${sheet.id}`, 'item'], [`add-item:${sheet.id}`, 'item']);
+      await settle(harness.fixture);
+
+      expect(fillHandleCells(harness.fixture)).toEqual([]);
+    });
+
+    it('draws no handle on the padding under a short block', async () => {
+      const harness = await grid();
+      harness.store.addSheet('Nothing yet');
+      await settle(harness.fixture);
+
+      const filler = (harness.fixture.nativeElement as HTMLElement).querySelector(
+        '.ag-row.ledger-filler-row',
+      )!;
+      const fillerRowId = filler.getAttribute('row-id')!;
+
+      drag(harness, [fillerRowId, 'item'], [fillerRowId, 'item']);
+      await settle(harness.fixture);
+
+      expect(fillHandleCells(harness.fixture)).toEqual([]);
+    });
+
+    it('does not dash the add row or the padding while a drag passes over them', async () => {
+      const harness = await grid();
+      const sheet = harness.store.sheets()[0];
+      const last = sheet.items.at(-1)!;
+
+      drag(harness, [`item:${last.id}`, 'amount'], [`item:${last.id}`, 'amount']);
+      await settle(harness.fixture);
+      const grid_ = selecting(harness.fixture);
+      grid_.startFill(
+        (onCell(harness.api, `item:${last.id}`, 'amount') as { node: unknown }).node,
+        'amount',
+      );
+      grid_.onCellMouseOver(onCell(harness.api, `add-item:${sheet.id}`, 'amount'));
+      await settle(harness.fixture);
+
+      expect(
+        (harness.fixture.nativeElement as HTMLElement).querySelectorAll('.ledger-fill-preview')
+          .length,
+      ).toBe(0);
+
+      grid_.endDrag();
+      // Nothing to fill — the whole drag never left the padding.
+      expect(harness.store.sheets()[0].items.length).toBe(sheet.items.length);
+    });
+
+    it('repeats a single cell down the column it is dragged over', async () => {
+      const harness = await grid();
+      const [beer, pizza, burger] = harness.store.sheets()[0].items;
+
+      drag(harness, [`item:${beer.id}`, 'amount'], [`item:${beer.id}`, 'amount']);
+      await settle(harness.fixture);
+      fillDrag(harness, [`item:${beer.id}`, 'amount'], [`item:${burger.id}`, 'amount']);
+      await settle(harness.fixture);
+
+      const after = harness.store.sheets()[0].items;
+      expect(after.find((i) => i.id === pizza.id)!.amount).toBe(beer.amount);
+      expect(after.find((i) => i.id === burger.id)!.amount).toBe(beer.amount);
+    });
+
+    it('repeats a block’s own pattern, tiled, across the rows it grows into', async () => {
+      const harness = await grid();
+      const [beer, pizza, burger, steak] = harness.store.sheets()[0].items;
+
+      drag(harness, [`item:${beer.id}`, 'item'], [`item:${pizza.id}`, 'amount']);
+      await settle(harness.fixture);
+      fillDrag(harness, [`item:${pizza.id}`, 'amount'], [`item:${steak.id}`, 'amount']);
+      await settle(harness.fixture);
+
+      const after = harness.store.sheets()[0].items;
+      expect(after.find((i) => i.id === burger.id)!.name).toBe(beer.name);
+      expect(after.find((i) => i.id === burger.id)!.amount).toBe(beer.amount);
+      expect(after.find((i) => i.id === steak.id)!.name).toBe(pizza.name);
+      expect(after.find((i) => i.id === steak.id)!.amount).toBe(pizza.amount);
+    });
+
+    it('writes through the same rules typing does, sharing a paste’s validation', async () => {
+      const harness = await grid();
+      const items = harness.store.sheets()[0].items;
+      const person = harness.store.people()[0];
+
+      // Beer's share is already inside the workbook's 0 – 10 validation, so
+      // fill and share it as any valid value would be.
+      drag(
+        harness,
+        [`item:${items[0].id}`, `person:${person.id}`],
+        [`item:${items[0].id}`, `person:${person.id}`],
+      );
+      await settle(harness.fixture);
+      fillDrag(
+        harness,
+        [`item:${items[0].id}`, `person:${person.id}`],
+        [`item:${items[1].id}`, `person:${person.id}`],
+      );
+      await settle(harness.fixture);
+
+      expect(harness.store.share(items[1].id, person.id)).toEqual(
+        harness.store.share(items[0].id, person.id),
+      );
+    });
+
+    it('clips to the lines that exist rather than growing the sheet', async () => {
+      const harness = await grid();
+      const sheet = harness.store.sheets()[0];
+      const last = sheet.items.at(-1)!;
+      const before = sheet.items.length;
+
+      drag(harness, [`item:${last.id}`, 'amount'], [`item:${last.id}`, 'amount']);
+      await settle(harness.fixture);
+      fillDrag(harness, [`item:${last.id}`, 'amount'], [`add-item:${sheet.id}`, 'amount']);
+      await settle(harness.fixture);
+
+      expect(harness.store.sheets()[0].items.length).toBe(before);
+    });
+
+    it('grows the selection to cover what it just filled', async () => {
+      const harness = await grid();
+      const [beer, pizza, burger] = harness.store.sheets()[0].items;
+
+      drag(harness, [`item:${beer.id}`, 'amount'], [`item:${beer.id}`, 'amount']);
+      await settle(harness.fixture);
+      fillDrag(harness, [`item:${beer.id}`, 'amount'], [`item:${burger.id}`, 'amount']);
+      await settle(harness.fixture);
+
+      expect(selectedCells(harness.fixture).sort()).toEqual(
+        [
+          `item:${beer.id}/amount`,
+          `item:${pizza.id}/amount`,
+          `item:${burger.id}/amount`,
+        ].sort(),
+      );
+    });
+
+    it('does nothing when the handle is dropped back inside the selection', async () => {
+      const harness = await grid();
+      const [beer, pizza] = harness.store.sheets()[0].items;
+      const before = pizza.amount;
+
+      drag(harness, [`item:${beer.id}`, 'amount'], [`item:${pizza.id}`, 'amount']);
+      await settle(harness.fixture);
+      fillDrag(harness, [`item:${pizza.id}`, 'amount'], [`item:${beer.id}`, 'amount']);
+      await settle(harness.fixture);
+
+      expect(harness.store.sheets()[0].items.find((i) => i.id === pizza.id)!.amount).toBe(
+        before,
+      );
+      expect(selectedCells(harness.fixture).sort()).toEqual(
+        [`item:${beer.id}/amount`, `item:${pizza.id}/amount`].sort(),
+      );
     });
   });
 

@@ -7,6 +7,7 @@
 
 import {
   CellRange,
+  extendRange,
   fromClipboardText,
   isSingleCell,
   rangeBounds,
@@ -41,6 +42,27 @@ describe('the selected block', () => {
   it('knows a single cell, which is what makes a paste land rather than fill', () => {
     expect(isSingleCell(range(2, 2, 2, 2))).toBe(true);
     expect(isSingleCell(range(2, 2, 2, 3))).toBe(false);
+  });
+});
+
+describe('a fill handle drag', () => {
+  const base = rangeBounds(range(1, 1, 2, 2)); // rows 1–2, cols 1–2
+
+  it('grows the edge dragged furthest past, and no other', () => {
+    expect(extendRange(base, { row: 4, col: 2 })).toEqual({ top: 1, left: 1, bottom: 4, right: 2 });
+    expect(extendRange(base, { row: 1, col: 5 })).toEqual({ top: 1, left: 1, bottom: 2, right: 5 });
+    expect(extendRange(base, { row: -3, col: 1 })).toEqual({ top: -3, left: 1, bottom: 2, right: 2 });
+    expect(extendRange(base, { row: 2, col: -2 })).toEqual({ top: 1, left: -2, bottom: 2, right: 2 });
+  });
+
+  it('picks the single largest overshoot when the drag went two ways', () => {
+    // Three past the bottom, one past the right — down wins.
+    expect(extendRange(base, { row: 5, col: 3 })).toEqual({ top: 1, left: 1, bottom: 5, right: 2 });
+  });
+
+  it('does nothing for a pointer still inside the base rectangle', () => {
+    expect(extendRange(base, { row: 2, col: 2 })).toEqual(base);
+    expect(extendRange(base, { row: 1, col: 1 })).toEqual(base);
   });
 });
 
