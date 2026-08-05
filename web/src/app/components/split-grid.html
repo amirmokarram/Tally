@@ -16,9 +16,8 @@
 </p>
 
 <div class="toolbar">
-  <button class="btn" type="button" (click)="addPerson()">+ Add person</button>
-  <!-- Adding a sheet is the `+` at the head of the Sheet column, next to the
-       blocks it makes. -->
+  <!-- Adding a person or a sheet is a `+` at the head of its own column now —
+       both makers live where the thing they make does. -->
   <!-- What used to be three buttons on every row. They appear only once lines
        are ticked, so nothing is reserved for them the rest of the time. -->
   @if (ticked().length; as count) {
@@ -59,18 +58,18 @@
   (modelUpdated)="onModelUpdated()"
   (cellMouseDown)="onCellMouseDown($event)"
   (cellMouseOver)="onCellMouseOver($event)"
+  (columnMoved)="onColumnMoved($event)"
   [getRowId]="getRowId"
   [defaultColDef]="defaultColDef"
   [enableCellSpan]="true"
   [stopEditingWhenCellsLoseFocus]="true"
-  [suppressMovableColumns]="true"
   [animateRows]="false"
   [getRowClass]="getRowClass"
   [rowSelection]="rowSelection"
   (selectionChanged)="onSelectionChanged($event)"
   [rowHeight]="rowHeight"
   [getRowHeight]="getRowHeight"
-  [headerHeight]="52"
+  [headerHeight]="82"
 />
 
 @if (editingSheetId(); as sheetId) {

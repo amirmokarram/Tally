@@ -44,6 +44,8 @@ import {
   CellMouseOverEvent,
   ColDef,
   ColumnApiModule,
+  ColumnMovedEvent,
+  _ColumnMoveModule,
   GetRowIdParams,
   GridApi,
   GridReadyEvent,
@@ -84,7 +86,7 @@ import {
 import { LEDGER_ROW_HEIGHT, ledgerTheme } from './grid-theme';
 import { AddSheetHeader, SheetCell } from './sheet-cell';
 import { SheetEditor } from './sheet-editor';
-import { PersonHeader } from './person-header';
+import { AddPersonHeader, PersonHeader } from './person-header';
 import { SelectAllHeader, SelectCell } from './select-cell';
 
 // Community modules only, and named one by one rather than pulled in as
@@ -114,6 +116,10 @@ ModuleRegistry.registerModules([
   ScrollApiModule,
   // `api.refreshCells` — repaints the selected block as a drag moves over it.
   RenderApiModule,
+  // Dragging a person's own header to reorder it. The leading underscore is
+  // AG Grid's own naming for a module carved out of what used to be part of
+  // the free bundle — it ships from `ag-grid-community`, not `-enterprise`.
+  _ColumnMoveModule,
   // Turns AG Grid's numbered warnings into readable ones. Dropped from the
   // production bundle, which is a large part of the saving.
   ...(isDevMode() ? [ValidationModule] : []),
@@ -363,6 +369,13 @@ const money = new MoneyPipe();
       --ag-cell-horizontal-padding: 0px;
     }
 
+    /* The same fix, for the same reason: a person column turned on its side
+       is 44 pixels wide, and AG Grid's 16 either side would leave the header
+       component 12 to work with instead of the 44 it is sized for. */
+    :host ::ng-deep .ledger-person-header {
+      --ag-cell-horizontal-padding: 0px;
+    }
+
     /* AG Grid raises a row to \`z-index: 1\` for as long as one of its cells is
        being edited — headroom meant for an editor's own dropdown to sit above
        the *other* rows around it. The layer that paints every spanned cell,
@@ -559,10 +572,66 @@ export class SplitGrid {
    * until it has processed the new definitions. Naming happens in the header
    * itself — focusing it from here does not survive AG Grid rebuilding the
    * header it has just built.
+   *
+   * The new column lands *before* the trailing Add-person column in both the
+   * grid's own model and {@link columns} — but not always in the header DOM,
+   * which is the same staleness {@link onColumnMoved} works around: told to
+   * insert a column ahead of one already there, AG Grid updates its column
+   * model straight away and leaves the header cells themselves in the old
+   * order until something asks them to repaint. One deferred `refreshHeader`
+   * call — the same task the column model itself needed to be ready for —
+   * lands too early to fix it here; the model is ready but the header's own
+   * DOM apparently is not. A second, later one is what actually takes.
    */
   protected addPerson(): void {
     const colId = `person:${this.store.addPerson().id}`;
-    setTimeout(() => this.api?.ensureColumnVisible(colId));
+    setTimeout(() => {
+      this.api?.ensureColumnVisible(colId);
+      this.api?.refreshHeader();
+      setTimeout(() => this.api?.refreshHeader());
+    });
+  }
+
+  /**
+   * Carries a person's column drag back into the trip's own order.
+   *
+   * AG Grid's column order is its own state — dropped there, it would hold
+   * only until {@link columns} next rebuilds from {@link TripStore.people},
+   * which draws every person column back in the store's order and undoes the
+   * drag. So the drop is read back out here instead: once it settles
+   * (`finished`), the store's order is replaced with whatever order the
+   * person columns are actually in, and {@link columns} rebuilding from that
+   * is what makes the drag stick.
+   *
+   * Fires for every column AG Grid moves, but `suppressMovable` on
+   * {@link defaultColDef} keeps every column but a person's from moving in
+   * the first place, so only a person column's own event ever reaches here
+   * with something to do.
+   *
+   * The header cells themselves are the other half of the same staleness
+   * `onGridReady` and `onModelUpdated` already work around: told to move a
+   * column, AG Grid updates its own column model straight away but leaves the
+   * header DOM sitting in the old order until something asks it to repaint.
+   * Deferred for the same reason {@link addPerson}'s scroll is — this runs
+   * inside the `columnMoved` handler, before the store's write has reached
+   * {@link columns} and been rebound as `columnDefs`.
+   */
+  protected onColumnMoved(event: ColumnMovedEvent<LedgerRowData>): void {
+    const colId = event.column?.getColId();
+    if (!event.finished || !colId?.startsWith('person:')) {
+      return;
+    }
+    const personId = colId.slice('person:'.length);
+    const order = (this.api?.getAllGridColumns() ?? [])
+      .map((column) => column.getColId())
+      .filter((id) => id.startsWith('person:'))
+      .map((id) => id.slice('person:'.length));
+    const from = this.store.people().findIndex((p) => p.id === personId);
+    const to = order.indexOf(personId);
+    if (from >= 0 && to >= 0 && from !== to) {
+      this.store.movePerson(personId, to - from);
+      setTimeout(() => this.api?.refreshHeader());
+    }
   }
 
   // --- Selecting a block of cells, and the clipboard ---------------------
@@ -973,11 +1042,15 @@ export class SplitGrid {
   protected readonly defaultColDef: ColDef<LedgerRowData> = {
     // Every column here is sized for exactly what it holds — a tick, a line
     // number, a share of at most four characters — and Item takes whatever is
-    // left over. There is nothing a drag could improve, and a grab handle on
+    // left over. There is nothing resizing could improve, and a grab handle on
     // every border is one more thing to catch on the way to a cell.
     resizable: false,
     sortable: false,
     filter: false,
+    // Fixed by default — Sheet, the tick box and the line number are what the
+    // ledger is grouped and read by, and Item/Amount are the two everything
+    // else lines up under. A person column overrides this back to movable
+    // (see below): reordering people *is* a drag now, not a pair of arrows.
     suppressMovable: true,
     // Every column here says what it holds through its own valueGetter and
     // renderer. Left on, AG Grid infers a type per column from the row data —
@@ -1132,7 +1205,12 @@ export class SplitGrid {
         headerName: person.name || 'Unnamed',
         headerComponent: PersonHeader,
         headerComponentParams: { personId: person.id },
-        width: 96,
+        headerClass: 'ledger-person-header',
+        width: 44,
+        // The one column left movable — reordering people is a drag on their
+        // own header now, not a pair of arrows. {@link onColumnMoved} is what
+        // carries the drop back into the trip's own order.
+        suppressMovable: false,
         cellClass: 'ledger-share',
         editable: (p) => p.data?.kind === 'item',
         valueGetter: (p: ValueGetterParams<LedgerRowData>) => {
@@ -1176,6 +1254,20 @@ export class SplitGrid {
         },
       });
     }
+
+    // The trailing column that adds a person — see `person-header.ts` for
+    // why this is a column rather than the toolbar button it used to be.
+    // Fixed, not `movable`: a person's own column is what drags, not the
+    // button that makes one, the same way Sheet's own `+` never moves either.
+    columns.push({
+      colId: 'add-person',
+      headerName: '',
+      headerComponent: AddPersonHeader,
+      headerComponentParams: { addPerson: () => this.addPerson() },
+      headerClass: 'ledger-person-header',
+      width: 44,
+      editable: false,
+    });
 
     return columns;
   });

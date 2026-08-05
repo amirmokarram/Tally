@@ -181,23 +181,24 @@ describe('the ledger grid', () => {
     );
   });
 
-  it('adds a person from the toolbar above the grid', async () => {
+  it('adds a person from the button at the tail of the grid', async () => {
     const { fixture, store, api } = await grid();
     const people = store.people().length;
 
-    // The person column has no home inside the grid: it was removed to give the
-    // ledger its space back, and the button that makes one went with it.
-    const button = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
-        '.toolbar button',
-      ),
-    ).find((b) => b.textContent!.includes('person'))!;
-    button.click();
+    // The mirror of the Sheet column's own add button: a trailing column of
+    // its own, rather than the toolbar button that used to be here.
+    const button = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+      '.ag-header-cell[col-id="add-person"] button[aria-label="Add person"]',
+    );
+    expect(button).withContext('the add-person button at the tail of the grid').not.toBeNull();
+
+    button!.click();
     await settle(fixture);
 
     expect(store.people().length).toBe(people + 1);
     expect(columnIds(api)).toContain(`person:${store.people().at(-1)!.id}`);
-    expect(columnIds(api)).not.toContain('add-person');
+    // Stays last: a new person's column is inserted ahead of it, not after.
+    expect(columnIds(api).at(-1)).toBe('add-person');
   });
 
   it('adds a sheet from the button at the head of the Sheet column', async () => {
