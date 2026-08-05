@@ -453,6 +453,27 @@ const money = new MoneyPipe();
     :host ::ng-deep .ag-spanned-cell-wrapper {
       pointer-events: auto;
     }
+
+    /* A block tall enough to scroll past where the header sits paints over
+       it: the Sheet column's white cell, and whatever name or charge box
+       happens to fall there, both drawn on top of the navy header band
+       instead of underneath it.
+       Bumping \`.ag-header\` itself does not reach far enough to fix this — it
+       only wins the tie *inside* \`.ag-grid-pinned-top-rows\`, the sticky
+       wrapper AG Grid already draws the header and this app's own pinned
+       totals row inside; that wrapper's sibling on the scrolling side is
+       \`.ag-grid-scrolling-rows\`, and it is those two that are actually
+       compared once a descendant on either side asks for a stacking context.
+       \`.ag-spanning-container\` (raised above) sits inside the scrolling
+       side, several plain, uncontexted layers down, so its \`z-index: 2\`
+       bubbles all the way up to that same comparison — landing exactly on
+       \`.ag-grid-pinned-top-rows\`'s own default of \`2\`, a tie DOM order then
+       breaks in the scrolling side's favour, since it is the later of the
+       two in the document. Raising the pinned wrapper itself, rather than
+       the header inside it, is what actually reaches that comparison. */
+    :host ::ng-deep .ag-grid-pinned-top-rows {
+      z-index: 3;
+    }
   `,
 })
 export class SplitGrid {

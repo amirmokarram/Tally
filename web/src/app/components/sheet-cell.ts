@@ -51,6 +51,12 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
 @Component({
   selector: 'app-sheet-cell',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    // "Totals" is four letters — short enough to read at a glance the
+    // ordinary way, unlike a sheet's name and charges which need the turn to
+    // fit at all. The one case this component draws with nothing else in it.
+    '[class.is-total]': "kind() === 'balances'",
+  },
   template: `
     @switch (kind()) {
       @case ('balances') {
@@ -128,6 +134,16 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
       /* Two lines of boxes and a caption have to sit across a column 70 pixels
          wide, which is what the turn bought. */
       font-size: 12px;
+    }
+
+    /* Read the normal way round: centred in the cell rather than run down its
+       length, since nothing else shares the row with it. */
+    :host(.is-total) {
+      writing-mode: horizontal-tb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
     }
 
     .line {
