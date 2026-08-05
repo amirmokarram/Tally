@@ -1220,7 +1220,7 @@ export class SplitGrid {
         colId: 'index',
         headerName: '#',
         headerComponent: IndexHeader,
-        width: 54,
+        width: 45,
         editable: false,
         // Derived, so it is not part of a copy: pasting a line number over
         // another line would mean nothing.
