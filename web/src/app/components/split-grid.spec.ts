@@ -347,52 +347,67 @@ describe('the ledger grid', () => {
     it('will not tick the blank row that ends a block, or the pinned strip', async () => {
       const { fixture, api, store } = await grid();
       const sheet = store.sheets()[0];
-      const host = fixture.nativeElement as HTMLElement;
 
       expect(api.getRowNode(`add-item:${sheet.id}`)!.selectable).toBe(false);
       expect(api.getRowNode(`item:${sheet.items[0].id}`)!.selectable).toBe(true);
 
-      // No box at all on those rows — one that cannot be ticked is worse than
-      // none. The pinned strip never goes through `isRowSelectable`, so the
-      // cell has to rule it out itself.
-      expect(host.querySelectorAll('.ag-row[row-id^="add-item:"] [col-id="select"] input').length)
-        .toBe(0);
-      expect(host.querySelectorAll('.ag-row-pinned [col-id="select"] input').length).toBe(0);
-      expect(
-        host.querySelectorAll('.ag-row[row-id^="item:"] [col-id="select"] input').length,
-      ).toBeGreaterThan(0);
+      // A click on the line number only ticks a real line — the blank row
+      // that ends a block and the pinned strip are not lines yet, and a click
+      // on their own line number cell does nothing.
+      const sel = selecting(fixture);
+      sel.onCellMouseDown(onCell(api, `add-item:${sheet.id}`, 'index'));
+      sel.onCellMouseDown(onCell(api, 'balances', 'index'));
+      await settle(fixture);
+
+      expect(api.getSelectedNodes().length).toBe(0);
     });
 
-    it('ticks a line from its own box, and every line from the header', async () => {
-      const { fixture, store } = await grid();
-      const host = fixture.nativeElement as HTMLElement;
-      const boxes = () =>
-        Array.from(
-          host.querySelectorAll<HTMLInputElement>(
-            '.ag-row[row-id^="item:"] [col-id="select"] input',
-          ),
-        );
-      const header = () =>
-        host.querySelector<HTMLInputElement>('.ag-header-cell[col-id="select"] input')!;
+    it('ticks a line from its own line number, and drops the tick the same way', async () => {
+      const { fixture, api, store } = await grid();
+      const sheet = store.sheets()[0];
+      const items = sheet.items;
+      const sel = selecting(fixture);
 
-      boxes()[0].click();
+      sel.onCellMouseDown(onCell(api, `item:${items[0].id}`, 'index'));
       await settle(fixture);
-      expect(boxes().filter((b) => b.checked).length).toBe(1);
-      // Some but not all: the header says so rather than claiming either.
-      expect(header().indeterminate).toBe(true);
+      expect(api.getSelectedNodes().map((n) => n.data)).toEqual([
+        jasmine.objectContaining({ kind: 'item' }),
+      ]);
+      expect(toolbarButton(fixture, 'Remove')!.textContent).toContain('line');
+
+      sel.onCellMouseDown(onCell(api, `item:${items[1].id}`, 'index'));
+      await settle(fixture);
+      expect(toolbarButton(fixture, 'Remove')!.textContent).toContain('2 lines');
+
+      // Clicking a ticked line's own number drops it again, the same way the
+      // box it replaced would have.
+      sel.onCellMouseDown(onCell(api, `item:${items[0].id}`, 'index'));
+      await settle(fixture);
+      expect(api.getSelectedNodes().length).toBe(1);
+      expect(toolbarButton(fixture, 'Remove')!.textContent).toContain('line');
+    });
+
+    it('ticks every line from the line number header, and drops them all the same way', async () => {
+      const { fixture, api, store } = await grid();
+      const host = fixture.nativeElement as HTMLElement;
+      const header = () =>
+        host.querySelector<HTMLButtonElement>('.ag-header-cell[col-id="index"] button')!;
 
       header().click();
       await settle(fixture);
-      expect(boxes().every((b) => b.checked)).toBe(true);
-      expect(header().checked).toBe(true);
+
+      expect(api.getSelectedNodes().length).toBe(store.sheets()[0].items.length);
       expect(toolbarButton(fixture, 'Remove')!.textContent).toContain(
         `${store.sheets()[0].items.length} lines`,
       );
+      expect(header().getAttribute('aria-label')).toBe('Untick every line');
 
       header().click();
       await settle(fixture);
-      expect(boxes().some((b) => b.checked)).toBe(false);
+
+      expect(api.getSelectedNodes().length).toBe(0);
       expect(toolbarButton(fixture, 'Remove')).toBeNull();
+      expect(header().getAttribute('aria-label')).toBe('Tick every line');
     });
   });
 

@@ -87,7 +87,7 @@ import { LEDGER_ROW_HEIGHT, ledgerTheme } from './grid-theme';
 import { AddSheetHeader, SheetCell } from './sheet-cell';
 import { SheetEditor } from './sheet-editor';
 import { AddPersonHeader, PersonHeader } from './person-header';
-import { SelectAllHeader, SelectCell } from './select-cell';
+import { IndexHeader } from './index-header';
 
 // Community modules only, and named one by one rather than pulled in as
 // `AllCommunityModule`: the bundle is shipped to a GitHub Pages demo, and the
@@ -319,6 +319,20 @@ const money = new MoneyPipe();
       font-size: 12px;
     }
 
+    /* A line's own number doubles as its tick box now, so it needs to read as
+       pressable — the checkbox it replaces had a pointer cursor by default. */
+    :host ::ng-deep .ledger-index-tickable {
+      cursor: pointer;
+    }
+
+    /* The ticked state, in the same ink used for the cell-range selection so
+       the two read as the same kind of thing: chosen. */
+    :host ::ng-deep .ledger-index-ticked {
+      background: var(--navy-050);
+      color: var(--navy-700);
+      font-weight: 600;
+    }
+
     :host ::ng-deep .ledger-numeric {
       font-variant-numeric: tabular-nums;
       justify-content: flex-end;
@@ -539,16 +553,19 @@ export class SplitGrid {
   };
 
   /**
-   * Which lines are ticked is AG Grid's; the boxes are not.
+   * Which lines are ticked is AG Grid's; the ticking is not.
    *
    * `checkboxes` is off because AG Grid draws them only in a selection column
    * it prepends to the column list on every rebuild — it cannot sit after Sheet
-   * and the line number. {@link SelectCell} draws them in a column of ours
-   * instead, and writes back through the node.
-   *
-   * No selection by clicking a cell either: a click in the grid starts a *cell*
-   * block for copy and paste, which is a different thing from choosing lines to
-   * act on, and one click cannot mean both.
+   * and the line number. `enableClickSelection` is off for the same reason a
+   * plain cell click cannot tick a line either: a click in the grid starts a
+   * *cell* block for copy and paste, which is a different thing from choosing
+   * lines to act on, and one click cannot mean both. The line number column is
+   * the exception — it holds no pasteable value, so a click there is free to
+   * mean "tick this line" instead, and {@link onCellMouseDown} handles it
+   * directly, writing back through the node the same way the old boxes did.
+   * `headerCheckbox` is off for the same reason, and {@link IndexHeader} is
+   * what "tick every line" moved to.
    */
   protected readonly rowSelection: RowSelectionOptions<LedgerRowData> = {
     mode: 'multiRow',
@@ -735,6 +752,16 @@ export class SplitGrid {
   );
 
   protected onCellMouseDown(event: CellMouseDownEvent<LedgerRowData>): void {
+    // The line number column holds no pasteable value, so a click there ticks
+    // the line instead of starting a cell block — the same job the removed
+    // checkbox column used to do, just moved onto a column that already has
+    // its own reason to be clicked.
+    if (event.column.getColId() === 'index') {
+      if (event.node.data?.kind === 'item') {
+        event.node.setSelected(!event.node.isSelected());
+      }
+      return;
+    }
     const ref = this.cellRef(event.node, event.column.getColId());
     if (!ref) {
       this.select(null);
@@ -964,7 +991,7 @@ export class SplitGrid {
   // lines and acting on them once gives the width back and works on a phone,
   // where a row of buttons per line was unusable.
 
-  /** The lines whose box is ticked, in ledger order. */
+  /** The lines that are ticked, in ledger order. */
   protected readonly ticked = signal<LedgerItemRow[]>([]);
 
   protected onSelectionChanged(event: SelectionChangedEvent<LedgerRowData>): void {
@@ -976,10 +1003,10 @@ export class SplitGrid {
     }
     this.ticked.set(lines);
 
-    // The boxes are ours, so keeping them in step with the selection is too —
-    // a tick can be set from the header box, or dropped by a removal, without
-    // the cell that draws it hearing anything.
-    event.api.refreshCells({ columns: ['select'], force: true });
+    // The highlight is drawn by `cellClassRules` on the line number column,
+    // which AG Grid only re-runs when told the cells changed — a tick can be
+    // dropped by a removal without the cell that draws it hearing anything.
+    event.api.refreshCells({ columns: ['index'], force: true });
     event.api.refreshHeader();
   }
 
@@ -1192,21 +1219,17 @@ export class SplitGrid {
       {
         colId: 'index',
         headerName: '#',
+        headerComponent: IndexHeader,
         width: 54,
         editable: false,
         // Derived, so it is not part of a copy: pasting a line number over
         // another line would mean nothing.
-        cellClass: 'ledger-index',
+        cellClass: (p) => (p.data?.kind === 'item' ? 'ledger-index ledger-index-tickable' : 'ledger-index'),
+        cellClassRules: {
+          'ledger-index-ticked': (p) => p.node.isSelected() ?? false,
+        },
         valueGetter: (p: ValueGetterParams<LedgerRowData>) =>
           p.data?.kind === 'item' ? p.data.index : '',
-      },
-      {
-        colId: 'select',
-        headerName: '',
-        headerComponent: SelectAllHeader,
-        width: 44,
-        editable: false,
-        cellRenderer: SelectCell,
       },
       {
         colId: 'item',
