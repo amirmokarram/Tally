@@ -70,6 +70,7 @@ import {
 
 import { TripStore } from '../core/trip-store';
 import { MoneyPipe } from '../core/money.pipe';
+import { buildExportPayload, downloadJson, exportFileName } from '../core/trip-file';
 import { packShare, unpackShare } from '../models/trip.model';
 import { LedgerItemRow, LedgerRowData, buildLedgerRows, ledgerRowId } from './ledger-model';
 import {
@@ -88,6 +89,7 @@ import { AddSheetHeader, SheetCell } from './sheet-cell';
 import { SheetEditor } from './sheet-editor';
 import { AddPersonHeader, PersonHeader } from './person-header';
 import { IndexHeader } from './index-header';
+import { CurrencyPicker } from './currency-picker';
 
 // Community modules only, and named one by one rather than pulled in as
 // `AllCommunityModule`: the bundle is shipped to a GitHub Pages demo, and the
@@ -138,7 +140,7 @@ const money = new MoneyPipe();
 
 @Component({
   selector: 'app-split-grid',
-  imports: [AgGridAngular, SheetEditor],
+  imports: [AgGridAngular, SheetEditor, CurrencyPicker],
   templateUrl: './split-grid.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
@@ -174,22 +176,49 @@ const money = new MoneyPipe();
       cursor: crosshair;
     }
 
-    .legend {
+    /* The split's own name, currency, and the two actions that used to sit
+       in the app-wide header — moved here since only this tab needs them,
+       and dropped from every other tab's view along the way. */
+    .split-header {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px 18px;
-      margin: 0 0 16px;
-      color: var(--text-muted);
-      font-size: 13px;
+      align-items: center;
+      gap: 10px 14px;
+      margin-bottom: 16px;
     }
 
-    .legend code {
-      background: var(--navy-050);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 1px 5px;
+    .title-input {
+      flex: 1;
+      min-width: 200px;
+      padding: 7px 10px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
       color: var(--text);
-      font-size: 12px;
+      font-size: 16px;
+      font-weight: 600;
+
+      &::placeholder {
+        color: var(--text-muted);
+        font-weight: 400;
+      }
+
+      &:focus {
+        outline: 2px solid var(--navy-700);
+        outline-offset: -1px;
+      }
+    }
+
+    /* The picker paints itself; this only decides how wide it sits. */
+    .currency-select {
+      flex: none;
+      width: 200px;
+    }
+
+    .split-header-actions {
+      display: flex;
+      gap: 8px;
+      flex: none;
     }
 
     /* Tall enough to be a working surface, short enough that the topbar, the
@@ -510,7 +539,7 @@ const money = new MoneyPipe();
   `,
 })
 export class SplitGrid {
-  private readonly store = inject(TripStore);
+  protected readonly store = inject(TripStore);
 
   /**
    * AG Grid loses the renderer on a spanned cell whenever its block changes
@@ -667,6 +696,26 @@ export class SplitGrid {
    */
   protected closeEditor(): void {
     this.editingSheetId.set(null);
+  }
+
+  protected onTitle(event: Event): void {
+    this.store.setTitle((event.target as HTMLInputElement).value);
+  }
+
+  /** Downloads the active split as a JSON file. */
+  protected exportActive(): void {
+    const active = this.store.splitById(this.store.activeSplitId());
+    if (active) {
+      downloadJson(exportFileName([active]), buildExportPayload([active]));
+    }
+  }
+
+  /**
+   * Starts a fresh split. No tab switch needed — this button lives on the
+   * Split tab already, which is where a fresh, empty one lands.
+   */
+  protected newSplit(): void {
+    this.store.createSplit();
   }
 
   /** Adds a sheet and opens it, so it can be named straight away. */

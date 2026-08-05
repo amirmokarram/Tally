@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 
 import { TripStore } from './core/trip-store';
-import { MoneyPipe } from './core/money.pipe';
 import {
   TripFileError,
   buildExportPayload,
@@ -10,7 +9,6 @@ import {
   readSplitsFile,
 } from './core/trip-file';
 import { SavedSplit } from './models/library.model';
-import { CurrencyPicker } from './components/currency-picker';
 import { SplitsPanel } from './components/splits-panel';
 import { SplitGrid } from './components/split-grid';
 import { SettlePanel } from './components/settle-panel';
@@ -25,7 +23,7 @@ interface Tab {
 
 @Component({
   selector: 'app-root',
-  imports: [MoneyPipe, CurrencyPicker, SplitsPanel, SplitGrid, SettlePanel, HelpPanel],
+  imports: [SplitsPanel, SplitGrid, SettlePanel, HelpPanel],
   templateUrl: './app.html',
   styleUrl: './app.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -53,29 +51,8 @@ export class App {
     () => this.store.issues().filter((i) => i.severity === 'error').length,
   );
 
-  /**
-   * Whether the phone-sized menu is expanded. Wider screens show everything at
-   * once, so the flag only ever matters below the breakpoint in `app.scss`.
-   */
-  protected readonly menuOpen = signal(false);
-
-  protected toggleMenu(): void {
-    this.menuOpen.update((open) => !open);
-  }
-
   protected select(tab: TabId): void {
     this.tab.set(tab);
-    // Picking a destination is the end of the errand the menu was opened for.
-    this.menuOpen.set(false);
-  }
-
-  protected onTitle(event: Event): void {
-    this.store.setTitle((event.target as HTMLInputElement).value);
-  }
-
-  protected newSplit(): void {
-    this.store.createSplit();
-    this.select('split');
   }
 
   // --- Export / import --------------------------------------------------
@@ -90,11 +67,6 @@ export class App {
     if (splits.length) {
       downloadJson(exportFileName(splits), buildExportPayload(splits));
     }
-  }
-
-  protected exportActive(): void {
-    const active = this.store.splitById(this.store.activeSplitId());
-    this.exportSplits(active ? [active] : []);
   }
 
   protected exportAll(): void {

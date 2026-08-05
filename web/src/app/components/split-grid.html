@@ -1,20 +1,33 @@
-<h2>Split</h2>
-
-<p class="legend">
-  <span
-    >Type how much of a line each person is on the hook for, <em>relative to the others in
-    that row</em>.</span
-  >
-  <span><code>1 1 1</code> splits evenly</span>
-  <span><code>1 3 4</code> splits an 8-slice pizza 1 / 3 / 4</span>
-  <span><code>1.2</code> owes 1 share and already paid 2</span>
-  <span
-    >Type a <strong>sheet</strong>'s tax, tip and discount in its own cell — <code>5.61</code>
-    or <code>15%</code></span
-  >
-  <span>Drag across cells to select a block, then <code>Ctrl/⌘ C</code> and <code>Ctrl/⌘ V</code></span>
-  <span>Right-click a ticked line for actions on all of them</span>
-</p>
+<!-- The split's own name, currency, and the two actions that used to sit in
+     the app-wide header, shown on every tab — moved here since only this one
+     needs them. -->
+<div class="split-header">
+  <input
+    class="title-input"
+    type="text"
+    placeholder="Name this split"
+    aria-label="Split title"
+    [value]="store.title()"
+    (input)="onTitle($event)"
+  />
+  <app-currency-picker
+    class="currency-select"
+    label="Base currency"
+    [value]="store.baseCurrency()"
+    (changed)="store.setBaseCurrency($event)"
+  />
+  <span class="split-header-actions">
+    <button
+      class="btn"
+      type="button"
+      title="Download this split as a JSON file"
+      (click)="exportActive()"
+    >
+      Export
+    </button>
+    <button class="btn" type="button" (click)="newSplit()">New split</button>
+  </span>
+</div>
 
 <ag-grid-angular
   class="grid"

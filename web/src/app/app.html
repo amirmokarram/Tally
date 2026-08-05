@@ -1,73 +1,22 @@
-<header class="topbar" [class.menu-open]="menuOpen()">
+<header class="topbar">
   <div class="topbar-inner">
-    <div class="identity">
-      <input
-        class="title-input"
-        type="text"
-        placeholder="Name this split"
-        aria-label="Split title"
-        [value]="store.title()"
-        (input)="onTitle($event)"
-      />
-
-      <app-currency-picker
-        class="currency-select dark"
-        label="Base currency"
-        [value]="store.baseCurrency()"
-        (changed)="store.setBaseCurrency($event)"
-      />
-
-      <span class="total">
-        <span class="label">Total</span><br />
-        <span class="value">{{ store.grandTotal() | money: store.baseSymbol() }}</span>
-      </span>
-
-      <!--
-        Outside `.actions`: on a phone that whole group is hidden until the menu
-        is opened, and an input inside a `display: none` subtree is a fragile
-        thing to call `.click()` on.
-      -->
-      <input
-        #importInput
-        class="visually-hidden"
-        type="file"
-        accept="application/json,.json"
-        aria-label="Import splits from a JSON file"
-        (change)="importFile($event)"
-      />
-
-      <span class="actions">
-        <button
-          class="btn reset"
-          type="button"
-          title="Download this split as a JSON file"
-          (click)="exportActive()"
-        >
-          Export
-        </button>
-        <button class="btn reset" type="button" (click)="newSplit()">New split</button>
-      </span>
-
-      <!--
-        Phones only — the six tabs need two lines there, and the identity row
-        three. Everything but the title and the total folds behind this.
-      -->
-      <button
-        class="menu-toggle"
-        type="button"
-        aria-controls="topbar-menu"
-        aria-haspopup="menu"
-        [attr.aria-label]="menuOpen() ? 'Close menu' : 'Menu'"
-        [attr.aria-expanded]="menuOpen()"
-        (click)="toggleMenu()"
-      >
-        <span aria-hidden="true">{{ menuOpen() ? '✕' : '☰' }}</span>
-        <!-- The Split tab's badge is folded away with it; this stands in. -->
-        @if (errorCount() && !menuOpen()) {
-          <span class="badge">{{ errorCount() }}</span>
-        }
-      </button>
-    </div>
+    <!--
+      The split's own name, currency, total and export used to live here,
+      shown on every tab — the name, currency and export now sit above the
+      grid on the Split tab, the only one that needs them, and the total was
+      dropped for being redundant with the grid's own. This input is what is
+      left: the splits panel reaches for it by template reference and clicks
+      it, so it has to live somewhere in this template regardless of which
+      tab is open.
+    -->
+    <input
+      #importInput
+      class="visually-hidden"
+      type="file"
+      accept="application/json,.json"
+      aria-label="Import splits from a JSON file"
+      (change)="importFile($event)"
+    />
 
     <nav class="tabs" id="topbar-menu">
       @for (t of tabs; track t.id) {

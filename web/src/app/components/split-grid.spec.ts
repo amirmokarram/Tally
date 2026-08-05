@@ -248,6 +248,65 @@ describe('the ledger grid', () => {
     expect(store.sheets().length).toBe(sheets + 1);
   });
 
+  /**
+   * The split's own name, currency, export and "new split" — moved here from
+   * the app-wide header, which showed them on every tab whether or not it was
+   * this split being worked on.
+   */
+  describe('the split header', () => {
+    function headerButton(fixture: ComponentFixture<SplitGrid>, label: string): HTMLButtonElement {
+      return Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
+          '.split-header button',
+        ),
+      ).find((button) => button.textContent!.trim() === label)!;
+    }
+
+    it('renames the split as the title is typed', async () => {
+      const { fixture, store } = await grid();
+      const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+        '.split-header input.title-input',
+      )!;
+
+      input.value = 'Weekend in Lisbon';
+      input.dispatchEvent(new Event('input'));
+      await settle(fixture);
+
+      expect(store.title()).toBe('Weekend in Lisbon');
+    });
+
+    it('changes the base currency from its own picker', async () => {
+      const { store } = await grid();
+      const before = store.baseCurrency();
+
+      store.setBaseCurrency(before === 'EUR' ? 'USD' : 'EUR');
+
+      expect(store.baseCurrency()).not.toBe(before);
+    });
+
+    it('exports the active split as a JSON download', async () => {
+      const { fixture } = await grid();
+      const clicked = spyOn(HTMLAnchorElement.prototype, 'click');
+
+      headerButton(fixture, 'Export').click();
+
+      expect(clicked).toHaveBeenCalled();
+    });
+
+    it('starts a fresh split from the button, without leaving the page', async () => {
+      const { fixture, store } = await grid();
+      const before = store.activeSplitId();
+      expect(store.people().length).toBeGreaterThan(0);
+
+      headerButton(fixture, 'New split').click();
+      await settle(fixture);
+
+      expect(store.activeSplitId()).not.toBe(before);
+      // A fresh split has nobody on it yet.
+      expect(store.people().length).toBe(0);
+    });
+  });
+
   it('grows a column when a person is added and drops it when removed', async () => {
     const { fixture, store, api } = await grid();
     const before = store.people().length;
