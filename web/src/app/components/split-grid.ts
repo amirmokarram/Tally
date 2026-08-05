@@ -149,6 +149,10 @@ const money = new MoneyPipe();
     '(paste)': 'onPaste($event)',
     // A drag can end anywhere, including outside the grid.
     '(document:mouseup)': 'endDrag()',
+    '(document:keydown.escape)': 'closeContextMenu()',
+    // Not AG Grid's own `(cellContextMenu)` output — see {@link onContextMenu}
+    // for why that one arrives too late to prevent anything.
+    '(contextmenu)': 'onContextMenu($event)',
     '[class.dragging]': 'dragging || fillDragging',
     '[class.filling]': 'fillDragging',
   },
@@ -214,26 +218,41 @@ const money = new MoneyPipe();
       transform: translate(-50%, -50%);
     }
 
-    /* Above the grid, not below: these two used to cost a whole column and a
-       row of grid space between them, and the grid is the thing that wants
-       every pixel. */
-    .toolbar {
+    /* The transparent click-catcher behind the context menu — nothing to
+       dim, since unlike the editor panel this is not a modal over the grid,
+       just a way to notice a click or a right-click elsewhere and close. */
+    .context-menu-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 55;
+    }
+
+    .context-menu {
+      position: fixed;
+      z-index: 56;
       display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 8px 12px;
-      margin-bottom: 12px;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 170px;
+      padding: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      box-shadow: 0 8px 24px rgb(20 53 95 / 20%);
     }
 
-    .toolbar-hint {
-      font-size: 12px;
-      color: var(--text-muted);
+    .context-menu .btn {
+      width: 100%;
+      justify-content: flex-start;
     }
 
-    .toolbar-count {
+    .context-menu-count {
+      padding: 4px 8px 6px;
+      margin-bottom: 2px;
       font-size: 12px;
       font-weight: 600;
       color: var(--navy-800);
+      border-bottom: 1px solid var(--border);
     }
 
     /* The panel floats over the grid rather than inside a cell: the grid clips
@@ -752,6 +771,15 @@ export class SplitGrid {
   );
 
   protected onCellMouseDown(event: CellMouseDownEvent<LedgerRowData>): void {
+    // A right (or middle) click is not a selection gesture: left unguarded, a
+    // browser fires `mousedown` for every button, and this handler would
+    // otherwise toggle a line's tick off — or start a cell-range drag —
+    // right before the `contextmenu` event it is about to open a menu from,
+    // so the tick a right-click was aimed at is gone by the time
+    // {@link onCellContextMenu} goes looking for it.
+    if ((event.event as MouseEvent | null)?.button !== 0) {
+      return;
+    }
     // The line number column holds no pasteable value, so a click there ticks
     // the line instead of starting a cell block — the same job the removed
     // checkbox column used to do, just moved onto a column that already has
@@ -993,6 +1021,57 @@ export class SplitGrid {
 
   /** The lines that are ticked, in ledger order. */
   protected readonly ticked = signal<LedgerItemRow[]>([]);
+
+  /**
+   * Where the context menu is open, in viewport coordinates — AG Grid's own
+   * menu is Enterprise, so a right-click is handled directly instead of
+   * through `getContextMenuItems`.
+   */
+  protected readonly contextMenuPos = signal<{ x: number; y: number } | null>(null);
+
+  /**
+   * Opens the menu at the pointer, on whichever lines are ticked — bound on
+   * the host as a plain `(contextmenu)` listener, deliberately *not* through
+   * AG Grid's own `(cellContextMenu)` output.
+   *
+   * `Event.preventDefault()` only suppresses the browser's own context menu
+   * when it runs synchronously, before the native `contextmenu` event
+   * finishes dispatching. AG Grid's Output fires *after* that — proven by a
+   * real-DOM test in `split-grid.spec.ts` that reads `defaultPrevented`
+   * synchronously rather than after an `await`, which is what let the first
+   * attempt at this look like it worked when it did not. A plain host
+   * listener is an ordinary `addEventListener`, called in time.
+   *
+   * Ticking is the line number's job alone (see {@link onCellMouseDown}) — a
+   * right-click never changes it, wherever it lands. The menu acts on the
+   * tick as a whole, not on the row under the pointer, so a right-click
+   * opens it as long as *something* is ticked, anywhere within the grid's
+   * own rows — including the blank "add" row or the pinned strip, which have
+   * nothing of their own but sit right next to lines that might. Outside the
+   * grid — the legend, the sheet editor's own text boxes — or with nothing
+   * ticked at all, there is nothing to act on, and the browser's own menu is
+   * left alone.
+   *
+   * Checked against `api.getSelectedNodes()` rather than {@link ticked} —
+   * {@link onSelectionChanged} is itself one of AG Grid's own outputs, and
+   * lags a right-click that follows hard on the left-click that did the
+   * ticking by the same margin `cellContextMenu` did above. The API's own
+   * selection state has no such lag: `setSelected` applies it immediately,
+   * synchronously, which is the only kind of "immediately" this handler can
+   * trust.
+   */
+  protected onContextMenu(event: MouseEvent): void {
+    const target = event.target as HTMLElement | null;
+    if (!target?.closest('.ag-row') || !this.api?.getSelectedNodes().length) {
+      return;
+    }
+    event.preventDefault();
+    this.contextMenuPos.set({ x: event.clientX, y: event.clientY });
+  }
+
+  protected closeContextMenu(): void {
+    this.contextMenuPos.set(null);
+  }
 
   protected onSelectionChanged(event: SelectionChangedEvent<LedgerRowData>): void {
     const lines: LedgerItemRow[] = [];

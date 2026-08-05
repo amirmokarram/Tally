@@ -13,40 +13,8 @@
     or <code>15%</code></span
   >
   <span>Drag across cells to select a block, then <code>Ctrl/⌘ C</code> and <code>Ctrl/⌘ V</code></span>
+  <span>Right-click a ticked line for actions on all of them</span>
 </p>
-
-<div class="toolbar">
-  <!-- Adding a person or a sheet is a `+` at the head of its own column now —
-       both makers live where the thing they make does. -->
-  <!-- What used to be three buttons on every row. They appear only once lines
-       are ticked, so nothing is reserved for them the rest of the time. -->
-  @if (ticked().length; as count) {
-    <span class="toolbar-count">{{ count }} ticked</span>
-    <button
-      class="btn ghost"
-      type="button"
-      title="Give everyone an equal share of the ticked lines"
-      (click)="splitTickedEvenly()"
-    >
-      Everyone
-    </button>
-    <button
-      class="btn ghost"
-      type="button"
-      title="Clear the ticked lines' shares, keeping the lines"
-      (click)="clearTickedShares()"
-    >
-      Clear shares
-    </button>
-    <button class="btn danger" type="button" (click)="removeTicked()">
-      Remove {{ count === 1 ? 'line' : count + ' lines' }}
-    </button>
-  } @else {
-    <span class="toolbar-hint">
-      A person is a column; a sheet is a block of rows with its own currency and tax.
-    </span>
-  }
-</div>
 
 <ag-grid-angular
   class="grid"
@@ -80,4 +48,39 @@
     (closed)="closeEditor()"
     (keydown.escape)="closeEditor()"
   />
+}
+
+<!-- What used to be a toolbar of three buttons, shown once lines were
+     ticked. AG Grid's own context menu is Enterprise, so a right-click opens
+     this one instead — see `onContextMenu`, on the host. -->
+@if (contextMenuPos(); as pos) {
+  <div
+    class="context-menu-backdrop"
+    (click)="closeContextMenu()"
+    (contextmenu)="$event.preventDefault(); closeContextMenu()"
+  ></div>
+  <div class="context-menu" [style.left.px]="pos.x" [style.top.px]="pos.y">
+    <span class="context-menu-count">
+      {{ ticked().length === 1 ? '1 line ticked' : ticked().length + ' lines ticked' }}
+    </span>
+    <button
+      class="btn ghost"
+      type="button"
+      title="Give everyone an equal share of the ticked lines"
+      (click)="splitTickedEvenly(); closeContextMenu()"
+    >
+      Everyone
+    </button>
+    <button
+      class="btn ghost"
+      type="button"
+      title="Clear the ticked lines' shares, keeping the lines"
+      (click)="clearTickedShares(); closeContextMenu()"
+    >
+      Clear shares
+    </button>
+    <button class="btn danger" type="button" (click)="removeTicked(); closeContextMenu()">
+      Remove {{ ticked().length === 1 ? 'line' : ticked().length + ' lines' }}
+    </button>
+  </div>
 }
