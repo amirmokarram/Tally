@@ -55,9 +55,8 @@ export interface PersonHeaderParams extends IHeaderParams {
     </div>
   `,
   styles: `
-    /* The same quarter turn as \`sheet-cell.ts\`, in the same two halves — see
-       the note there for why it takes both \`writing-mode\` and a \`transform\`
-       rather than either alone. */
+    /* The same quarter turn as \`sheet-cell.ts\` — see the note there for why
+       \`sideways-lr\` replaced the older \`vertical-rl\` plus \`rotate(180deg)\`. */
     :host {
       display: flex;
       /* Centres \`.line\` across the column's width — its own content (a name
@@ -67,18 +66,9 @@ export interface PersonHeaderParams extends IHeaderParams {
       align-items: center;
       /* ...and pins it to the header's bottom edge, right above the rows it
          names, rather than centring it top-to-bottom through whatever the
-         header's own height happens to be. \`flex-start\`, not \`-end\`: the
-         180-degree turn above flips which physical edge each one lands on. */
+         header's own height happens to be. */
       justify-content: flex-start;
-      writing-mode: vertical-rl;
-      transform: rotate(180deg);
-      /* A rotated, \`overflow: hidden\` element with a CSS transition inside it
-         (\`.remove\`'s opacity, below) is a combination Chromium sometimes
-         repaints on the CPU instead of holding as a stable composited layer —
-         seen as flicker across the header on hover. Promoting it to its own
-         layer up front is the standard fix. */
-      backface-visibility: hidden;
-      will-change: transform;
+      writing-mode: sideways-lr;
       width: 100%;
       height: 100%;
       overflow: hidden;

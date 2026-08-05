@@ -268,10 +268,30 @@ const money = new MoneyPipe();
     /* Padding under the add row, there only to give a short block the height
        its heading is written down. Nothing sits on it and nothing can be typed
        on it, so it should read as part of the block rather than as a line: no
-       rules of its own, and none of the striping the rows carry. */
+       rules of its own, and none of the striping the rows carry — a fine
+       diagonal hatch instead, the spreadsheet convention for "not a cell you
+       can type in," faint enough to read as texture rather than compete with
+       the rows around it.
+       The same hatch covers the add-person column's own cell on every row,
+       not just this one: the button that adds a person lives in its header,
+       not down here, so every cell below it — an item row's, the totals
+       row's, an add row's — is exactly as untypeable as a filler row's are.
+       The hatch has to sit on each \`.ag-cell\`, not the row: a cell paints its
+       own opaque background over whatever the row underneath it has. */
     :host ::ng-deep .ledger-filler-row {
       --ag-cell-horizontal-border: none;
-      background: var(--surface);
+    }
+
+    :host ::ng-deep .ledger-filler-row .ag-cell,
+    :host ::ng-deep .ledger-add-person-cell {
+      background-color: var(--surface);
+      background-image: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 4px,
+        color-mix(in srgb, var(--text-muted) 14%, transparent) 4px,
+        color-mix(in srgb, var(--text-muted) 14%, transparent) 5px
+      );
     }
 
     /* All of them but the sheet's own heading: a sheet with no lines yet is a
@@ -308,6 +328,27 @@ const money = new MoneyPipe();
       font-variant-numeric: tabular-nums;
       font-weight: 600;
       justify-content: center;
+    }
+
+    /* The balances row's own share cells — each person's running total —
+       turned the same quarter turn as their header just above (see
+       \`person-header.ts\`), so the figure reads in the same direction as the
+       name it belongs to. \`getRowHeight\` gives this one row 20 extra pixels
+       so a longer balance has the same room to run that the turn needs.
+       An \`.ag-cell\` is a plain block box by default — \`display: flex\` here is
+       what makes \`align-items\`/\`justify-content\` mean anything, the same way
+       \`person-header.ts\`'s own \`:host\` declares it. \`justify-content:
+       flex-start\` pins the figure to the cell's bottom edge — the edge
+       \`sideways-lr\`'s own bottom-up reading direction starts from — rather
+       than centring it top-to-bottom. \`align-items: center\` is the other
+       axis, centring it across the column's width. */
+    :host ::ng-deep .ledger-balances-row .ledger-share {
+      display: flex;
+      writing-mode: sideways-lr;
+      justify-content: flex-start;
+      align-items: center;
+      overflow: hidden;
+      padding: 4px;
     }
 
     :host ::ng-deep .ledger-credit {
@@ -348,6 +389,14 @@ const money = new MoneyPipe();
     :host ::ng-deep .ledger-fill-preview {
       outline: 1px dashed var(--navy-700);
       outline-offset: -1px;
+    }
+
+    /* \`ag-right-aligned-header\`, set by the \`numericColumn\` type, right-aligns
+       the title through \`.ag-header-cell-text\`'s own \`text-align: end\` — the
+       one part of the type this column keeps only for its cell values, not
+       its title. */
+    :host ::ng-deep .ledger-amount-header .ag-header-cell-text {
+      text-align: start;
     }
 
     /* The Sheet cell is a spine of sideways boxes rather than a line of text:
@@ -457,8 +506,16 @@ export class SplitGrid {
    * identical ones. AG Grid calls this per row in place of the flat
    * `rowHeight` once it is supplied.
    */
-  protected readonly getRowHeight = (params: RowHeightParams<LedgerRowData>): number =>
-    params.data?.kind === 'filler' ? params.data.rows * LEDGER_ROW_HEIGHT : LEDGER_ROW_HEIGHT;
+  protected readonly getRowHeight = (params: RowHeightParams<LedgerRowData>): number => {
+    if (params.data?.kind === 'filler') {
+      return params.data.rows * LEDGER_ROW_HEIGHT;
+    }
+    // The balances row turns its person cells on their side to match the
+    // header above them (see the `.ledger-balances-row .ledger-share` rule
+    // below) — 20 extra pixels over the ordinary row height is the room that
+    // sideways text needs so a longer balance does not clip.
+    return params.data?.kind === 'balances' ? LEDGER_ROW_HEIGHT + 20 : LEDGER_ROW_HEIGHT;
+  };
 
   /**
    * Which lines are ticked is AG Grid's; the boxes are not.
@@ -1156,6 +1213,14 @@ export class SplitGrid {
         headerName: `Amount (${this.sheetCurrencyHeader()})`,
         width: 150,
         type: 'numericColumn',
+        // \`numericColumn\` right-aligns its header text along with the cell
+        // values; the values should stay that way (a column of money reads
+        // by its ones place), but the title reads better flush with the
+        // columns beside it. An explicit \`headerClass\` replaces the type's
+        // own rather than adding to it, so the cell values keep their own
+        // right alignment only because \`ledger-numeric\`/\`ledger-total\`,
+        // below, set it independently.
+        headerClass: 'ledger-amount-header',
         editable: (p) => p.data?.kind === 'item' || p.data?.kind === 'add-item',
         valueGetter: (p: ValueGetterParams<LedgerRowData>) => {
           // The trip total rides the pinned strip, under this column's own
@@ -1265,6 +1330,7 @@ export class SplitGrid {
       headerComponent: AddPersonHeader,
       headerComponentParams: { addPerson: () => this.addPerson() },
       headerClass: 'ledger-person-header',
+      cellClass: 'ledger-add-person-cell',
       width: 44,
       editable: false,
     });
@@ -1281,6 +1347,8 @@ export class SplitGrid {
         return 'ledger-add-row';
       case 'filler':
         return 'ledger-filler-row';
+      case 'balances':
+        return 'ledger-balances-row';
       default:
         return '';
     }

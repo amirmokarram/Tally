@@ -108,28 +108,18 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
     }
   `,
   styles: `
-    /* The quarter turn, in two halves. \`vertical-rl\` lays every line on its
-       side, and the half turn stands them back up the other way round: a line
-       is then read from the bottom up, and the lines stack left to right — the
-       name at the column's left edge, the charges next, the caption last.
-
-       \`sideways-lr\` is this in one word, and is what it was, but it is the one
-       writing mode older Chrome and Safari lack — and a fallback to horizontal
-       text in a 70-pixel column does not degrade, it breaks. A rotation is
-       understood everywhere.
-
-       The writing mode is still doing the work, though, and the transform only
-       turns the result around: a rotation on its own would leave the boxes laid
-       out for the width they no longer have, and each would have to be handed
-       the block's height in pixels. This way the block's height simply *is* the
-       line length. */
+    /* The quarter turn: \`sideways-lr\` lays every line on its side and reads it
+       from the bottom up in one step, with lines stacking left to right — the
+       name at the column's left edge, the charges next, the caption last. The
+       older \`vertical-rl\` plus a \`rotate(180deg)\` this used to take was a
+       stand-in for browsers that lacked \`sideways-lr\` outright; current
+       Chrome and Safari render it directly, and without the transform, the
+       host's own box is measured for the width it actually has rather than
+       one it has to be told about after the fact. */
     :host {
       display: block;
-      writing-mode: vertical-rl;
-      transform: rotate(180deg);
-      /* The cell is stretched to the block and the boxes to the cell — and the
-         host has to fill it exactly, or turning it about its own centre would
-         not put it back where it started. */
+      writing-mode: sideways-lr;
+      /* The cell is stretched to the block and the boxes to the cell. */
       width: 100%;
       height: 100%;
       overflow: hidden;
