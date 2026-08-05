@@ -1,32 +1,39 @@
 /**
- * The currency picker, exercised where it actually lives — the top bar's base
- * currency and the expense sheet's own currency.
+ * The currency picker, exercised where it actually lives — the split's own
+ * base currency and the expense sheet's own currency.
  *
  * Two things matter beyond the filtering itself: the closed box always reads
  * back what the model holds, and a query that was typed but never confirmed
  * changes nothing.
  *
- * The sheet's picker used to sit on an Expenses tab. It is now in the panel a
- * Sheet cell opens, so those tests mount {@link SheetEditor} directly rather
- * than going through the grid to reach it — the picker is what is under test.
+ * Both pickers are mounted through the component that actually renders them
+ * — {@link SplitGrid} for the base currency, {@link SheetEditor} for a
+ * sheet's own — rather than through the whole app and its tabs, which have
+ * nothing to do with what is under test here.
  */
 
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { App } from '../app';
 import { TripStore } from '../core/trip-store';
 import { SESSION_STORAGE, TRIP_STORAGE } from '../core/library-storage';
 import { FakeStorage } from '../core/library-storage.spec';
 import { SheetEditor } from './sheet-editor';
+import { SplitGrid } from './split-grid';
 
-function configure() {
+/** Mounts the split header a base-currency change reaches through. */
+function splitGrid(): { fixture: ComponentFixture<SplitGrid>; store: TripStore } {
   TestBed.configureTestingModule({
-    imports: [App],
+    imports: [SplitGrid],
     providers: [
       { provide: TRIP_STORAGE, useValue: new FakeStorage() },
       { provide: SESSION_STORAGE, useValue: new FakeStorage() },
     ],
   });
+
+  const store = TestBed.inject(TripStore);
+  const fixture = TestBed.createComponent(SplitGrid);
+  fixture.detectChanges();
+  return { fixture, store };
 }
 
 /** Mounts the panel a Sheet cell opens. */
@@ -50,11 +57,6 @@ function openOn(fixture: ComponentFixture<SheetEditor>, sheetId: string): void {
 }
 
 type Fixture = ComponentFixture<unknown>;
-
-function tab(fixture: Fixture, id: string): void {
-  (fixture.componentInstance as unknown as { tab: { set(v: string): void } }).tab.set(id);
-  fixture.detectChanges();
-}
 
 function box(fixture: Fixture, scope: string): HTMLInputElement {
   return (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
@@ -96,9 +98,7 @@ describe('currency picker', () => {
     const scope = '.currency-select';
 
     it('shows the currency the split actually uses', () => {
-      configure();
-      const fixture = TestBed.createComponent(App);
-      const store = TestBed.inject(TripStore);
+      const { fixture, store } = splitGrid();
 
       // Anything but USD, which is first in the catalogue and would mask a bug.
       store.setBaseCurrency('EUR');
@@ -108,9 +108,7 @@ describe('currency picker', () => {
     });
 
     it('opens on the whole catalogue with the current choice still readable', () => {
-      configure();
-      const fixture = TestBed.createComponent(App);
-      fixture.detectChanges();
+      const { fixture } = splitGrid();
 
       const input = box(fixture, scope);
       open(fixture, input);
@@ -121,10 +119,7 @@ describe('currency picker', () => {
     });
 
     it('finds a currency by name and takes it on Enter', () => {
-      configure();
-      const fixture = TestBed.createComponent(App);
-      const store = TestBed.inject(TripStore);
-      fixture.detectChanges();
+      const { fixture, store } = splitGrid();
 
       const input = box(fixture, scope);
       open(fixture, input);
@@ -140,10 +135,7 @@ describe('currency picker', () => {
     });
 
     it('finds a currency by code, with the exact code first', () => {
-      configure();
-      const fixture = TestBed.createComponent(App);
-      const store = TestBed.inject(TripStore);
-      fixture.detectChanges();
+      const { fixture, store } = splitGrid();
 
       const input = box(fixture, scope);
       open(fixture, input);
@@ -154,10 +146,7 @@ describe('currency picker', () => {
     });
 
     it('walks the list with the arrow keys', () => {
-      configure();
-      const fixture = TestBed.createComponent(App);
-      const store = TestBed.inject(TripStore);
-      fixture.detectChanges();
+      const { fixture, store } = splitGrid();
 
       const input = box(fixture, scope);
       open(fixture, input);
@@ -169,10 +158,7 @@ describe('currency picker', () => {
     });
 
     it('leaves the choice alone when the query is abandoned', () => {
-      configure();
-      const fixture = TestBed.createComponent(App);
-      const store = TestBed.inject(TripStore);
-      fixture.detectChanges();
+      const { fixture, store } = splitGrid();
 
       const input = box(fixture, scope);
       open(fixture, input);
@@ -193,10 +179,7 @@ describe('currency picker', () => {
     });
 
     it('says so when nothing matches', () => {
-      configure();
-      const fixture = TestBed.createComponent(App);
-      const store = TestBed.inject(TripStore);
-      fixture.detectChanges();
+      const { fixture, store } = splitGrid();
 
       const input = box(fixture, scope);
       open(fixture, input);
