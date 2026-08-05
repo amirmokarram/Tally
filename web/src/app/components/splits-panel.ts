@@ -9,7 +9,9 @@ import {
 
 import { TripStore } from '../core/trip-store';
 import { MoneyPipe } from '../core/money.pipe';
-import { computeSheetTotals, round } from '../core/split-engine';
+import { computeSheetTotals, computeSplit, round } from '../core/split-engine';
+import { assignTransactionGroups, buildTransfers } from '../core/settlement';
+import { tripIssues } from '../core/validation';
 import { MatchReason, searchSplits } from '../core/split-search';
 import {
   SPLIT_SORT_OPTIONS,
@@ -22,6 +24,19 @@ import { TRIP_STORAGE } from '../core/library-storage';
 import { SavedSplit } from '../models/library.model';
 import { Trip } from '../models/trip.model';
 import { CURRENCIES } from '../data/currencies';
+
+interface SettleTransferView {
+  fromName: string;
+  toName: string;
+  amount: number;
+  group: number;
+}
+
+interface SettleSummary {
+  blocked: boolean;
+  blockedMessage: string;
+  transfers: SettleTransferView[];
+}
 
 interface SplitRow {
   split: SavedSplit;
@@ -217,6 +232,88 @@ interface SplitRow {
       justify-content: flex-end;
     }
 
+    .accordion-bar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 2px 0;
+      margin-top: 2px;
+      border: none;
+      border-top: 1px solid var(--border);
+      background: none;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--navy-700);
+      text-align: left;
+      width: 100%;
+
+      &:hover {
+        color: var(--navy-800);
+      }
+    }
+
+    .chevron-icon {
+      width: 12px;
+      height: 12px;
+      flex: none;
+      color: currentColor;
+      transition: transform 0.18s ease;
+
+      &.expanded {
+        transform: rotate(90deg);
+      }
+    }
+
+    .settle-detail {
+      grid-column: 1 / -1;
+      margin-top: 2px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .settle-transfers {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 6px;
+    }
+
+    .settle-transfers li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0;
+    }
+
+    .group-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex: none;
+    }
+
+    .settle-transfers .who {
+      flex: 1;
+      font-size: 13px;
+    }
+
+    .settle-transfers .amount {
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .settle-blocked,
+    .settle-ok {
+      margin: 0;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
     .empty {
       padding: 28px 16px;
       text-align: center;
@@ -264,6 +361,41 @@ export class SplitsPanel {
 
     return sortSplits(matched, this.sortOrder());
   });
+
+  /**
+   * Rows with their settle-up detail open. Kept separate from `rows` so
+   * expanding one split never triggers the settlement engine for the rest —
+   * that computation is real work, unlike the total/people/items line above.
+   */
+  protected readonly expandedIds = signal<ReadonlySet<string>>(new Set());
+
+  protected readonly settleInfo = computed<Map<string, SettleSummary>>(() => {
+    const expanded = this.expandedIds();
+    const map = new Map<string, SettleSummary>();
+    if (expanded.size === 0) {
+      return map;
+    }
+    for (const split of this.store.splits()) {
+      if (expanded.has(split.id)) {
+        map.set(split.id, computeSettleSummary(split.trip));
+      }
+    }
+    return map;
+  });
+
+  protected toggleSettle(id: string): void {
+    const next = new Set(this.expandedIds());
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    this.expandedIds.set(next);
+  }
+
+  protected groupColor(group: number): string {
+    return group > 0 ? `var(--group-${((group - 1) % 7) + 1})` : 'var(--border-strong)';
+  }
 
   protected readonly total = computed(() => this.store.splits().length);
 
@@ -322,6 +454,37 @@ function tripTotal(trip: Trip): number {
     ),
     2,
   );
+}
+
+/**
+ * Balances and who-pays-whom for one split, on demand.
+ *
+ * This is the full engine {@link tripTotal} avoids — worth it once a user
+ * actually asks to see a split's settlement, not for every row in the list.
+ */
+function computeSettleSummary(trip: Trip): SettleSummary {
+  const order = trip.people.map((p) => p.id);
+  const result = computeSplit(trip, (balances) => assignTransactionGroups(balances, order));
+
+  const blocking = tripIssues(trip, result.rows).find((i) => i.severity === 'error');
+  if (blocking) {
+    return { blocked: true, blockedMessage: blocking.message, transfers: [] };
+  }
+
+  const names = new Map(trip.people.map((p) => [p.id, p.name || 'Unnamed']));
+  const balances = new Map(result.balances.map((b) => [b.personId, b.balance]));
+  const groups = new Map(result.balances.map((b) => [b.personId, b.group]));
+
+  return {
+    blocked: false,
+    blockedMessage: '',
+    transfers: buildTransfers(balances, groups, order).map((t) => ({
+      fromName: names.get(t.fromPersonId) ?? '?',
+      toName: names.get(t.toPersonId) ?? '?',
+      amount: t.amount,
+      group: t.group,
+    })),
+  };
 }
 
 function relativeTime(iso: string): string {

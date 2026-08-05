@@ -353,7 +353,7 @@ describe('the ledger grid', () => {
     await settle(fixture);
 
     // The round trip the three tabs used to make you walk: edit here, and the
-    // figure the Settle up tab reads changes.
+    // figure the settle-up view reads changes.
     const node = api.getRowNode(`item:${item.id}`)!;
     node.setDataValue(`person:${person.id}`, 1);
 

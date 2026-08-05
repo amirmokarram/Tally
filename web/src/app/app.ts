@@ -11,10 +11,9 @@ import {
 import { SavedSplit } from './models/library.model';
 import { SplitsPanel } from './components/splits-panel';
 import { SplitGrid } from './components/split-grid';
-import { SettlePanel } from './components/settle-panel';
 import { HelpPanel } from './components/help-panel';
 
-type TabId = 'splits' | 'split' | 'settle' | 'help';
+type TabId = 'splits' | 'split' | 'help';
 
 interface Tab {
   id: TabId;
@@ -23,7 +22,7 @@ interface Tab {
 
 @Component({
   selector: 'app-root',
-  imports: [SplitsPanel, SplitGrid, SettlePanel, HelpPanel],
+  imports: [SplitsPanel, SplitGrid, HelpPanel],
   templateUrl: './app.html',
   styleUrl: './app.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -34,7 +33,6 @@ export class App {
   protected readonly tabs: readonly Tab[] = [
     { id: 'splits', label: 'Splits' },
     { id: 'split', label: 'Split' },
-    { id: 'settle', label: 'Settle up' },
     { id: 'help', label: 'Help' },
   ];
 

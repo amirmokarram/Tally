@@ -122,6 +122,51 @@
             Delete
           </button>
         </div>
+
+        <button
+          class="accordion-bar"
+          type="button"
+          [attr.aria-expanded]="expandedIds().has(row.split.id)"
+          (click)="toggleSettle(row.split.id)"
+        >
+          <svg
+            class="chevron-icon"
+            [class.expanded]="expandedIds().has(row.split.id)"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M6 3.5L11 8l-5 4.5"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          {{ expandedIds().has(row.split.id) ? 'Hide settle up' : 'Settle up' }}
+        </button>
+
+        @if (expandedIds().has(row.split.id)) {
+          <div class="settle-detail">
+            @let info = settleInfo().get(row.split.id);
+            @if (info?.blocked) {
+              <p class="settle-blocked">{{ info?.blockedMessage }}</p>
+            } @else if (info?.transfers?.length) {
+              <ul class="settle-transfers">
+                @for (transfer of info?.transfers ?? []; track $index) {
+                  <li>
+                    <span class="group-dot" [style.background]="groupColor(transfer.group)"></span>
+                    <span class="who">{{ transfer.fromName }} → {{ transfer.toName }}</span>
+                    <span class="amount">{{ transfer.amount | money: row.symbol }}</span>
+                  </li>
+                }
+              </ul>
+            } @else if (info) {
+              <p class="settle-ok">Everyone is square — no payments needed.</p>
+            }
+          </div>
+        }
       </li>
     }
   </ul>
