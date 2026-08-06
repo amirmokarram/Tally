@@ -4,9 +4,11 @@ import {
   ElementRef,
   computed,
   effect,
+  inject,
   input,
   output,
   signal,
+  viewChild,
   viewChildren,
 } from '@angular/core';
 
@@ -19,6 +21,8 @@ export interface PickerOption {
   code: string;
   name: string;
   label: string;
+  /** Absent for the synthetic "use the trip default" row. */
+  symbol?: string;
 }
 
 /** Distinguishes the ids of two pickers on the same page. */
@@ -94,24 +98,75 @@ let nextId = 0;
       }
     }
 
-    .picker-list {
-      position: absolute;
+    /* \`fixed\`, not \`absolute\`: the base-currency picker sits in the totals
+       band, which needs \`overflow-x: hidden\` to stay in lockstep with the
+       grid's own horizontal scroll — but a box with only one overflow axis
+       set forces the other to \`auto\`, so an absolutely-positioned list
+       would be clipped by the band's now-clipped vertical axis too, despite
+       the masthead cell's own \`overflow: visible\`. Position is worked out
+       by hand in the constructor to match. */
+    .picker-menu {
+      position: fixed;
       z-index: 50;
-      top: calc(100% + 4px);
-      left: 0;
-      right: 0;
       min-width: 260px;
-      max-height: 300px;
-      overflow-y: auto;
-      margin: 0;
       padding: 4px;
-      list-style: none;
       background: var(--surface);
       border: 1px solid var(--border-strong);
       border-radius: var(--radius-sm);
       box-shadow: var(--shadow);
       color: var(--text);
       font-size: 14px;
+    }
+
+    /* Compact mode has no readout box of its own to type into, so the search
+       box lives inside the popup instead — see \`.picker-trigger\`. */
+    .picker-search {
+      display: block;
+      box-sizing: border-box;
+      width: 100%;
+      margin-bottom: 4px;
+      padding: 6px 8px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 13px;
+
+      &:focus {
+        outline: 2px solid var(--navy-700);
+        outline-offset: -1px;
+      }
+    }
+
+    .picker-list {
+      max-height: 280px;
+      overflow-y: auto;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    /* The collapsed readout for \`compact\` — a symbol and a code rather than
+       the full box, for spots too tight for "(USD) US Dollar". */
+    .picker-trigger {
+      padding: 7px 10px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+
+      &:hover {
+        background: var(--navy-050);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--navy-700);
+        outline-offset: -1px;
+      }
     }
 
     .picker-option {
@@ -173,6 +228,13 @@ export class CurrencyPicker {
    */
   readonly defaultLabel = input<string | null>(null);
 
+  /**
+   * Collapses the readout to a symbol and a code — e.g. "$ USD" — behind a
+   * button, with the search box moved inside the popup instead of being the
+   * box itself. For spots too narrow for the full "(USD) US Dollar" line.
+   */
+  readonly compact = input(false);
+
   /** Emits the chosen code. Nothing is emitted for a query that was abandoned. */
   readonly changed = output<string>();
 
@@ -186,12 +248,21 @@ export class CurrencyPicker {
   protected readonly activeIndex = signal(0);
 
   private readonly optionEls = viewChildren<ElementRef<HTMLElement>>('optionEl');
+  private readonly menuEl = viewChild<ElementRef<HTMLElement>>('menuEl');
+  private readonly searchEl = viewChild<ElementRef<HTMLInputElement>>('searchEl');
+  private readonly hostRef = inject(ElementRef<HTMLElement>);
+
+  /** Screen position for the fixed-position list — see the constructor. */
+  protected readonly menuTop = signal(0);
+  protected readonly menuLeft = signal(0);
+  protected readonly menuWidth = signal(0);
 
   protected readonly options = computed<PickerOption[]>(() => {
     const catalogue = CURRENCIES.map((currency) => ({
       code: currency.code,
       name: currency.name,
       label: `(${currency.code}) ${currency.name}`,
+      symbol: currency.symbol,
     }));
 
     const fallback = this.defaultLabel();
@@ -209,11 +280,40 @@ export class CurrencyPicker {
     () => this.options().find((option) => option.code === this.value())?.label ?? this.value(),
   );
 
+  /** What the compact trigger reads — the symbol next to its code. */
+  protected readonly compactDisplay = computed(() => {
+    const option = this.options().find((o) => o.code === this.value());
+    if (!option) {
+      return this.value();
+    }
+    return option.symbol ? `${option.symbol} ${option.code}` : option.label;
+  });
+
   constructor() {
-    // Keyboard navigation is useless if the highlighted row is off-screen.
     effect(() => {
-      if (this.open()) {
-        this.optionEls()[this.activeIndex()]?.nativeElement.scrollIntoView({ block: 'nearest' });
+      if (!this.open()) {
+        return;
+      }
+
+      // The list is `position: fixed`, so its offsets are relative to the
+      // viewport — unless some ancestor's `transform` (the sheet editor's
+      // modal panel, say) makes that ancestor the containing block instead.
+      // `offsetParent` is how the browser reports which one actually applies.
+      const hostRect = this.hostRef.nativeElement.getBoundingClientRect();
+      const origin = (
+        this.menuEl()?.nativeElement.offsetParent as HTMLElement | null
+      )?.getBoundingClientRect();
+      this.menuTop.set(hostRect.bottom - (origin?.top ?? 0) + 4);
+      this.menuLeft.set(hostRect.left - (origin?.left ?? 0));
+      this.menuWidth.set(hostRect.width);
+
+      // Keyboard navigation is useless if the highlighted row is off-screen.
+      this.optionEls()[this.activeIndex()]?.nativeElement.scrollIntoView({ block: 'nearest' });
+
+      // Compact mode has no box of its own already holding focus — the
+      // button that opened it isn't where typing should land.
+      if (this.compact()) {
+        this.searchEl()?.nativeElement.focus();
       }
     });
   }

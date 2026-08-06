@@ -64,6 +64,20 @@ function box(fixture: Fixture, scope: string): HTMLInputElement {
   )!;
 }
 
+/** The compact readout — a symbol and a code behind a button, not a box. */
+function trigger(fixture: Fixture, scope: string): HTMLButtonElement {
+  return (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+    `${scope} .picker-trigger`,
+  )!;
+}
+
+/** The search box compact mode keeps inside the popup instead of the trigger. */
+function searchBox(fixture: Fixture, scope: string): HTMLInputElement {
+  return (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+    `${scope} .picker-search`,
+  )!;
+}
+
 function options(fixture: Fixture, scope: string): string[] {
   return Array.from(
     (fixture.nativeElement as HTMLElement).querySelectorAll(`${scope} .picker-option`),
@@ -77,6 +91,12 @@ function options(fixture: Fixture, scope: string): string[] {
 
 function open(fixture: Fixture, input: HTMLInputElement): void {
   input.dispatchEvent(new MouseEvent('mousedown'));
+  fixture.detectChanges();
+}
+
+/** Compact mode opens its popup from a plain click on the trigger button. */
+function openTrigger(fixture: Fixture, button: HTMLButtonElement): void {
+  button.dispatchEvent(new MouseEvent('click'));
   fixture.detectChanges();
 }
 
@@ -95,6 +115,8 @@ describe('currency picker', () => {
   afterEach(() => TestBed.resetTestingModule());
 
   describe('base currency', () => {
+    // Compact: the trigger is a symbol-and-code button, not a typeable box —
+    // opening it reveals a search box of its own inside the popup instead.
     const scope = '.currency-select';
 
     it('shows the currency the split actually uses', () => {
@@ -104,25 +126,26 @@ describe('currency picker', () => {
       store.setBaseCurrency('EUR');
       fixture.detectChanges();
 
-      expect(box(fixture, scope).value).toBe('(EUR) Euro');
+      expect(trigger(fixture, scope).textContent!.trim()).toBe('€ EUR');
     });
 
     it('opens on the whole catalogue with the current choice still readable', () => {
       const { fixture } = splitGrid();
 
-      const input = box(fixture, scope);
-      open(fixture, input);
+      const button = trigger(fixture, scope);
+      openTrigger(fixture, button);
 
-      expect(input.value).toBe('');
-      expect(input.placeholder).toBe('(USD) US Dollar');
+      expect(searchBox(fixture, scope).value).toBe('');
+      expect(button.textContent!.trim()).toBe('$ USD');
       expect(options(fixture, scope).length).toBeGreaterThan(150);
     });
 
     it('finds a currency by name and takes it on Enter', () => {
       const { fixture, store } = splitGrid();
 
-      const input = box(fixture, scope);
-      open(fixture, input);
+      const button = trigger(fixture, scope);
+      openTrigger(fixture, button);
+      const input = searchBox(fixture, scope);
       type(fixture, input, 'forint');
 
       expect(options(fixture, scope)).toEqual(['HUF Hungarian Forint']);
@@ -130,15 +153,16 @@ describe('currency picker', () => {
       press(fixture, input, 'Enter');
 
       expect(store.baseCurrency()).toBe('HUF');
-      expect(input.value).toBe('(HUF) Hungarian Forint');
+      expect(trigger(fixture, scope).textContent!.trim()).toBe('Ft HUF');
       expect(options(fixture, scope)).toEqual([]);
     });
 
     it('finds a currency by code, with the exact code first', () => {
       const { fixture, store } = splitGrid();
 
-      const input = box(fixture, scope);
-      open(fixture, input);
+      const button = trigger(fixture, scope);
+      openTrigger(fixture, button);
+      const input = searchBox(fixture, scope);
       type(fixture, input, 'gbp');
       press(fixture, input, 'Enter');
 
@@ -148,9 +172,10 @@ describe('currency picker', () => {
     it('walks the list with the arrow keys', () => {
       const { fixture, store } = splitGrid();
 
-      const input = box(fixture, scope);
-      open(fixture, input);
+      const button = trigger(fixture, scope);
+      openTrigger(fixture, button);
       // Opens on USD, the current choice; one step down is EUR.
+      const input = searchBox(fixture, scope);
       press(fixture, input, 'ArrowDown');
       press(fixture, input, 'Enter');
 
@@ -160,29 +185,32 @@ describe('currency picker', () => {
     it('leaves the choice alone when the query is abandoned', () => {
       const { fixture, store } = splitGrid();
 
-      const input = box(fixture, scope);
-      open(fixture, input);
+      const button = trigger(fixture, scope);
+      openTrigger(fixture, button);
+      let input = searchBox(fixture, scope);
       type(fixture, input, 'forint');
       press(fixture, input, 'Escape');
 
       expect(store.baseCurrency()).toBe('USD');
-      expect(input.value).toBe('(USD) US Dollar');
+      expect(trigger(fixture, scope).textContent!.trim()).toBe('$ USD');
 
       // The same again, but walking away instead of pressing Escape.
-      open(fixture, input);
+      openTrigger(fixture, trigger(fixture, scope));
+      input = searchBox(fixture, scope);
       type(fixture, input, 'yen');
       input.dispatchEvent(new Event('blur'));
       fixture.detectChanges();
 
       expect(store.baseCurrency()).toBe('USD');
-      expect(input.value).toBe('(USD) US Dollar');
+      expect(trigger(fixture, scope).textContent!.trim()).toBe('$ USD');
     });
 
     it('says so when nothing matches', () => {
       const { fixture, store } = splitGrid();
 
-      const input = box(fixture, scope);
-      open(fixture, input);
+      const button = trigger(fixture, scope);
+      openTrigger(fixture, button);
+      const input = searchBox(fixture, scope);
       type(fixture, input, 'quatloo');
 
       expect(options(fixture, scope)).toEqual([]);

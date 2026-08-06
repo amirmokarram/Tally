@@ -255,12 +255,10 @@ describe('the ledger grid', () => {
    * rather than a masthead row of their own.
    */
   describe('the split header', () => {
-    function headerButton(fixture: ComponentFixture<SplitGrid>, label: string): HTMLButtonElement {
-      return Array.from(
-        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
-          '.masthead-cell button',
-        ),
-      ).find((button) => button.textContent!.trim() === label)!;
+    function exportButton(fixture: ComponentFixture<SplitGrid>): HTMLButtonElement {
+      return (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+        '.masthead-cell .export-btn',
+      )!;
     }
 
     it('renames the split as the title is typed', async () => {
@@ -289,7 +287,7 @@ describe('the ledger grid', () => {
       const { fixture } = await grid();
       const clicked = spyOn(HTMLAnchorElement.prototype, 'click');
 
-      headerButton(fixture, 'Export').click();
+      exportButton(fixture).click();
 
       expect(clicked).toHaveBeenCalled();
     });

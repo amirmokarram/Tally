@@ -229,10 +229,25 @@ const money = new MoneyPipe();
       color: var(--text-muted);
     }
 
-    /* The picker paints itself; this only decides how wide it sits. */
+    /* The picker paints itself, compact now that it is a symbol and a code
+       rather than the full "(USD) US Dollar" line — its own width is enough. */
     .currency-select {
       flex: none;
-      width: 200px;
+    }
+
+    /* Icon only — the title attribute still carries what it does. Height
+       fixed to match the currency picker's own trigger next to it: that one
+       is sized by its text's line box, this one by its icon, and the two
+       don't land on the same number by themselves. */
+    .export-btn {
+      flex: none;
+      height: 37px;
+      padding: 0 9px;
+    }
+
+    .export-icon {
+      width: 18px;
+      height: 18px;
     }
 
     /* The report's own top line: the split's identity — name, currency,
