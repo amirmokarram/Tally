@@ -17,6 +17,9 @@ import { LEDGER_ROW_HEIGHT } from './grid-theme';
 import { TripStore } from '../core/trip-store';
 import { SESSION_STORAGE, TRIP_STORAGE } from '../core/library-storage';
 import { FakeStorage } from '../core/library-storage.spec';
+import { MoneyPipe } from '../core/money.pipe';
+
+const money = new MoneyPipe();
 
 interface Harness {
   fixture: ComponentFixture<SplitGrid>;
@@ -42,13 +45,10 @@ function selecting(fixture: ComponentFixture<SplitGrid>): Selecting {
   return fixture.componentInstance as unknown as Selecting;
 }
 
-/**
- * Stands in for the cell event AG Grid hands the two mouse handlers. The pinned
- * strip is fetched separately — `getRowNode` only knows rows that scroll.
- */
+/** Stands in for the cell event AG Grid hands the two mouse handlers. */
 function onCell(api: GridApi, rowId: string, colId: string, shiftKey = false): unknown {
   return {
-    node: rowId === 'balances' ? api.getPinnedTopRow(0) : api.getRowNode(rowId),
+    node: api.getRowNode(rowId),
     column: { getColId: () => colId },
     event: new MouseEvent('mousedown', { shiftKey }),
   };
@@ -249,15 +249,16 @@ describe('the ledger grid', () => {
   });
 
   /**
-   * The split's own name, currency, export and "new split" — moved here from
-   * the app-wide header, which showed them on every tab whether or not it was
-   * this split being worked on.
+   * The split's own name, currency and export — moved here from the app-wide
+   * header, which showed them on every tab whether or not it was this split
+   * being worked on, and now sharing the totals band's own merged cell
+   * rather than a masthead row of their own.
    */
   describe('the split header', () => {
     function headerButton(fixture: ComponentFixture<SplitGrid>, label: string): HTMLButtonElement {
       return Array.from(
         (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
-          '.split-header button',
+          '.masthead-cell button',
         ),
       ).find((button) => button.textContent!.trim() === label)!;
     }
@@ -265,7 +266,7 @@ describe('the ledger grid', () => {
     it('renames the split as the title is typed', async () => {
       const { fixture, store } = await grid();
       const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
-        '.split-header input.title-input',
+        '.masthead-cell input.title-input',
       )!;
 
       input.value = 'Weekend in Lisbon';
@@ -291,19 +292,6 @@ describe('the ledger grid', () => {
       headerButton(fixture, 'Export').click();
 
       expect(clicked).toHaveBeenCalled();
-    });
-
-    it('starts a fresh split from the button, without leaving the page', async () => {
-      const { fixture, store } = await grid();
-      const before = store.activeSplitId();
-      expect(store.people().length).toBeGreaterThan(0);
-
-      headerButton(fixture, 'New split').click();
-      await settle(fixture);
-
-      expect(store.activeSplitId()).not.toBe(before);
-      // A fresh split has nobody on it yet.
-      expect(store.people().length).toBe(0);
     });
   });
 
@@ -633,7 +621,7 @@ describe('the ledger grid', () => {
       });
     });
 
-    it('will not tick the blank row that ends a block, or the pinned strip', async () => {
+    it('will not tick the blank row that ends a block', async () => {
       const { fixture, api, store } = await grid();
       const sheet = store.sheets()[0];
 
@@ -641,11 +629,10 @@ describe('the ledger grid', () => {
       expect(api.getRowNode(`item:${sheet.items[0].id}`)!.selectable).toBe(true);
 
       // A click on the line number only ticks a real line — the blank row
-      // that ends a block and the pinned strip are not lines yet, and a click
-      // on their own line number cell does nothing.
+      // that ends a block is not one yet, and a click on its own line number
+      // cell does nothing.
       const sel = selecting(fixture);
       sel.onCellMouseDown(onCell(api, `add-item:${sheet.id}`, 'index'));
-      sel.onCellMouseDown(onCell(api, 'balances', 'index'));
       await settle(fixture);
 
       expect(api.getSelectedNodes().length).toBe(0);
@@ -705,9 +692,10 @@ describe('the ledger grid', () => {
         .textContent!.trim();
     }
 
-    function pinned(fixture: ComponentFixture<SplitGrid>, colId: string): string {
+    /** The totals band above the grid — see `split-grid.html`. */
+    function totalsCell(fixture: ComponentFixture<SplitGrid>, selector: string): string {
       return (fixture.nativeElement as HTMLElement)
-        .querySelector(`.ag-row-pinned [col-id="${colId}"]`)!
+        .querySelector(`.totals-band ${selector}`)!
         .textContent!.trim();
     }
 
@@ -717,8 +705,10 @@ describe('the ledger grid', () => {
 
       // Both carry the symbol; both put a credit in parentheses rather than
       // behind a minus sign, the way the workbook showed someone who is owed.
-      expect(pinned(fixture, 'amount')).toMatch(/^\$[\d,]+\.\d\d$/);
-      expect(pinned(fixture, `person:${person.id}`)).toMatch(/^\(?\$[\d,]+\.\d\d\)?$/);
+      expect(totalsCell(fixture, '.grand')).toMatch(/^\$[\d,]+\.\d\d$/);
+      expect(totalsCell(fixture, `[data-person-id="${person.id}"]`)).toMatch(
+        /^\(?\$[\d,]+\.\d\d\)?$/,
+      );
     });
 
     it('leaves a share cell as the ratio it is', async () => {
@@ -759,7 +749,7 @@ describe('the ledger grid', () => {
 
       expect(text(fixture, rowId, 'amount')).toBe('€15.00');
       // The trip total stays in the trip's currency — it is a different sum.
-      expect(pinned(fixture, 'amount').startsWith('$')).toBe(true);
+      expect(totalsCell(fixture, '.grand').startsWith('$')).toBe(true);
     });
 
     it('copies the number, not the way it is drawn', async () => {
@@ -901,25 +891,22 @@ describe('the ledger grid', () => {
     expect(merged().style.height).toBe(`${7 * LEDGER_ROW_HEIGHT - 1}px`);
   });
 
-  it('carries the trip total on the pinned strip, beside the balances', async () => {
+  it('carries the trip total on the totals band, above the grid', async () => {
     const { fixture, store, api } = await grid();
 
-    // One summary row, not two: the total sits under the Amount header exactly
-    // as each person's balance sits under theirs.
-    expect(api.getPinnedBottomRowCount()).toBe(0);
-
-    const amount = api.getColumn('amount')!;
     const total = () =>
-      api.getCellValue({ rowNode: api.getPinnedTopRow(0)!, colKey: amount });
-    expect(total()).toBe(store.grandTotal());
+      (fixture.nativeElement as HTMLElement)
+        .querySelector('.totals-band .grand')!
+        .textContent!.trim();
+    expect(total()).toBe(money.transform(store.grandTotal(), '$'));
 
-    // There is no Line total column any more, so this cell is the only place the
-    // trip total appears in the grid — it has to follow an edit.
+    // There is no Line total column any more, so this cell is the only place
+    // the trip total appears above the grid — it has to follow an edit.
     const item = store.sheets()[0].items[0];
     api.getRowNode(`item:${item.id}`)!.setDataValue('amount', 1234.5);
     await settle(fixture);
 
-    expect(total()).toBe(store.grandTotal());
+    expect(total()).toBe(money.transform(store.grandTotal(), '$'));
   });
 
   /**
@@ -1022,16 +1009,6 @@ describe('the ledger grid', () => {
 
       expect(harness.store.sheets()[0].items.length).toBe(before);
       expect(harness.store.sheets()[0].items.at(-1)!.name).toBe('Last line');
-    });
-
-    it('leaves the pinned summary strip out of it — there is nothing to paste over', async () => {
-      const harness = await grid();
-
-      selecting(harness.fixture).onCellMouseDown(onCell(harness.api, 'balances', 'amount'));
-      await settle(harness.fixture);
-
-      expect(selectedCells(harness.fixture)).toEqual([]);
-      expect(copyFrom(harness.fixture)).toBe('');
     });
   });
 

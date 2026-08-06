@@ -30,12 +30,15 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  ElementRef,
   inject,
   isDevMode,
   signal,
+  viewChild,
 } from '@angular/core';
 import { AgGridAngular } from 'ag-grid-angular';
 import {
+  BodyScrollEvent,
   CellSpanModule,
   CellStyleModule,
   ClientSideRowModelModule,
@@ -46,13 +49,13 @@ import {
   ColumnApiModule,
   ColumnMovedEvent,
   _ColumnMoveModule,
+  EventApiModule,
   GetRowIdParams,
   GridApi,
   GridReadyEvent,
   IRowNode,
   ModuleRegistry,
   NumberEditorModule,
-  PinnedRowModule,
   RenderApiModule,
   RowApiModule,
   RowClassParams,
@@ -103,7 +106,6 @@ ModuleRegistry.registerModules([
   CellSpanModule, // the sheet blocks — AG Grid's own grouping is Enterprise
   CellStyleModule, // cellClass / cellClassRules
   RowStyleModule, // getRowClass
-  PinnedRowModule, // the balance strip
   RowSelectionModule, // the tick boxes, and the column they live in
   TextEditorModule, // the Item column
   NumberEditorModule, // Amount and the share cells
@@ -118,6 +120,9 @@ ModuleRegistry.registerModules([
   ScrollApiModule,
   // `api.refreshCells` — repaints the selected block as a drag moves over it.
   RenderApiModule,
+  // `(bodyScroll)` — keeps the totals band lined up with the grid's own
+  // columns when there are enough people to scroll sideways.
+  EventApiModule,
   // Dragging a person's own header to reorder it. The leading underscore is
   // AG Grid's own naming for a module carved out of what used to be part of
   // the free bundle — it ships from `ag-grid-community`, not `-enterprise`.
@@ -140,7 +145,7 @@ const money = new MoneyPipe();
 
 @Component({
   selector: 'app-split-grid',
-  imports: [AgGridAngular, SheetEditor, CurrencyPicker],
+  imports: [AgGridAngular, SheetEditor, CurrencyPicker, MoneyPipe],
   templateUrl: './split-grid.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
@@ -176,37 +181,52 @@ const money = new MoneyPipe();
       cursor: crosshair;
     }
 
-    /* The split's own name, currency, and the two actions that used to sit
-       in the app-wide header — moved here since only this tab needs them,
-       and dropped from every other tab's view along the way. */
-    .split-header {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 10px 14px;
+    /* One block, one border, one shadow — the totals band and the grid below
+       draw no edges of their own but the hairline between them, so the whole
+       thing reads as a single report rather than stacked pieces of UI. */
+    .report {
+      border-radius: var(--radius);
+      box-shadow: 0 1px 2px rgb(20 53 95 / 8%), 0 4px 16px rgb(20 53 95 / 6%);
       margin-bottom: 16px;
     }
 
-    .title-input {
+    .masthead-title {
       flex: 1;
-      min-width: 200px;
-      padding: 7px 10px;
-      border: 1px solid var(--border-strong);
-      border-radius: var(--radius-sm);
-      background: var(--surface);
+      min-width: 160px;
+    }
+
+    /* A document's own title, not a form field — plain until it is reached
+       for, the same way a person's name in its column header is. */
+    .title-input {
+      width: 100%;
+      padding: 2px 0;
+      border: none;
+      border-bottom: 1px solid transparent;
+      background: none;
       color: var(--text);
-      font-size: 16px;
-      font-weight: 600;
+      font-size: 19px;
+      font-weight: 650;
+      letter-spacing: -0.01em;
 
       &::placeholder {
         color: var(--text-muted);
         font-weight: 400;
       }
 
-      &:focus {
-        outline: 2px solid var(--navy-700);
-        outline-offset: -1px;
+      &:hover {
+        border-bottom-color: var(--border-strong);
       }
+
+      &:focus {
+        outline: none;
+        border-bottom-color: var(--navy-700);
+      }
+    }
+
+    .masthead-sub {
+      margin-top: 1px;
+      font-size: 12px;
+      color: var(--text-muted);
     }
 
     /* The picker paints itself; this only decides how wide it sits. */
@@ -215,18 +235,87 @@ const money = new MoneyPipe();
       width: 200px;
     }
 
-    .split-header-actions {
+    /* The report's own top line: the split's identity — name, currency,
+       export — sharing a row with its answer, each person's balance under
+       their column and the trip total under Amount, rather than spending a
+       whole row of its own above them. Rounded and bordered on every side —
+       this is the top of the report now — except the bottom, which is the
+       seam to the grid's own header directly under it. */
+    .totals-band {
+      display: grid;
+      align-items: stretch;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-top-left-radius: var(--radius);
+      border-top-right-radius: var(--radius);
+      /* Enough people push the columns wider than the page. AG Grid's own
+         body clips and scrolls that internally; this clips the same way —
+         see {@link SplitGrid.onBodyScroll} for what keeps it lined up with
+         the grid's own columns as it scrolls, rather than left behind. */
+      overflow-x: hidden;
+    }
+
+    .totals-band .cell {
       display: flex;
-      gap: 8px;
-      flex: none;
+      align-items: center;
+      padding: 0 6px;
+      overflow: hidden;
+      border-right: 1px solid var(--border);
+    }
+
+    .totals-band .cell:last-child {
+      border-right: none;
+    }
+
+    /* The merged first three columns — Sheet, the line number, Item — are
+       nobody's own figure, which is the room the split's name, currency and
+       export borrow instead of a masthead row of their own. Wraps rather
+       than clips, and \`overflow: visible\` overrides the plain cell's own
+       \`hidden\`: the currency picker's dropdown has to escape this cell's
+       bounds to open over what is below it. */
+    .totals-band .cell.masthead-cell {
+      grid-column: span 3;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      padding: 10px 15px;
+      overflow: visible;
+    }
+
+    .totals-band .cell.grand {
+      justify-content: flex-start;
+      padding-left: 15px;
+      padding-right: 15px;
+      font-weight: 700;
+      font-size: 15px;
+    }
+
+    /* The same quarter turn as the balances used to carry inside the grid —
+       see \`.ledger-share\`, below — so the figure here reads in the same
+       direction as the person header directly beneath it. */
+    .totals-band .cell.person {
+      writing-mode: sideways-lr;
+      justify-content: flex-start;
+      align-items: center;
+      padding: 4px;
     }
 
     /* Tall enough to be a working surface, short enough that the topbar, the
-       alert strip and the footer all stay on screen. */
+       alert strip and the footer all stay on screen. Square at the top —
+       there is no gap or border between the totals band's own bottom edge
+       and this one, which is the seam — and rounded only at the bottom,
+       where the report block actually ends; see the \`.ag-root-wrapper\`
+       override below. */
     .grid {
       display: block;
       width: 100%;
       height: clamp(320px, calc(100vh - 260px), 900px);
+    }
+
+    :host ::ng-deep .ag-root-wrapper {
+      border-top: none;
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
     }
 
     /* The editor panel floats over the grid rather than inside a cell: the
@@ -302,11 +391,6 @@ const money = new MoneyPipe();
       transform: translate(-50%, -50%);
     }
 
-    :host ::ng-deep .ledger-total {
-      font-weight: 650;
-      font-size: 15px;
-    }
-
     /* The add rows are scaffolding, not data — they should recede until used. */
     :host ::ng-deep .ledger-add-row {
       --ag-cell-horizontal-border: none;
@@ -322,8 +406,8 @@ const money = new MoneyPipe();
        the rows around it.
        The same hatch covers the add-person column's own cell on every row,
        not just this one: the button that adds a person lives in its header,
-       not down here, so every cell below it — an item row's, the totals
-       row's, an add row's — is exactly as untypeable as a filler row's are.
+       not down here, so every cell below it — an item row's, an add row's —
+       is exactly as untypeable as a filler row's are.
        The hatch has to sit on each \`.ag-cell\`, not the row: a cell paints its
        own opaque background over whatever the row underneath it has. */
     :host ::ng-deep .ledger-filler-row {
@@ -392,27 +476,9 @@ const money = new MoneyPipe();
       justify-content: center;
     }
 
-    /* The balances row's own share cells — each person's running total —
-       turned the same quarter turn as their header just above (see
-       \`person-header.ts\`), so the figure reads in the same direction as the
-       name it belongs to. \`getRowHeight\` gives this one row 20 extra pixels
-       so a longer balance has the same room to run that the turn needs.
-       An \`.ag-cell\` is a plain block box by default — \`display: flex\` here is
-       what makes \`align-items\`/\`justify-content\` mean anything, the same way
-       \`person-header.ts\`'s own \`:host\` declares it. \`justify-content:
-       flex-start\` pins the figure to the cell's bottom edge — the edge
-       \`sideways-lr\`'s own bottom-up reading direction starts from — rather
-       than centring it top-to-bottom. \`align-items: center\` is the other
-       axis, centring it across the column's width. */
-    :host ::ng-deep .ledger-balances-row .ledger-share {
-      display: flex;
-      writing-mode: sideways-lr;
-      justify-content: flex-start;
-      align-items: center;
-      overflow: hidden;
-      padding: 4px;
-    }
-
+    /* Reused by the totals band above the grid — see \`.totals-band .person\`
+       in \`split-grid.html\` — for the same red the workbook used for someone
+       who is owed rather than owing. */
     :host ::ng-deep .ledger-credit {
       color: var(--credit);
     }
@@ -522,10 +588,10 @@ const money = new MoneyPipe();
        instead of underneath it.
        Bumping \`.ag-header\` itself does not reach far enough to fix this — it
        only wins the tie *inside* \`.ag-grid-pinned-top-rows\`, the sticky
-       wrapper AG Grid already draws the header and this app's own pinned
-       totals row inside; that wrapper's sibling on the scrolling side is
-       \`.ag-grid-scrolling-rows\`, and it is those two that are actually
-       compared once a descendant on either side asks for a stacking context.
+       wrapper AG Grid already draws the header inside; that wrapper's sibling
+       on the scrolling side is \`.ag-grid-scrolling-rows\`, and it is those
+       two that are actually compared once a descendant on either side asks
+       for a stacking context.
        \`.ag-spanning-container\` (raised above) sits inside the scrolling
        side, several plain, uncontexted layers down, so its \`z-index: 2\`
        bubbles all the way up to that same comparison — landing exactly on
@@ -589,16 +655,8 @@ export class SplitGrid {
    * identical ones. AG Grid calls this per row in place of the flat
    * `rowHeight` once it is supplied.
    */
-  protected readonly getRowHeight = (params: RowHeightParams<LedgerRowData>): number => {
-    if (params.data?.kind === 'filler') {
-      return params.data.rows * LEDGER_ROW_HEIGHT;
-    }
-    // The balances row turns its person cells on their side to match the
-    // header above them (see the `.ledger-balances-row .ledger-share` rule
-    // below) — 20 extra pixels over the ordinary row height is the room that
-    // sideways text needs so a longer balance does not clip.
-    return params.data?.kind === 'balances' ? LEDGER_ROW_HEIGHT + 20 : LEDGER_ROW_HEIGHT;
-  };
+  protected readonly getRowHeight = (params: RowHeightParams<LedgerRowData>): number =>
+    params.data?.kind === 'filler' ? params.data.rows * LEDGER_ROW_HEIGHT : LEDGER_ROW_HEIGHT;
 
   /**
    * Which lines are ticked is AG Grid's; the ticking is not.
@@ -623,8 +681,7 @@ export class SplitGrid {
     enableSelectionWithoutKeys: false,
     /**
      * Only the lines can be ticked. The blank row that ends a block is not a
-     * line yet, and the pinned strip is a result; there is nothing to do to
-     * either of them here.
+     * line yet, and there is nothing to do to it here.
      *
      * It belongs *inside* this object: given `rowSelection` as options rather
      * than a bare mode string, AG Grid reads `isRowSelectable` from here and
@@ -654,6 +711,26 @@ export class SplitGrid {
   private readonly fillPreview = signal<CellRef | null>(null);
 
   private api: GridApi | null = null;
+
+  /**
+   * The totals band above the grid is a hand-built row, not one AG Grid
+   * scrolls for it — so when there are enough people to push the columns
+   * wider than the page, this is what keeps it lined up under the same
+   * headers rather than left behind (or, without any containment of its
+   * own, forcing the whole page to scroll sideways around it: AG Grid's
+   * own body clips and scrolls internally, but a plain block element just
+   * overflows its box). `overflow-x: hidden` on `.totals-band` clips it the
+   * same way; setting `scrollLeft` still moves the clipped content even
+   * though the scrollbar itself is hidden.
+   */
+  private readonly totalsBand = viewChild<ElementRef<HTMLElement>>('totalsBand');
+
+  protected onBodyScroll(event: BodyScrollEvent): void {
+    const el = this.totalsBand()?.nativeElement;
+    if (el) {
+      el.scrollLeft = event.left;
+    }
+  }
 
   protected onGridReady(event: GridReadyEvent): void {
     this.api = event.api;
@@ -708,14 +785,6 @@ export class SplitGrid {
     if (active) {
       downloadJson(exportFileName([active]), buildExportPayload([active]));
     }
-  }
-
-  /**
-   * Starts a fresh split. No tab switch needed — this button lives on the
-   * Split tab already, which is where a fresh, empty one lands.
-   */
-  protected newSplit(): void {
-    this.store.createSplit();
   }
 
   /** Adds a sheet and opens it, so it can be named straight away. */
@@ -1095,11 +1164,10 @@ export class SplitGrid {
    * right-click never changes it, wherever it lands. The menu acts on the
    * tick as a whole, not on the row under the pointer, so a right-click
    * opens it as long as *something* is ticked, anywhere within the grid's
-   * own rows — including the blank "add" row or the pinned strip, which have
-   * nothing of their own but sit right next to lines that might. Outside the
-   * grid — the legend, the sheet editor's own text boxes — or with nothing
-   * ticked at all, there is nothing to act on, and the browser's own menu is
-   * left alone.
+   * own rows — including the blank "add" row, which has nothing of its own
+   * but sits right next to lines that might. Outside the grid — the legend,
+   * the sheet editor's own text boxes — or with nothing ticked at all, there
+   * is nothing to act on, and the browser's own menu is left alone.
    *
    * Checked against `api.getSelectedNodes()` rather than {@link ticked} —
    * {@link onSelectionChanged} is itself one of AG Grid's own outputs, and
@@ -1166,15 +1234,10 @@ export class SplitGrid {
     return this.ticked().map((line) => ({ sheetId: line.sheetId, itemId: line.row.item.id }));
   }
 
-  /**
-   * Where a cell sits in the selectable grid, or null if it is not one.
-   *
-   * The pinned summary strip is not: it holds results rather than entries, so
-   * there is nothing there to paste over.
-   */
+  /** Where a cell sits in the selectable grid, or null if it is not one. */
   private cellRef(node: IRowNode<LedgerRowData>, colId: string): CellRef | null {
     const col = this.selectableColumns().indexOf(colId);
-    if (col < 0 || node.rowPinned || node.rowIndex == null) {
+    if (col < 0 || node.rowIndex == null) {
       return null;
     }
     return { row: node.rowIndex, col };
@@ -1295,22 +1358,28 @@ export class SplitGrid {
     buildLedgerRows(this.store.split().rows, this.store.sheets()),
   );
 
+  /** For the masthead's "N people · M items" line. */
+  protected readonly itemCount = computed(() =>
+    this.store.sheets().reduce((count, sheet) => count + sheet.items.length, 0),
+  );
+
   /**
-   * The summary strip, pinned so the answer stays on screen while the rows
-   * scroll: each person's balance under their column, the trip total under
-   * Amount. Its cells read the store directly, so this only has to produce a
-   * fresh array whenever either figure moves — otherwise AG Grid, seeing the
-   * same reference, leaves the pinned row showing the old numbers.
+   * The totals band is plain HTML, not a grid row, so its columns have to be
+   * told to match the real ones by hand rather than inheriting them. Every
+   * width here is copied from {@link columns} — Sheet's 70, the line number's
+   * 45, Item's `flex: 1, minWidth: 150` (the same job `minmax` does in a CSS
+   * grid), Amount's 150, and 44 for every person plus the trailing add-person
+   * column. Nothing here is user-resizable (`defaultColDef.resizable` is
+   * false) and a person's own width never changes when their column is
+   * dragged to reorder, so this stays in step without watching the grid's
+   * actual column widths at runtime.
    */
-  protected readonly pinnedTop = computed<LedgerRowData[]>(() => {
-    this.store.balances();
-    this.store.grandTotal();
-    return [{ kind: 'balances' }];
-  });
+  protected readonly totalsColumns = computed(
+    () => `70px 45px minmax(150px, 1fr) 150px repeat(${this.store.people().length}, 44px) 44px`,
+  );
 
   protected readonly columns = computed<ColDef<LedgerRowData>[]>(() => {
     const people = this.store.people();
-    const baseSymbol = this.store.baseSymbol();
 
     // Sheet leads, because it is what the rows are grouped under: the block
     // heading belongs at the edge the eye starts from, with the line numbers it
@@ -1394,16 +1463,8 @@ export class SplitGrid {
         // below, set it independently.
         headerClass: 'ledger-amount-header',
         editable: (p) => p.data?.kind === 'item' || p.data?.kind === 'add-item',
-        valueGetter: (p: ValueGetterParams<LedgerRowData>) => {
-          // The trip total rides the pinned strip, under this column's own
-          // header — the same place a person's balance sits under theirs. It
-          // needs no label of its own: the header names the column, and the
-          // figure is the only one on the row not attached to a person.
-          if (p.data?.kind === 'balances') {
-            return this.store.grandTotal();
-          }
-          return p.data?.kind === 'item' ? p.data.row.item.amount : null;
-        },
+        valueGetter: (p: ValueGetterParams<LedgerRowData>) =>
+          p.data?.kind === 'item' ? p.data.row.item.amount : null,
         // Money on the way out, a plain number on the way in. A formatter only
         // ever draws the *resting* cell — AG Grid hands the editor the raw
         // value — so the symbol and separators are there to read and gone the
@@ -1412,14 +1473,9 @@ export class SplitGrid {
         // In the sheet's own currency, not the trip's: this column carries
         // whatever each block was billed in, which is why its header falls back
         // to naming no currency at all when the sheets disagree.
-        valueFormatter: (p) => {
-          if (p.data?.kind === 'balances') {
-            return money.transform(p.value, baseSymbol);
-          }
-          return p.data?.kind === 'item' ? money.transform(p.value, this.symbolForRow(p.data)) : '';
-        },
-        cellClass: (p) =>
-          p.data?.kind === 'balances' ? 'ledger-numeric ledger-total' : 'ledger-numeric',
+        valueFormatter: (p) =>
+          p.data?.kind === 'item' ? money.transform(p.value, this.symbolForRow(p.data)) : '',
+        cellClass: 'ledger-numeric',
         valueSetter: (p: ValueSetterParams<LedgerRowData>) => {
           const amount = parseAmount(p.newValue);
           return this.setItemField(p, (sheetId, itemId) =>
@@ -1450,23 +1506,13 @@ export class SplitGrid {
         suppressMovable: false,
         cellClass: 'ledger-share',
         editable: (p) => p.data?.kind === 'item',
-        valueGetter: (p: ValueGetterParams<LedgerRowData>) => {
-          if (p.data?.kind === 'balances') {
-            return this.balanceOf(person.id);
-          }
-          return p.data?.kind === 'item'
+        valueGetter: (p: ValueGetterParams<LedgerRowData>) =>
+          p.data?.kind === 'item'
             ? packShare(this.store.share(p.data.row.item.id, person.id))
-            : null;
-        },
-        // A balance is money and reads like the trip total above it, symbol and
-        // all. A share is a ratio and is left exactly as typed — putting a
-        // currency symbol on `1.2` would be a lie about what it means.
-        valueFormatter: (p) => {
-          if (p.data?.kind === 'balances') {
-            return money.transform(p.value, baseSymbol);
-          }
-          return p.value == null ? '' : String(p.value);
-        },
+            : null,
+        // A share is a ratio and is left exactly as typed — putting a currency
+        // symbol on `1.2` would be a lie about what it means.
+        valueFormatter: (p) => (p.value == null ? '' : String(p.value)),
         valueSetter: (p: ValueSetterParams<LedgerRowData>) => {
           if (p.data?.kind !== 'item') {
             return false;
@@ -1483,8 +1529,6 @@ export class SplitGrid {
           'ledger-paid': (p) => p.data?.kind === 'item' && this.isPayer(p.data, person.id),
           'ledger-missing': (p) =>
             p.data?.kind === 'item' && isRowUnassigned(p.data.row),
-          'ledger-credit': (p) =>
-            p.data?.kind === 'balances' && this.balanceOf(person.id) < 0,
           'ledger-selected': (p) => this.isSelected(p.node, `person:${person.id}`),
           'ledger-fill-handle': (p) => this.isFillHandle(p.node, `person:${person.id}`),
           'ledger-fill-preview': (p) => this.isFillPreview(p.node, `person:${person.id}`),
@@ -1519,8 +1563,6 @@ export class SplitGrid {
         return 'ledger-add-row';
       case 'filler':
         return 'ledger-filler-row';
-      case 'balances':
-        return 'ledger-balances-row';
       default:
         return '';
     }
@@ -1567,10 +1609,6 @@ export class SplitGrid {
     const sheet =
       'sheetId' in data ? this.store.sheets().find((s) => s.id === data.sheetId) : undefined;
     return sheet ? this.store.symbolFor(sheet) : this.store.baseSymbol();
-  }
-
-  private balanceOf(personId: string): number {
-    return this.store.balances().find((b) => b.personId === personId)?.balance ?? 0;
   }
 
   private isPayer(data: { row: { item: { id: string } } } & LedgerRowData, personId: string): boolean {

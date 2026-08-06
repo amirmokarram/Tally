@@ -1,57 +1,85 @@
-<!-- The split's own name, currency, and the two actions that used to sit in
-     the app-wide header, shown on every tab — moved here since only this one
-     needs them. -->
-<div class="split-header">
-  <input
-    class="title-input"
-    type="text"
-    placeholder="Name this split"
-    aria-label="Split title"
-    [value]="store.title()"
-    (input)="onTitle($event)"
-  />
-  <app-currency-picker
-    class="currency-select"
-    label="Base currency"
-    [value]="store.baseCurrency()"
-    (changed)="store.setBaseCurrency($event)"
-  />
-  <span class="split-header-actions">
-    <button
-      class="btn"
-      type="button"
-      title="Download this split as a JSON file"
-      (click)="exportActive()"
-    >
-      Export
-    </button>
-    <button class="btn" type="button" (click)="newSplit()">New split</button>
-  </span>
-</div>
+<!-- The whole Split page reads as one fused report — the split's own
+     identity, the totals, and the grid's own header all share one border and
+     one column grid, with no gap or shadow of their own between them. Only
+     the grid itself scrolls. -->
+<div class="report">
+  <!-- Built here rather than left as the grid's own pinned row: the answer
+       belongs at the top of a report, above the detail it comes from, not
+       pinned a row down inside it — see `totalsColumns` for how its column
+       widths are kept in step with the grid's own. The split's name,
+       currency and export share this row too, in the merged Sheet/#/Item
+       cell — figures nobody owns, and room a masthead row of its own would
+       have wasted. -->
+  <div #totalsBand class="totals-band" [style.gridTemplateColumns]="totalsColumns()">
+    <div class="cell masthead-cell">
+      <div class="masthead-title">
+        <input
+          class="title-input"
+          type="text"
+          placeholder="Name this split"
+          aria-label="Split title"
+          [value]="store.title()"
+          (input)="onTitle($event)"
+        />
+        <div class="masthead-sub">
+          {{ store.people().length }} {{ store.people().length === 1 ? 'person' : 'people' }}
+          · {{ itemCount() }} {{ itemCount() === 1 ? 'item' : 'items' }}
+        </div>
+      </div>
+      <app-currency-picker
+        class="currency-select"
+        label="Base currency"
+        [value]="store.baseCurrency()"
+        (changed)="store.setBaseCurrency($event)"
+      />
+      <button
+        class="btn"
+        type="button"
+        title="Download this split as a JSON file"
+        (click)="exportActive()"
+      >
+        Export
+      </button>
+    </div>
+    <div class="cell grand ledger-numeric">
+      {{ store.grandTotal() | money: store.baseSymbol() }}
+    </div>
+    @for (balance of store.balances(); track balance.personId) {
+      <div
+        class="cell person ledger-share"
+        [class.ledger-credit]="balance.balance < 0"
+        [attr.data-person-id]="balance.personId"
+      >
+        {{ balance.balance | money: store.baseSymbol() }}
+      </div>
+    }
+    <div class="cell"></div>
+  </div>
 
-<ag-grid-angular
-  class="grid"
-  [theme]="theme"
-  [rowData]="rows()"
-  [columnDefs]="columns()"
-  [pinnedTopRowData]="pinnedTop()"
-  (gridReady)="onGridReady($event)"
-  (modelUpdated)="onModelUpdated()"
-  (cellMouseDown)="onCellMouseDown($event)"
-  (cellMouseOver)="onCellMouseOver($event)"
-  (columnMoved)="onColumnMoved($event)"
-  [getRowId]="getRowId"
-  [defaultColDef]="defaultColDef"
-  [enableCellSpan]="true"
-  [stopEditingWhenCellsLoseFocus]="true"
-  [animateRows]="false"
-  [getRowClass]="getRowClass"
-  [rowSelection]="rowSelection"
-  (selectionChanged)="onSelectionChanged($event)"
-  [rowHeight]="rowHeight"
-  [getRowHeight]="getRowHeight"
-  [headerHeight]="82"
-/>
+  <ag-grid-angular
+    class="grid"
+    [theme]="theme"
+    [rowData]="rows()"
+    [columnDefs]="columns()"
+    (gridReady)="onGridReady($event)"
+    (modelUpdated)="onModelUpdated()"
+    (bodyScroll)="onBodyScroll($event)"
+    (cellMouseDown)="onCellMouseDown($event)"
+    (cellMouseOver)="onCellMouseOver($event)"
+    (columnMoved)="onColumnMoved($event)"
+    [getRowId]="getRowId"
+    [defaultColDef]="defaultColDef"
+    [enableCellSpan]="true"
+    [stopEditingWhenCellsLoseFocus]="true"
+    [animateRows]="false"
+    [getRowClass]="getRowClass"
+    [rowSelection]="rowSelection"
+    (selectionChanged)="onSelectionChanged($event)"
+    [rowHeight]="rowHeight"
+    [getRowHeight]="getRowHeight"
+    [headerHeight]="82"
+  />
+</div>
 
 @if (editingSheetId(); as sheetId) {
   <div class="editor-backdrop" (click)="closeEditor()"></div>

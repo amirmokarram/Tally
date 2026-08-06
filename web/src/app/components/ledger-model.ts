@@ -87,15 +87,15 @@ export type LedgerRow =
 export const MIN_BLOCK_ROWS = 4;
 
 /**
- * The pinned top row: the answer, never scrolled away. Each person's balance
- * under their own column, and the trip total under Amount — the summary sits in
- * one strip directly under the headers rather than at both ends of the grid.
+ * The row data type AG Grid is generic over.
+ *
+ * Used to carry a `BalanceRow` too, for a pinned top row showing each
+ * person's balance and the trip total. That row is now built outside the
+ * grid entirely — see the totals band in `split-grid.html` — so this is
+ * just an alias for {@link LedgerRow} today, kept so the grid and its cell
+ * renderers do not have to spell `LedgerRow` under a different name.
  */
-export interface BalanceRow {
-  kind: 'balances';
-}
-
-export type LedgerRowData = LedgerRow | BalanceRow;
+export type LedgerRowData = LedgerRow;
 
 /**
  * Rows for the whole trip, in sheet order.
@@ -177,8 +177,6 @@ export function ledgerRowId(row: LedgerRowData): string {
       return `add-item:${row.sheetId}`;
     case 'filler':
       return `filler:${row.sheetId}:${row.rows}`;
-    case 'balances':
-      return 'balances';
   }
 }
 

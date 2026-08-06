@@ -20,9 +20,6 @@
  * for what will not fit in a spine: currency, exchange rate, who paid, and
  * deleting the sheet. `⋯` opens it.
  *
- * The Sheet column is present on every kind of row, so this also draws the
- * label for the pinned summary strip.
- *
  * {@link AddSheetHeader} sits at the top of the same column: adding a sheet is
  * what this column is *for*, so the button belongs at the head of it rather than
  * in the toolbar over the grid.
@@ -51,65 +48,52 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
 @Component({
   selector: 'app-sheet-cell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: {
-    // "Totals" is four letters — short enough to read at a glance the
-    // ordinary way, unlike a sheet's name and charges which need the turn to
-    // fit at all. The one case this component draws with nothing else in it.
-    '[class.is-total]': "kind() === 'balances'",
-  },
   template: `
-    @switch (kind()) {
-      @case ('balances') {
-        <span class="balance-label">Totals</span>
-      }
-      @default {
-        @if (sheet(); as sheet) {
-          <div class="line">
+    @if (sheet(); as sheet) {
+      <div class="line">
+        <input
+          class="name"
+          type="text"
+          placeholder="Sheet name"
+          aria-label="Sheet name"
+          [class.has-error]="hasError()"
+          [value]="sheet.name"
+          (input)="rename($event)"
+          (keydown)="keepKey($event)"
+          (keydown.enter)="commit($event)"
+        />
+        <button
+          class="more"
+          type="button"
+          title="Currency, exchange rate, who paid — and deleting the sheet"
+          aria-label="More settings for this sheet"
+          (click)="openEditor()"
+        >
+          ⋯
+        </button>
+      </div>
+
+      <!-- Charges are spread across the sheet's lines in proportion to
+           price, so with no lines there is nothing for them to land on. -->
+      @if (sheet.items.length) {
+        <div class="charges" [title]="chargeHint()">
+          @for (field of CHARGES; track field.kind) {
             <input
-              class="name"
               type="text"
-              placeholder="Sheet name"
-              aria-label="Sheet name"
-              [class.has-error]="hasError()"
-              [value]="sheet.name"
-              (input)="rename($event)"
+              inputmode="decimal"
+              [placeholder]="field.label"
+              [attr.aria-label]="field.label + ' for this sheet'"
+              [value]="charge(field.kind)"
+              (change)="setCharge(field.kind, $event)"
               (keydown)="keepKey($event)"
               (keydown.enter)="commit($event)"
             />
-            <button
-              class="more"
-              type="button"
-              title="Currency, exchange rate, who paid — and deleting the sheet"
-              aria-label="More settings for this sheet"
-              (click)="openEditor()"
-            >
-              ⋯
-            </button>
-          </div>
-
-          <!-- Charges are spread across the sheet's lines in proportion to
-               price, so with no lines there is nothing for them to land on. -->
-          @if (sheet.items.length) {
-            <div class="charges" [title]="chargeHint()">
-              @for (field of CHARGES; track field.kind) {
-                <input
-                  type="text"
-                  inputmode="decimal"
-                  [placeholder]="field.label"
-                  [attr.aria-label]="field.label + ' for this sheet'"
-                  [value]="charge(field.kind)"
-                  (change)="setCharge(field.kind, $event)"
-                  (keydown)="keepKey($event)"
-                  (keydown.enter)="commit($event)"
-                />
-              }
-            </div>
           }
+        </div>
+      }
 
-          @if (payers(); as text) {
-            <span class="caption">Paid by {{ text }}</span>
-          }
-        }
+      @if (payers(); as text) {
+        <span class="caption">Paid by {{ text }}</span>
       }
     }
   `,
@@ -134,16 +118,6 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
       /* Two lines of boxes and a caption have to sit across a column 70 pixels
          wide, which is what the turn bought. */
       font-size: 12px;
-    }
-
-    /* Read the normal way round: centred in the cell rather than run down its
-       length, since nothing else shares the row with it. */
-    :host(.is-total) {
-      writing-mode: horizontal-tb;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 4px;
     }
 
     .line {
@@ -262,14 +236,6 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
       overflow: hidden;
       text-overflow: ellipsis;
     }
-
-    /* On its side like everything else in this column, and small enough to fit
-       inside the one row the pinned strip is. */
-    .balance-label {
-      font-size: 11px;
-      font-weight: 550;
-      color: var(--text-muted);
-    }
   `,
 })
 export class SheetCell implements ICellRendererAngularComp {
@@ -318,13 +284,9 @@ export class SheetCell implements ICellRendererAngularComp {
     return true;
   }
 
-  protected kind(): string {
-    return this.data()?.kind ?? 'item';
-  }
-
   protected sheet(): ExpenseSheet | undefined {
     const data = this.data();
-    if (!data || data.kind === 'balances') {
+    if (!data) {
       return undefined;
     }
     return this.store.sheets().find((s) => s.id === data.sheetId);
