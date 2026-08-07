@@ -176,7 +176,7 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
     .name {
       flex: 1;
       font-weight: 600;
-      font-size: 13px;
+      font-size: 15px;
       color: var(--navy-800);
 
       &.has-error {

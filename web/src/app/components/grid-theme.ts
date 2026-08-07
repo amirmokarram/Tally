@@ -45,7 +45,7 @@ export const ledgerTheme = themeQuartz.withParams({
   headerBackgroundColor: TOKENS.navy800,
   headerTextColor: TOKENS.textInvert,
   headerFontWeight: 600,
-  headerFontSize: 13,
+  headerFontSize: 16,
 
   oddRowBackgroundColor: TOKENS.surfaceAlt,
   rowHoverColor: TOKENS.navy050,
@@ -57,7 +57,7 @@ export const ledgerTheme = themeQuartz.withParams({
   borderRadius: 6,
 
   fontFamily: 'inherit',
-  fontSize: 14,
+  fontSize: 15,
 
   // A ledger is read down columns, so the vertical rules earn their keep here
   // in a way they would not in a plain list.
