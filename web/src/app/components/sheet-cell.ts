@@ -32,7 +32,7 @@ import { ICellRendererParams, IHeaderParams } from 'ag-grid-community';
 import { TripStore } from '../core/trip-store';
 import { ExpenseSheet, formatCharge, parseCharge } from '../models/trip.model';
 import { LedgerRowData, ledgerBlockSize, sheetCaption } from './ledger-model';
-import { LEDGER_ROW_HEIGHT } from './grid-theme';
+import { LEDGER_ADD_ROW_HEIGHT, LEDGER_ROW_HEIGHT } from './grid-theme';
 
 type ChargeKind = 'tax' | 'tip' | 'discount';
 
@@ -43,6 +43,13 @@ type ChargeKind = 'tax' | 'tip' | 'discount';
  */
 export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
   openEditor(sheetId: string): void;
+  /**
+   * Whether this sheet's add-item row is currently being edited — full
+   * height rather than collapsed — see the height `effect()` below, which
+   * needs it to know the block's *actual* current height rather than
+   * assuming every row in it is {@link LEDGER_ROW_HEIGHT}.
+   */
+  isAddRowEditing(sheetId: string): boolean;
 }
 
 @Component({
@@ -256,7 +263,21 @@ export class SheetCell implements ICellRendererAngularComp {
       const rows = ledgerBlockSize(sheet);
       // A one-row block is not merged at all, and a cell AG Grid is sizing
       // itself must be left to do so.
-      cell.style.height = rows > 1 ? `${rows * LEDGER_ROW_HEIGHT - 1}px` : '';
+      if (rows <= 1) {
+        cell.style.height = '';
+        return;
+      }
+      // Every row in the block is `LEDGER_ROW_HEIGHT` *except* the block's
+      // own add-item row, which is short until it's being edited
+      // (`getRowHeight` in `split-grid.ts`) — reading `isAddRowEditing`
+      // here, rather than just multiplying by `rows`, is what keeps this
+      // cell's height in step with that row's real one. `isAddRowEditing`
+      // reads a signal on the grid itself, so this effect reruns on its own
+      // when that changes — no extra refresh needed.
+      const addRowHeight = this.params?.isAddRowEditing(sheet.id)
+        ? LEDGER_ROW_HEIGHT
+        : LEDGER_ADD_ROW_HEIGHT;
+      cell.style.height = `${(rows - 1) * LEDGER_ROW_HEIGHT + addRowHeight - 1}px`;
     });
   }
 

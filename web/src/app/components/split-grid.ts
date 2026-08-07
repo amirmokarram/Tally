@@ -41,13 +41,17 @@ import {
 import { AgGridAngular } from 'ag-grid-angular';
 import {
   BodyScrollEvent,
+  CellEditingStartedEvent,
+  CellEditingStoppedEvent,
   CellSpanModule,
   CellStyleModule,
+  ClientSideRowModelApiModule,
   ClientSideRowModelModule,
   CellApiModule,
   CellMouseDownEvent,
   CellMouseOverEvent,
   ColDef,
+  ColSpanParams,
   ColumnApiModule,
   ColumnMovedEvent,
   _ColumnMoveModule,
@@ -67,6 +71,7 @@ import {
   ScrollApiModule,
   RowStyleModule,
   SelectionChangedEvent,
+  SuppressKeyboardEventParams,
   TextEditorModule,
   ValidationModule,
   ValueGetterParams,
@@ -89,7 +94,7 @@ import {
   rangeHas,
   toClipboardText,
 } from './cell-range';
-import { LEDGER_ROW_HEIGHT, ledgerTheme } from './grid-theme';
+import { LEDGER_ADD_ROW_HEIGHT, LEDGER_ROW_HEIGHT, ledgerTheme } from './grid-theme';
 import { AddSheetHeader, SheetCell } from './sheet-cell';
 import { SheetEditor } from './sheet-editor';
 import { AddPersonHeader, PersonHeader } from './person-header';
@@ -105,6 +110,10 @@ import { CurrencyPicker } from './currency-picker';
 // same grid the app does.
 ModuleRegistry.registerModules([
   ClientSideRowModelModule,
+  // `api.resetRowHeights()` — recomputes the add-item row's height when it
+  // expands/collapses on focus. `ClientSideRowModelModule` alone doesn't
+  // carry this; it is its own opt-in module.
+  ClientSideRowModelApiModule,
   CellSpanModule, // the sheet blocks — AG Grid's own grouping is Enterprise
   CellStyleModule, // cellClass / cellClassRules
   RowStyleModule, // getRowClass
@@ -451,6 +460,24 @@ const money = new MoneyPipe();
       font-style: italic;
     }
 
+    /* The add-item row's own cell while it is collapsed: shorter than every
+       other row (LEDGER_ADD_ROW_HEIGHT, getRowHeight), so the italic
+       placeholder needs a smaller line to still fit centred inside it. Cleared
+       once editing starts — see onCellEditingStarted/onCellEditingStopped —
+       where it goes back to reading like every other Item cell.
+       .ag-cell centres a normal row's text through a line-height AG Grid
+       derives from the grid's own rowHeight, not this row's own shorter
+       one — getRowHeight overrides are per-row, that derived line-height
+       is not, so left alone the text sits by the top of the box rather than
+       in the middle of it. Flex centring here does not depend on that
+       line-height being right for this row's own actual height. */
+    :host ::ng-deep .ag-cell.ledger-add-row-collapsed {
+      display: flex;
+      align-items: center;
+      font-size: 12px;
+      line-height: normal;
+    }
+
     :host ::ng-deep .ledger-paid {
       background: var(--paid-bg);
     }
@@ -662,6 +689,8 @@ export class SplitGrid {
    * size — does not repaint the box being typed in.
    */
   protected onModelUpdated(): void {
+    this.resolvePendingAddRowFocus();
+
     const shape = this.blockShape();
     if (shape === this.lastRefreshedShape) {
       return;
@@ -674,6 +703,32 @@ export class SplitGrid {
     // real width; see `itemColumnWidth`'s doc comment for why that needs a
     // fresh read here rather than only reacting to the viewport resizing.
     this.refreshItemColumnWidth();
+  }
+
+  /**
+   * Focuses (and, for Enter, starts editing) wherever {@link commitAddItemRow}
+   * decided a Tab or Enter commit on the add-item row should land — deferred
+   * until here because the row it targets does not exist in the grid's model
+   * until the `rows()` this commit triggered has made its way back through
+   * `[rowData]`. Ungated, unlike the repaint below it: this has to run on
+   * every `modelUpdated`, not just the ones that change a block's shape,
+   * since it is a one-shot request cleared the moment it is read.
+   */
+  private resolvePendingAddRowFocus(): void {
+    const pending = this.pendingAddRowFocus;
+    if (!pending) {
+      return;
+    }
+    this.pendingAddRowFocus = null;
+    const api = this.api;
+    const rowIndex = api?.getRowNode(pending.rowId)?.rowIndex;
+    if (api == null || rowIndex == null) {
+      return;
+    }
+    api.setFocusedCell(rowIndex, pending.col);
+    if (pending.startEdit) {
+      api.startEditingCell({ rowIndex, colKey: pending.col });
+    }
   }
 
   private lastRefreshedShape: string | null = null;
@@ -689,14 +744,55 @@ export class SplitGrid {
   protected readonly rowHeight = LEDGER_ROW_HEIGHT;
 
   /**
-   * Every row is one line tall except the filler row that closes a short
+   * Every row is one line tall except: the filler row that closes a short
    * block, which is as many as {@link LedgerFillerRow.rows} says — the padding
    * a block needs collapsed into one row rather than spread across several
-   * identical ones. AG Grid calls this per row in place of the flat
-   * `rowHeight` once it is supplied.
+   * identical ones; and the add-item row, which is short until it is actually
+   * being typed into (see {@link editingAddRowId}). AG Grid calls this per row
+   * in place of the flat `rowHeight` once it is supplied.
    */
-  protected readonly getRowHeight = (params: RowHeightParams<LedgerRowData>): number =>
-    params.data?.kind === 'filler' ? params.data.rows * LEDGER_ROW_HEIGHT : LEDGER_ROW_HEIGHT;
+  protected readonly getRowHeight = (params: RowHeightParams<LedgerRowData>): number => {
+    if (params.data?.kind === 'filler') {
+      return params.data.rows * LEDGER_ROW_HEIGHT;
+    }
+    if (params.data?.kind === 'add-item') {
+      return ledgerRowId(params.data) === this.editingAddRowId() ? LEDGER_ROW_HEIGHT : LEDGER_ADD_ROW_HEIGHT;
+    }
+    return LEDGER_ROW_HEIGHT;
+  };
+
+  /**
+   * The add-item row currently mid-edit, by its {@link ledgerRowId} — set
+   * from {@link onCellEditingStarted}/{@link onCellEditingStopped}. At most
+   * one at a time: only one cell can edit. Every other sheet's add-item row
+   * stays collapsed to {@link LEDGER_ADD_ROW_HEIGHT}.
+   *
+   * Tied to *editing*, not focus: a plain click only selects the row's one
+   * merged field (see the `item` column's `colSpan` in {@link columns},
+   * which — unlike the height here — never varies; an add-item row is
+   * always one merged cell, focused or not, because it is never anything
+   * but a name to type until Tab or Enter turns it into a real item row).
+   * Growing the row on a bare click, before there was anything to type,
+   * read as the row reacting to being merely looked at.
+   */
+  protected readonly editingAddRowId = signal<string | null>(null);
+
+  /**
+   * Where to move focus once the row data AG Grid is showing has caught up
+   * with a commit made from {@link commitAddItemRow} — read and cleared in
+   * {@link onModelUpdated}, which is the grid's own signal that a new
+   * `rowData` has actually landed, rather than a guessed delay (see that
+   * method's own doc comment for why a `setTimeout` is the wrong tool here).
+   */
+  private pendingAddRowFocus: { rowId: string; col: 'item' | 'amount'; startEdit: boolean } | null = null;
+
+  /**
+   * Set by {@link setItemField}'s add-item branch, immediately after
+   * `store.addItem` — the only way {@link commitAddItemRow} can tell, right
+   * after calling `api.stopEditing()`, whether typing Tab/Enter actually
+   * created an item (a blank name is rejected and creates nothing).
+   */
+  private lastCreatedItemId: string | null = null;
 
   /**
    * Which lines are ticked is AG Grid's; the ticking is not.
@@ -1063,6 +1159,94 @@ export class SplitGrid {
     }
     if (ref) {
       this.select({ anchor, head: ref });
+    }
+  }
+
+  /**
+   * Grows the add-item row to full height the moment it's actually being
+   * typed into — see {@link editingAddRowId}'s own doc comment for why this
+   * is tied to editing rather than to focus.
+   */
+  protected onCellEditingStarted(event: CellEditingStartedEvent<LedgerRowData>): void {
+    if (event.data?.kind !== 'add-item') {
+      return;
+    }
+    this.editingAddRowId.set(ledgerRowId(event.data));
+    // Re-runs `getRowHeight` for every row (cheap at this grid's size).
+    this.api?.resetRowHeights();
+  }
+
+  /**
+   * Collapses the add-item row back down once editing ends, however it
+   * ended — a commit, a blank value `setItemField` rejected, or Escape. If
+   * the name committed, the row this id names is a real item row by now
+   * (see `commitAddItemRow`), so there is nothing left to collapse; setting
+   * `editingAddRowId` to `null` and resizing is harmless either way, since
+   * `getRowHeight` only ever reads it for a row that is still `add-item`.
+   */
+  protected onCellEditingStopped(event: CellEditingStoppedEvent<LedgerRowData>): void {
+    if (event.data?.kind !== 'add-item') {
+      return;
+    }
+    this.editingAddRowId.set(null);
+    this.api?.resetRowHeights();
+    // The collapsed-look `cellClassRules` on the item column only re-checks
+    // itself when a cell is told to — unlike the row height above, which
+    // `resetRowHeights` re-asks for on its own. Only needed here, not from
+    // `onCellEditingStarted`: while actually editing, the live text-editor
+    // covers the resting cell entirely, so its class being stale for that
+    // one moment is invisible.
+    this.api?.refreshCells({ columns: ['item'], force: true });
+  }
+
+  /**
+   * Tab and Enter get their own behaviour on the add-item row's Item cell,
+   * suppressing AG Grid's own default handling for the two — see the item
+   * column's `suppressKeyboardEvent` in {@link columns}, which is what calls
+   * this. Left to AG Grid's own default Tab/Enter, this can't be reliably
+   * overridden from the `(cellKeyDown)` *output*: that fires as a
+   * notification of a keydown AG Grid's own internal listener has, by then,
+   * already acted on — `preventDefault()` from there is too late to stop it.
+   * `suppressKeyboardEvent` runs *before* AG Grid decides what to do with the
+   * key, which is the one hook actually meant for replacing that decision.
+   *
+   * Custom handling is needed at all because committing a name here turns
+   * this row into a real item row and moves the add-item id onto a fresh
+   * blank row below it (`ledger-model.ts`'s `buildLedgerRows`) — a
+   * destroy-and-recreate under `getRowId`, not an in-place update, and
+   * default Tab/Enter target resolution is not guaranteed to survive that.
+   *
+   *   - Tab commits and focuses the new item's Amount cell — the row is a
+   *     real, unmerged item row by then, so Amount is there to focus.
+   *   - Enter commits and focuses (and starts editing) the sheet's new,
+   *     now-blank add-item row, so a run of Enter presses adds several items
+   *     without touching the mouse.
+   *
+   * A blank commit (nothing typed) creates nothing — {@link setItemField}
+   * rejects it — so there is nothing new to focus, on either key: the row
+   * is still add-item, still one merged field with nowhere else on it to
+   * send focus to, so this just leaves editing, the way it would anywhere
+   * else in this grid with nothing to react to.
+   */
+  private commitAddItemRow(key: 'Tab' | 'Enter', sheetId: string, rowIndex: number | null): void {
+    const api = this.api;
+    if (!api || rowIndex == null) {
+      return;
+    }
+
+    this.lastCreatedItemId = null;
+    api.stopEditing();
+    const itemId = this.lastCreatedItemId;
+
+    if (key === 'Tab') {
+      if (itemId) {
+        this.pendingAddRowFocus = { rowId: `item:${itemId}`, col: 'amount', startEdit: false };
+      }
+      return;
+    }
+
+    if (itemId) {
+      this.pendingAddRowFocus = { rowId: `add-item:${sheetId}`, col: 'item', startEdit: true };
     }
   }
 
@@ -1546,6 +1730,11 @@ export class SplitGrid {
         editable: false,
         cellRendererParams: {
           openEditor: (sheetId: string) => this.editingSheetId.set(sheetId),
+          // So the merged Sheet-name box can size itself off the add-item
+          // row's *actual* current height instead of assuming every row in
+          // the block is `LEDGER_ROW_HEIGHT` — see `sheet-cell.ts`'s height
+          // `effect()`.
+          isAddRowEditing: (sheetId: string) => this.editingAddRowId() === `add-item:${sheetId}`,
         },
       },
       {
@@ -1569,6 +1758,26 @@ export class SplitGrid {
         flex: 1,
         minWidth: 150,
         editable: (p) => p.data?.kind === 'item' || p.data?.kind === 'add-item',
+        // A blank add-item row is one field, not three, for as long as it
+        // stays an add-item row: Item spans over Amount and every person
+        // column, so entering a name is the only thing the row ever asks
+        // for. Unconditional on focus or editing — Tab/Enter turning it
+        // into a real item row (`commitAddItemRow`) is what reveals Amount
+        // and the person columns, not a state this cell tracks itself.
+        // `+ 2` is Amount plus this column; the person columns are however
+        // many {@link people} holds at the time these `ColDef`s are built.
+        colSpan: (p: ColSpanParams<LedgerRowData>) => (p.data?.kind === 'add-item' ? 2 + people.length : 1),
+        // Tab and Enter get their own behaviour on this row — see
+        // {@link commitAddItemRow} for why AG Grid's own default handling has
+        // to be suppressed here rather than reacted to afterwards.
+        suppressKeyboardEvent: (p: SuppressKeyboardEventParams<LedgerRowData>) => {
+          if (p.data?.kind !== 'add-item' || (p.event.key !== 'Tab' && p.event.key !== 'Enter')) {
+            return false;
+          }
+          p.event.preventDefault();
+          this.commitAddItemRow(p.event.key, p.data.sheetId, p.node.rowIndex);
+          return true;
+        },
         valueGetter: (p: ValueGetterParams<LedgerRowData>) =>
           p.data?.kind === 'item' ? p.data.row.item.name : '',
         valueFormatter: (p) => (p.data?.kind === 'add-item' ? '+ Add item' : (p.value ?? '')),
@@ -1582,6 +1791,12 @@ export class SplitGrid {
           'ledger-selected': (p) => this.isSelected(p.node, 'item'),
           'ledger-fill-handle': (p) => this.isFillHandle(p.node, 'item'),
           'ledger-fill-preview': (p) => this.isFillPreview(p.node, 'item'),
+          // Re-derived by the `refreshCells` call in
+          // {@link onCellEditingStarted}/{@link onCellEditingStopped} — the
+          // row's own collapsed height comes from `getRowHeight`, this is
+          // what shrinks the cell's own padding/line-height to fit it.
+          'ledger-add-row-collapsed': (p) =>
+            p.data?.kind === 'add-item' && ledgerRowId(p.data) !== this.editingAddRowId(),
         },
       },
       {
@@ -1723,6 +1938,7 @@ export class SplitGrid {
         return false;
       }
       const item = this.store.addItem(data.sheetId);
+      this.lastCreatedItemId = item.id;
       write(data.sheetId, item.id);
       return true;
     }

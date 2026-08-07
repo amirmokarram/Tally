@@ -36,6 +36,14 @@ const TOKENS = {
  */
 export const LEDGER_ROW_HEIGHT = 38;
 
+/**
+ * The "add item" row's height while it sits blank and unfocused — short
+ * enough to read as a thin affordance rather than a line you'd type on
+ * without looking. It grows to {@link LEDGER_ROW_HEIGHT} the moment it's
+ * focused; see `split-grid.ts`'s `getRowHeight`.
+ */
+export const LEDGER_ADD_ROW_HEIGHT = 20;
+
 export const ledgerTheme = themeQuartz.withParams({
   accentColor: TOKENS.navy700,
   backgroundColor: TOKENS.surface,

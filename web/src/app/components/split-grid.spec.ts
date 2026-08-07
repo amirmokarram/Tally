@@ -13,7 +13,7 @@ import { AgGridAngular } from 'ag-grid-angular';
 import { GridApi } from 'ag-grid-community';
 
 import { SplitGrid } from './split-grid';
-import { LEDGER_ROW_HEIGHT } from './grid-theme';
+import { LEDGER_ADD_ROW_HEIGHT, LEDGER_ROW_HEIGHT } from './grid-theme';
 import { TripStore } from '../core/trip-store';
 import { SESSION_STORAGE, TRIP_STORAGE } from '../core/library-storage';
 import { FakeStorage } from '../core/library-storage.spec';
@@ -43,6 +43,34 @@ interface Selecting {
 
 function selecting(fixture: ComponentFixture<SplitGrid>): Selecting {
   return fixture.componentInstance as unknown as Selecting;
+}
+
+/**
+ * A real `api.setFocusedCell` — focuses a cell without editing it, the way
+ * a single click does. `pressKey`, below, needs that real focus (a genuine
+ * `ag-cell-focus`) to find something to dispatch a keydown at.
+ */
+function focusCell(api: GridApi, rowId: string, colId = 'item'): void {
+  api.setFocusedCell(api.getRowNode(rowId)!.rowIndex!, colId);
+}
+
+/**
+ * Tab/Enter on the add-item row are handled from the item column's own
+ * `suppressKeyboardEvent`, which AG Grid calls from *inside* its own keydown
+ * handling — unlike the mouse handlers above, calling that logic directly
+ * would prove nothing about whether it actually pre-empts AG Grid's default
+ * navigation (an earlier version of this that called it as a plain function
+ * looked fine and was not: AG Grid had already run its own Tab handling by
+ * the time a `(cellKeyDown)` *output* fired). A real, bubbling `keydown` is
+ * what a keystroke in the editor actually produces, so it is the only way to
+ * exercise the suppression itself.
+ */
+function pressKey(fixture: ComponentFixture<SplitGrid>, key: 'Tab' | 'Enter'): void {
+  const root = fixture.nativeElement as HTMLElement;
+  const target =
+    root.querySelector<HTMLElement>('.ag-cell-inline-editing input') ??
+    root.querySelector<HTMLElement>('.ag-cell-focus')!;
+  target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
 }
 
 /** Stands in for the cell event AG Grid hands the two mouse handlers. */
@@ -880,13 +908,163 @@ describe('the ledger grid', () => {
     const merged = () =>
       (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.ag-spanned-cell')!;
 
-    // Five items and the "add" line under them.
-    expect(merged().style.height).toBe(`${6 * LEDGER_ROW_HEIGHT - 1}px`);
+    // Five items and the "add" line under them — collapsed, since nothing
+    // has focused it here.
+    expect(merged().style.height).toBe(`${5 * LEDGER_ROW_HEIGHT + LEDGER_ADD_ROW_HEIGHT - 1}px`);
 
     api.getRowNode(`add-item:${sheet.id}`)!.setDataValue('item', 'Digestif');
     await settle(fixture);
 
-    expect(merged().style.height).toBe(`${7 * LEDGER_ROW_HEIGHT - 1}px`);
+    expect(merged().style.height).toBe(`${6 * LEDGER_ROW_HEIGHT + LEDGER_ADD_ROW_HEIGHT - 1}px`);
+  });
+
+  /**
+   * Short and merged until it's actually the one being typed on — see the
+   * plan behind this: a blank row that looked and behaved like every other
+   * one made it easy to lose track of, entering data by keyboard across
+   * several sheets.
+   */
+  describe('the add-item row', () => {
+    function row(fixture: ComponentFixture<SplitGrid>, rowId: string): HTMLElement {
+      return (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
+        `.ag-row[row-id="${rowId}"]`,
+      )!;
+    }
+
+    function cellIds(fixture: ComponentFixture<SplitGrid>, rowId: string): (string | null)[] {
+      return Array.from(row(fixture, rowId).querySelectorAll('[col-id]')).map((cell) =>
+        cell.getAttribute('col-id'),
+      );
+    }
+
+    /** Starts real editing on the add-item row's Item cell, the way a double-click would. */
+    function startEditingAddRow(api: GridApi, rowId: string): void {
+      api.startEditingCell({ rowIndex: api.getRowNode(rowId)!.rowIndex!, colKey: 'item' });
+    }
+
+    it('is short and merged into one cell by default', async () => {
+      const { fixture, store } = await grid();
+      const rowId = `add-item:${store.sheets()[0].id}`;
+
+      expect(row(fixture, rowId).style.height).toBe(`${LEDGER_ADD_ROW_HEIGHT}px`);
+      // Merged: no separate Amount or person cells to click into.
+      expect(cellIds(fixture, rowId)).not.toContain('amount');
+    });
+
+    it('stays merged into one cell even once it is only focused, not edited', async () => {
+      const { fixture, store, api } = await grid();
+      const rowId = `add-item:${store.sheets()[0].id}`;
+
+      // A plain click selects the row's one field; it is not yet a request
+      // to type, so nothing about the row should react to it.
+      focusCell(api, rowId);
+      await settle(fixture);
+
+      expect(row(fixture, rowId).style.height).toBe(`${LEDGER_ADD_ROW_HEIGHT}px`);
+      expect(cellIds(fixture, rowId)).not.toContain('amount');
+    });
+
+    it('grows to full height once it is actually being edited, staying one merged cell', async () => {
+      const { fixture, store, api } = await grid();
+      const rowId = `add-item:${store.sheets()[0].id}`;
+
+      startEditingAddRow(api, rowId);
+      await settle(fixture);
+
+      expect(row(fixture, rowId).style.height).toBe(`${LEDGER_ROW_HEIGHT}px`);
+      // Taller, but still one field — Amount only ever exists once the name
+      // is committed and this becomes a real item row.
+      expect(cellIds(fixture, rowId)).not.toContain('amount');
+    });
+
+    it('collapses again once editing ends without a name being entered', async () => {
+      const { fixture, store, api } = await grid();
+      const rowId = `add-item:${store.sheets()[0].id}`;
+
+      startEditingAddRow(api, rowId);
+      await settle(fixture);
+      api.stopEditing(true);
+      await settle(fixture);
+
+      expect(row(fixture, rowId).style.height).toBe(`${LEDGER_ADD_ROW_HEIGHT}px`);
+      expect(cellIds(fixture, rowId)).not.toContain('amount');
+    });
+
+    it('creates the item and moves focus to Amount when Tab is pressed after typing a name', async () => {
+      const { fixture, store, api } = await grid();
+      const sheet = store.sheets()[0];
+      const addRowId = `add-item:${sheet.id}`;
+      const before = sheet.items.length;
+
+      startEditingAddRow(api, addRowId);
+      await settle(fixture);
+      const editor = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+        '.ag-cell-inline-editing input',
+      )!;
+      editor.value = 'Digestif';
+      editor.dispatchEvent(new Event('input'));
+
+      pressKey(fixture, 'Tab');
+      await settle(fixture);
+
+      const items = store.sheets()[0].items;
+      expect(items.length).toBe(before + 1);
+      expect(items.at(-1)!.name).toBe('Digestif');
+
+      // Unmerged: committing turned this into a real item row, which was
+      // never subject to the add-item row's merge in the first place.
+      const focused = api.getFocusedCell();
+      expect(focused?.column.getColId()).toBe('amount');
+      expect(api.getDisplayedRowAtIndex(focused!.rowIndex)?.data).toEqual(
+        jasmine.objectContaining({ kind: 'item' }),
+      );
+    });
+
+    it('creates the item and focuses the next blank row, ready to type, when Enter is pressed', async () => {
+      const { fixture, store, api } = await grid();
+      const sheet = store.sheets()[0];
+      const addRowId = `add-item:${sheet.id}`;
+      const before = sheet.items.length;
+
+      startEditingAddRow(api, addRowId);
+      await settle(fixture);
+      const editor = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+        '.ag-cell-inline-editing input',
+      )!;
+      editor.value = 'Nightcap';
+      editor.dispatchEvent(new Event('input'));
+
+      pressKey(fixture, 'Enter');
+      await settle(fixture);
+
+      expect(store.sheets()[0].items.length).toBe(before + 1);
+
+      // Same row id — the sheet's add-item row is stable — but it's a fresh
+      // blank line now, focused and ready to type the next one.
+      const focused = api.getFocusedCell();
+      expect(focused?.column.getColId()).toBe('item');
+      expect(api.getDisplayedRowAtIndex(focused!.rowIndex)?.id).toBe(addRowId);
+      expect(api.getEditingCells().length).toBe(1);
+    });
+
+    it('does nothing special on Tab or Enter when nothing was typed', async () => {
+      const { fixture, store, api } = await grid();
+      const sheet = store.sheets()[0];
+      const addRowId = `add-item:${sheet.id}`;
+      const before = sheet.items.length;
+
+      focusCell(api, addRowId);
+      await settle(fixture);
+
+      pressKey(fixture, 'Tab');
+      await settle(fixture);
+
+      // Still one merged field, with nothing created to move focus to.
+      expect(store.sheets()[0].items.length).toBe(before);
+      const focused = api.getFocusedCell();
+      expect(focused?.column.getColId()).toBe('item');
+      expect(focused && api.getDisplayedRowAtIndex(focused.rowIndex)?.id).toBe(addRowId);
+    });
   });
 
   it('carries the trip total on the totals band, above the grid', async () => {
