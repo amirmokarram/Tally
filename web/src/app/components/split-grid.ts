@@ -30,6 +30,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
+  effect,
   ElementRef,
   inject,
   isDevMode,
@@ -636,6 +638,8 @@ const money = new MoneyPipe();
 })
 export class SplitGrid {
   protected readonly store = inject(TripStore);
+  private readonly elementRef = inject(ElementRef<HTMLElement>);
+  private readonly destroyRef = inject(DestroyRef);
 
   /**
    * AG Grid loses the renderer on a spanned cell whenever its block changes
@@ -664,6 +668,12 @@ export class SplitGrid {
     }
     this.lastRefreshedShape = shape;
     this.api?.refreshCells({ columns: ['sheet'], force: true });
+
+    // A row-count change — exactly what `shape` tracks — is exactly when the
+    // vertical scrollbar can appear or disappear, which is what moves Item's
+    // real width; see `itemColumnWidth`'s doc comment for why that needs a
+    // fresh read here rather than only reacting to the viewport resizing.
+    this.refreshItemColumnWidth();
   }
 
   private lastRefreshedShape: string | null = null;
@@ -755,6 +765,62 @@ export class SplitGrid {
    */
   private readonly totalsBand = viewChild<ElementRef<HTMLElement>>('totalsBand');
 
+  /**
+   * The Item column's real, resolved pixel width, read straight from AG
+   * Grid — see {@link totalsColumns}, which uses this instead of its own
+   * `minmax(150px, 1fr)` guess.
+   *
+   * Item is the ledger's one flexible column; everything else is a fixed
+   * pixel width both here and in {@link columns}, so it is the only place
+   * two independent layout engines computing "the same" `1fr` share can
+   * still disagree. They do: told to reserve room for the vertical
+   * scrollbar, AG Grid narrows its *columns'* combined width without
+   * narrowing `.ag-grid-viewport`'s own `clientWidth` — confirmed against a
+   * real (non-overlay) Windows scrollbar, where the viewport, the wrapper
+   * and the band all agreed on one outer width while the grid's Item column
+   * still came out 13px narrower than the band's own `1fr` guess, shifting
+   * Amount and every person column after it that far right of the grid's
+   * real ones. Copying AG Grid's own number here, rather than re-deriving
+   * one from a box width that turned out not to carry the scrollbar's
+   * effect, is what keeps the two in step regardless of how any given
+   * browser reserves that space.
+   */
+  protected readonly itemColumnWidth = signal<number | null>(null);
+
+  /** Re-reads {@link itemColumnWidth} from the grid — see its own doc comment
+   *  for why a fresh read, not a cached one, is what a scrollbar coming or
+   *  going needs. */
+  private refreshItemColumnWidth(): void {
+    const width = this.api?.getColumn('item')?.getActualWidth();
+    if (width != null) {
+      this.itemColumnWidth.set(width);
+    }
+  }
+
+  constructor() {
+    // A person added or removed changes how many fixed-width columns Item's
+    // flex share is competing with — {@link onModelUpdated} does not see
+    // this, since the row *model* has not changed, only the columns. Run
+    // after the `[columnDefs]` binding below has actually reached AG Grid
+    // and it has re-resolved Item's width against the new column set, not
+    // in the same tick this fires — a `setTimeout` alongside the other one
+    // in {@link onGridReady}, not a coincidence.
+    effect(() => {
+      this.store.people().length;
+      setTimeout(() => this.refreshItemColumnWidth());
+    });
+  }
+
+  /**
+   * Kept as a second path, not the only one — see the native listener wired
+   * up in {@link onGridReady}. AG Grid's own `bodyScroll` output goes through
+   * its internal event bus, and does not fire for every way the grid's
+   * viewport can scroll (observed: `api.ensureColumnVisible()` moves the real
+   * `scrollLeft` without it, the same gap `ag-grid-outputs-are-async`-style
+   * bugs elsewhere in this file come from) — so a real scroll could move the
+   * grid without ever reaching this handler, leaving the band behind until
+   * some other scroll happened to fire the output correctly.
+   */
   protected onBodyScroll(event: BodyScrollEvent): void {
     const el = this.totalsBand()?.nativeElement;
     if (el) {
@@ -785,6 +851,34 @@ export class SplitGrid {
       if (api && !api.isDestroyed()) {
         api.setGridOption('columnDefs', api.getColumnDefs());
       }
+
+      // The primary sync for the totals band's horizontal scroll — bound
+      // straight to the element the grid actually scrolls, bypassing AG
+      // Grid's own `bodyScroll` output entirely (see the doc comment on
+      // {@link onBodyScroll} for why that output alone is not enough).
+      const viewport = this.elementRef.nativeElement.querySelector(
+        '.ag-grid-viewport',
+      ) as HTMLElement | null;
+      if (viewport) {
+        const syncBand = () => {
+          const band = this.totalsBand()?.nativeElement;
+          if (band) {
+            band.scrollLeft = viewport.scrollLeft;
+          }
+        };
+        viewport.addEventListener('scroll', syncBand, { passive: true });
+        this.destroyRef.onDestroy(() => viewport.removeEventListener('scroll', syncBand));
+
+        // Re-reads `itemColumnWidth` whenever the viewport's own box changes
+        // — a window resize being the case a row-count-driven scrollbar
+        // (handled in {@link onModelUpdated} instead, since that does not
+        // resize the viewport itself) does not cover.
+        const widthObserver = new ResizeObserver(() => this.refreshItemColumnWidth());
+        widthObserver.observe(viewport);
+        this.destroyRef.onDestroy(() => widthObserver.disconnect());
+      }
+
+      this.refreshItemColumnWidth();
     });
   }
 
@@ -1397,12 +1491,14 @@ export class SplitGrid {
    * The totals band is plain HTML, not a grid row, so its columns have to be
    * told to match the real ones by hand rather than inheriting them. Every
    * width here is copied from {@link columns} — Sheet's 70, the line number's
-   * 45, Item's `flex: 1, minWidth: 150` (the same job `minmax` does in a CSS
-   * grid), Amount's 150, and 44 for every person plus the trailing add-person
-   * column. Nothing here is user-resizable (`defaultColDef.resizable` is
-   * false) and a person's own width never changes when their column is
-   * dragged to reorder, so this stays in step without watching the grid's
-   * actual column widths at runtime.
+   * 45, Amount's 150, and 44 for every person plus the trailing add-person
+   * column — except Item, which is `flex: 1, minWidth: 150` in the grid and
+   * cannot be copied as a literal: it is read live from {@link
+   * itemColumnWidth} instead. Nothing else here is user-resizable
+   * (`defaultColDef.resizable` is false) and a person's own width never
+   * changes when their column is dragged to reorder, so only Item needs
+   * watching at runtime — see its own doc comment for why even one flexible
+   * column can't be re-derived from a `minmax()` guess of the same width.
    */
   protected readonly totalsColumns = computed(() => {
     // Not `repeat(N, 44px)`: with nobody in the split yet, N is 0, and
@@ -1410,7 +1506,9 @@ export class SplitGrid {
     // whole `grid-template-columns` declaration, not just that term, and
     // the band collapses to an unstyled implicit grid.
     const peopleTracks = Array(this.store.people().length).fill('44px').join(' ');
-    return ['70px', '45px', 'minmax(150px, 1fr)', '150px', peopleTracks, '44px']
+    const itemWidth = this.itemColumnWidth();
+    const itemTrack = itemWidth != null ? `${itemWidth}px` : 'minmax(150px, 1fr)';
+    return ['70px', '45px', itemTrack, '150px', peopleTracks, '44px']
       .filter(Boolean)
       .join(' ');
   });

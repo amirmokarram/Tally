@@ -60,6 +60,17 @@ export const ledgerTheme = themeQuartz.withParams({
   fontSize: 15,
 
   // A ledger is read down columns, so the vertical rules earn their keep here
-  // in a way they would not in a plain list.
+  // in a way they would not in a plain list. `columnBorder` only draws them
+  // in the body — the header needs its own param, and its own full-height
+  // setting, to read as the same rule continuing rather than stopping short.
+  //
+  // Not `TOKENS.border`: that colour is tuned to sit quietly on the body's
+  // white/pale-blue rows, and the same hex on the header's navy background
+  // reads as a bold, near-white line instead — a divider so much stronger
+  // than the body's that the two rows stop looking like one set of column
+  // rules. This is white at the same low opacity the body's own border sits
+  // at against white, so the header divider is exactly as quiet against navy.
   columnBorder: true,
+  headerColumnBorder: 'solid 1px rgb(255 255 255 / 18%)',
+  headerColumnBorderHeight: '100%',
 });
