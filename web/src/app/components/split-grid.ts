@@ -43,6 +43,7 @@ import {
   BodyScrollEvent,
   CellEditingStartedEvent,
   CellEditingStoppedEvent,
+  CellFocusedEvent,
   CellSpanModule,
   CellStyleModule,
   ClientSideRowModelApiModule,
@@ -60,6 +61,7 @@ import {
   GridApi,
   GridReadyEvent,
   IRowNode,
+  _KeyboardNavigationModule,
   ModuleRegistry,
   NumberEditorModule,
   RenderApiModule,
@@ -72,6 +74,7 @@ import {
   RowStyleModule,
   SelectionChangedEvent,
   SuppressKeyboardEventParams,
+  SuppressNavigableCallback,
   TextEditorModule,
   ValidationModule,
   ValueGetterParams,
@@ -138,6 +141,11 @@ ModuleRegistry.registerModules([
   // AG Grid's own naming for a module carved out of what used to be part of
   // the free bundle — it ships from `ag-grid-community`, not `-enterprise`.
   _ColumnMoveModule,
+  // `suppressNavigable` (keeps Tab/arrow keys off the filler beneath a short
+  // block) and `api.clearFocusedCell()` (bounces a mouse click off the same
+  // cells — see {@link SplitGrid.onCellFocused}). Leading underscore is AG
+  // Grid's own naming, the same as `_ColumnMoveModule` above.
+  _KeyboardNavigationModule,
   // Turns AG Grid's numbered warnings into readable ones. Dropped from the
   // production bundle, which is a large part of the saving.
   ...(isDevMode() ? [ValidationModule] : []),
@@ -450,6 +458,21 @@ const money = new MoneyPipe();
         color-mix(in srgb, var(--text-muted) 14%, transparent) 4px,
         color-mix(in srgb, var(--text-muted) 14%, transparent) 5px
       );
+    }
+
+    /* \`onCellFocused\` (split-grid.ts) only runs once AG Grid has already
+       drawn its own focus ring for the click that triggered it — a full
+       frame the border is visible before the bounce clears it, which reads
+       as a flicker. Neither of these cells can hold anything, so the ring
+       should never draw here at all; painting it and then erasing it a
+       frame later is the wrong order. \`!important\` because AG Grid's own
+       rule matches on the same three classes this one does — same
+       specificity, so without it the winner would come down to which
+       stylesheet happens to load second. */
+    :host ::ng-deep .ledger-filler-row .ag-cell.ag-cell-focus,
+    :host ::ng-deep .ledger-add-person-cell.ag-cell-focus {
+      border-color: transparent !important;
+      outline: none !important;
     }
 
     /* All of them but the sheet's own heading: a sheet with no lines yet is a
@@ -1163,6 +1186,35 @@ export class SplitGrid {
   }
 
   /**
+   * Bounces focus off cells that hold nothing to read or type: the filler
+   * beneath a short block, and the add-person column, hatched the same way
+   * on every row for the same reason — see {@link columns}'s `add-person`
+   * entry.
+   *
+   * `suppressNavigable` (on {@link defaultColDef} for the filler rows, on
+   * the `add-person` column itself for every row) already keeps Tab and the
+   * arrow keys from stopping on either. A mouse click is the one way in
+   * neither covers, since AG Grid focuses the cell as part of its own
+   * mousedown handling, before `(cellMouseDown)` — an output, not a hook —
+   * gets a chance to react. Clearing it back out here is a click late, but
+   * a click late is as early as there is.
+   */
+  protected onCellFocused(event: CellFocusedEvent<LedgerRowData>): void {
+    if (event.rowIndex == null) {
+      return;
+    }
+    const colId = typeof event.column === 'string' ? event.column : event.column?.getColId();
+    if (colId === 'add-person') {
+      this.api?.clearFocusedCell();
+      return;
+    }
+    const node = this.api?.getDisplayedRowAtIndex(event.rowIndex);
+    if (node?.data?.kind === 'filler') {
+      this.api?.clearFocusedCell();
+    }
+  }
+
+  /**
    * Grows the add-item row to full height the moment it's actually being
    * typed into — see {@link editingAddRowId}'s own doc comment for why this
    * is tied to editing rather than to focus.
@@ -1542,8 +1594,17 @@ export class SplitGrid {
     return this.ticked().map((line) => ({ sheetId: line.sheetId, itemId: line.row.item.id }));
   }
 
-  /** Where a cell sits in the selectable grid, or null if it is not one. */
+  /**
+   * Where a cell sits in the selectable grid, or null if it is not one.
+   *
+   * The filler beneath a short block is padding, not a line — nothing to
+   * copy from, paste into, or drag a block across, so a click there can
+   * start or extend nothing.
+   */
   private cellRef(node: IRowNode<LedgerRowData>, colId: string): CellRef | null {
+    if (node.data?.kind === 'filler') {
+      return null;
+    }
     const col = this.selectableColumns().indexOf(colId);
     if (col < 0 || node.rowIndex == null) {
       return null;
@@ -1660,6 +1721,12 @@ export class SplitGrid {
     // renderer. Left on, AG Grid infers a type per column from the row data —
     // and the rows are a union of four shapes, so what it infers is noise.
     cellDataType: false,
+    // The filler beneath a short block is padding, not a line: Tab and the
+    // arrow keys should step over it rather than stop on it. A mouse click
+    // still focuses it — AG Grid decides that before any handler here gets a
+    // say — so {@link SplitGrid.onCellFocused} bounces that case back off.
+    suppressNavigable: ((p) =>
+      p.data?.kind === 'filler') satisfies SuppressNavigableCallback<LedgerRowData>,
   };
 
   protected readonly rows = computed<LedgerRowData[]>(() =>
@@ -1899,6 +1966,14 @@ export class SplitGrid {
       cellClass: 'ledger-add-person-cell',
       width: 44,
       editable: false,
+      // Every one of its cells carries the same hatch as the filler beneath
+      // a short block (see the `.ledger-add-person-cell` rule up top) — the
+      // button that adds a person lives in the header, not down here, so
+      // there is nothing on any row of this column to tab, arrow, or click
+      // into. Unconditional, unlike {@link defaultColDef}'s own
+      // `suppressNavigable`: that one only excludes the filler rows, this
+      // column is untypeable on every row.
+      suppressNavigable: true,
     });
 
     return columns;
