@@ -911,9 +911,9 @@ export class SplitGrid {
     }
   }
 
-  /** Adds a sheet and opens it, so it can be named straight away. */
+  /** Adds a sheet with its default name and charges — no popup. */
   protected addSheet(): void {
-    this.editingSheetId.set(this.store.addSheet().id);
+    this.store.addSheet();
   }
 
   /**
