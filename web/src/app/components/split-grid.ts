@@ -489,6 +489,21 @@ const money = new MoneyPipe();
       font-variant-numeric: tabular-nums;
       font-weight: 600;
       justify-content: center;
+      /* The value is a bare text node, not a flex child, so justify-content
+         above has nothing to act on — this is what actually centers it. */
+      text-align: center;
+    }
+
+    /* A person column is 44 pixels wide, and AG Grid's 15 either side leaves
+       a share reading "9.9" nowhere to go but off the edge. Dropped only
+       while the cell is showing its value, not while it holds the editor —
+       that still wants room around the input. */
+    :host ::ng-deep .ledger-share:not(.ag-cell-inline-editing) {
+      --ag-cell-horizontal-padding: 0px;
+    }
+
+    :host ::ng-deep .ledger-share.ag-cell-inline-editing input {
+      text-align: center;
     }
 
     /* Reused by the totals band above the grid — see \`.totals-band .person\`
