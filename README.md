@@ -24,7 +24,7 @@ web/                       Angular 20 application
   src/app/core/            calculation engine, settlement, validation, store,
                            storage, multi-tab sync, file import/export
   src/app/data/            currency catalogue + rate snapshot, worked examples
-  src/app/components/      Splits, Split (the ledger grid), Settle up, Help
+  src/app/components/      Splits (settle up expands from a row), Split (the ledger grid), Help
 docs/                      reverse-engineering and specification — start here
 reference/                 the original workbook and its user guide
 tools/export_workbook.py   dumps the source workbook to JSON
