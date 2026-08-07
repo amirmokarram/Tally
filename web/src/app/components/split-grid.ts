@@ -1404,9 +1404,16 @@ export class SplitGrid {
    * dragged to reorder, so this stays in step without watching the grid's
    * actual column widths at runtime.
    */
-  protected readonly totalsColumns = computed(
-    () => `70px 45px minmax(150px, 1fr) 150px repeat(${this.store.people().length}, 44px) 44px`,
-  );
+  protected readonly totalsColumns = computed(() => {
+    // Not `repeat(N, 44px)`: with nobody in the split yet, N is 0, and
+    // `repeat()` treats a zero count as invalid — which invalidates the
+    // whole `grid-template-columns` declaration, not just that term, and
+    // the band collapses to an unstyled implicit grid.
+    const peopleTracks = Array(this.store.people().length).fill('44px').join(' ');
+    return ['70px', '45px', 'minmax(150px, 1fr)', '150px', peopleTracks, '44px']
+      .filter(Boolean)
+      .join(' ');
+  });
 
   protected readonly columns = computed<ColDef<LedgerRowData>[]>(() => {
     const people = this.store.people();
