@@ -421,8 +421,23 @@ export class TripStore {
     this.replace(emptyTrip());
   }
 
+  /**
+   * Adds a worked example as a split of its own, rather than overwriting
+   * whatever is open — the Help page is reference material, not a prompt to
+   * throw away what the user was doing. Loading the same example again
+   * updates that split in place instead of piling up duplicates; it is
+   * recognised by title, since a sample's title is the only thing about it
+   * that is fixed. Renaming it, like renaming any split, forfeits that.
+   */
   loadSample(id: SampleTripId): void {
-    this.replace(buildSampleTrip(id));
+    const trip = buildSampleTrip(id);
+    const existing = this.libraryState().find((split) => split.trip.title === trip.title);
+    if (existing) {
+      this.activeIdState.set(existing.id);
+      this.replace(trip);
+    } else {
+      this.createSplit(trip);
+    }
   }
 
   readonly samples = SAMPLE_TRIPS;

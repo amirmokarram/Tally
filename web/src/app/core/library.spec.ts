@@ -88,6 +88,31 @@ describe('the split library', () => {
     expect(first.updatedAt).toBe(untouched);
   });
 
+  describe('loading a sample', () => {
+    it('adds it as a new split, leaving what was open alone', () => {
+      store.createSplit();
+      const before = store.activeSplitId();
+
+      store.loadSample('restaurant');
+
+      expect(store.splits().length).toBe(3); // starting empty, the one above, and the sample
+      expect(store.splitById(before)!.trip.people.length).toBe(0);
+      expect(store.people().length).toBe(3);
+    });
+
+    it('loading the same sample again overrides its own split, not others', () => {
+      store.loadSample('restaurant');
+      const restaurant = store.activeSplitId();
+      const other = store.createSplit().id;
+
+      store.loadSample('restaurant');
+
+      expect(store.splits().length).toBe(3); // starting empty, restaurant, other
+      expect(store.activeSplitId()).toBe(restaurant);
+      expect(store.splitById(other)).toBeTruthy();
+    });
+  });
+
   describe('duplicating', () => {
     it('copies the contents and opens the copy', () => {
       store.loadSample('new-england');
@@ -120,13 +145,13 @@ describe('the split library', () => {
     it('falls through to the most recent remaining split', () => {
       store.loadSample('restaurant');
       const first = store.activeSplitId();
-      store.createSplit();
       store.loadSample('camping');
       const second = store.activeSplitId();
 
       store.deleteSplit(second);
 
-      expect(store.splits().length).toBe(1);
+      // The starting empty split is still there — loadSample only adds.
+      expect(store.splits().length).toBe(2);
       expect(store.activeSplitId()).toBe(first);
       expect(store.people().length).toBe(3);
     });
@@ -162,7 +187,8 @@ describe('the split library', () => {
 
       store.importSplits([newSavedSplit(buildSampleTrip('camping'), 'incoming')]);
 
-      expect(store.splits().length).toBe(2);
+      // The starting empty split, the loaded sample, and the import.
+      expect(store.splits().length).toBe(3);
       expect(store.splitById(existing)).toBeTruthy();
       expect(store.people().length).toBe(6);
     });
@@ -198,20 +224,19 @@ describe('the split library', () => {
   describe('persistence', () => {
     it('saves every split, not just the open one', () => {
       store.loadSample('restaurant');
-      store.createSplit();
       store.loadSample('camping');
       TestBed.flushEffects();
 
       const saved = JSON.parse(storage.getItem(STORAGE_KEY)!);
-      expect(saved.splits.length).toBe(2);
+      // The starting empty split survives — loadSample adds, it doesn't overwrite.
+      expect(saved.splits.length).toBe(3);
       expect(saved.splits.map((s: { trip: { title: string } }) => s.trip.title).sort()).toEqual(
-        ['Camping', 'Cheesecake Factory'],
+        ['Camping', 'Cheesecake Factory', 'New Split'],
       );
     });
 
     it('restores the whole library on start-up', () => {
       store.loadSample('restaurant');
-      store.createSplit();
       store.loadSample('camping');
       TestBed.flushEffects();
       TestBed.resetTestingModule();
@@ -225,10 +250,11 @@ describe('the split library', () => {
       const reloaded = TestBed.inject(TripStore);
 
       expect(reloaded.restoredFromStorage).toBe(true);
-      expect(reloaded.splits().length).toBe(2);
+      expect(reloaded.splits().length).toBe(3);
       expect(reloaded.splits().map((s) => s.trip.title).sort()).toEqual([
         'Camping',
         'Cheesecake Factory',
+        'New Split',
       ]);
     });
   });
