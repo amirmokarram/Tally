@@ -37,7 +37,8 @@ entering a figure in one place and walking to another to see what it did. They
 are now a single AG Grid ledger on the **Split** tab: people are the columns,
 named from their headers; each expense sheet spans a block of rows, with its
 currency, tax, tip, discount and payers behind a panel its cell opens; and the
-blank row at the end of a block adds a line, numbered within its own sheet.
+blank row at the end of a block adds a line, numbered continuously across
+the whole trip.
 
 Two selections, because they answer different questions. **Tick** the box at the
 start of a line to choose *lines* — removing them, giving everyone a share, or
