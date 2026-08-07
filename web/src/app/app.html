@@ -36,12 +36,6 @@
   </div>
 </header>
 
-@if (store.primaryIssue(); as issue) {
-  <div class="alert" [class.warning]="issue.severity === 'warning'" role="status">
-    {{ issue.message }}
-  </div>
-}
-
 <main>
   @switch (tab()) {
     @case ('splits') {
@@ -61,47 +55,55 @@
   }
 </main>
 
-@if (store.saveFailed()) {
-  <div class="alert warning" role="status">
-    Changes could not be saved — browser storage is full or unavailable. This split will be
-    lost if you reload.
-  </div>
-}
+<div class="alerts-overlay">
+  @if (store.primaryIssue(); as issue) {
+    <div class="alert" [class.warning]="issue.severity === 'warning'" role="status">
+      {{ issue.message }}
+    </div>
+  }
 
-@if (importError(); as message) {
-  <div class="alert conflict with-actions" role="alert">
-    <span>{{ message }}</span>
-    <span class="alert-actions">
-      <button class="btn" type="button" (click)="dismissImportError()">Dismiss</button>
-    </span>
-  </div>
-} @else if (importNotice(); as message) {
-  <div class="alert info with-actions" role="status">
-    <span>{{ message }}</span>
-    <span class="alert-actions">
-      <button class="btn" type="button" (click)="dismissImportNotice()">Dismiss</button>
-    </span>
-  </div>
-}
+  @if (store.saveFailed()) {
+    <div class="alert warning" role="status">
+      Changes could not be saved — browser storage is full or unavailable. This split will be
+      lost if you reload.
+    </div>
+  }
 
-@if (store.pendingRemote()) {
-  <div class="alert conflict with-actions" role="alertdialog" aria-label="Conflicting change">
-    <span>
-      This split was changed in another tab while you were editing here. Keeping both is not
-      possible — choose which version to continue with.
-    </span>
-    <span class="alert-actions">
-      <button class="btn" type="button" (click)="store.acceptRemoteChange()">
-        Use the other tab's
-      </button>
-      <button class="btn primary" type="button" (click)="store.keepLocalVersion()">
-        Keep this one
-      </button>
-    </span>
-  </div>
-} @else if (store.syncedFromOtherTab()) {
-  <div class="alert info" role="status">Updated with a change made in another tab.</div>
-}
+  @if (importError(); as message) {
+    <div class="alert conflict with-actions" role="alert">
+      <span>{{ message }}</span>
+      <span class="alert-actions">
+        <button class="btn" type="button" (click)="dismissImportError()">Dismiss</button>
+      </span>
+    </div>
+  } @else if (importNotice(); as message) {
+    <div class="alert info with-actions" role="status">
+      <span>{{ message }}</span>
+      <span class="alert-actions">
+        <button class="btn" type="button" (click)="dismissImportNotice()">Dismiss</button>
+      </span>
+    </div>
+  }
+
+  @if (store.pendingRemote()) {
+    <div class="alert conflict with-actions" role="alertdialog" aria-label="Conflicting change">
+      <span>
+        This split was changed in another tab while you were editing here. Keeping both is not
+        possible — choose which version to continue with.
+      </span>
+      <span class="alert-actions">
+        <button class="btn" type="button" (click)="store.acceptRemoteChange()">
+          Use the other tab's
+        </button>
+        <button class="btn primary" type="button" (click)="store.keepLocalVersion()">
+          Keep this one
+        </button>
+      </span>
+    </div>
+  } @else if (store.syncedFromOtherTab()) {
+    <div class="alert info" role="status">Updated with a change made in another tab.</div>
+  }
+</div>
 
 <footer>
   @if (store.saveFailed()) {

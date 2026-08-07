@@ -53,9 +53,26 @@
   text-align: center;
 }
 
+/* Fixed to the viewport rather than laid out in flow, so an alert appearing
+   or clearing never shifts the report above it. Stacks top-down in source
+   order: the first `@if` to match sits closest to the page content, later
+   ones pile beneath it. */
+.alerts-overlay {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  width: min(100% - 48px, 1240px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 20;
+  pointer-events: none;
+}
+
 .alert {
-  max-width: 1240px;
-  margin: 16px auto 0;
+  pointer-events: auto;
+  box-shadow: var(--shadow);
   padding: 11px 16px;
   border-radius: var(--radius-sm);
   background: var(--credit-bg);
@@ -133,8 +150,9 @@ footer {
     padding: 16px 16px 48px;
   }
 
-  .alert {
-    margin: 12px 16px 0;
+  .alerts-overlay {
+    bottom: 12px;
+    width: calc(100% - 24px);
   }
 
   footer {
