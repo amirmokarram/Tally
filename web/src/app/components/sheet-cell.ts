@@ -203,8 +203,6 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
       }
     }
 
-    /* Quiet until the cell is under the pointer: the sheet name is what the
-       eye comes here for. */
     .more {
       flex: none;
       border: none;
@@ -214,18 +212,11 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
       font-size: 14px;
       line-height: 1;
       cursor: pointer;
-      opacity: 0;
-      transition: opacity 120ms;
 
       &:hover,
       &:focus-visible {
-        opacity: 1;
         color: var(--navy-800);
       }
-    }
-
-    :host(:hover) .more {
-      opacity: 1;
     }
 
     .caption {
