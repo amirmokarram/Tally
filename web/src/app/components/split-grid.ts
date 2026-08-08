@@ -170,9 +170,11 @@ const money = new MoneyPipe();
   host: {
     // The clipboard events are taken on the host rather than on the document:
     // they reach here by bubbling from the focused cell, so a copy aimed at
-    // something else on the page is left alone.
+    // something else on the page is left alone. Delete/Backspace ride the
+    // same bubble for the same reason — see {@link onKeyDown}.
     '(copy)': 'onCopy($event)',
     '(paste)': 'onPaste($event)',
+    '(keydown)': 'onKeyDown($event)',
     // A drag can end anywhere, including outside the grid.
     '(document:mouseup)': 'endDrag()',
     '(document:keydown.escape)': 'closeContextMenu()',
@@ -1410,10 +1412,11 @@ export class SplitGrid {
           continue; // Already holds this value — it is the source.
         }
         const srcCol = (((col - base.left) % baseWidth) + baseWidth) % baseWidth;
-        const value = source[srcRow][srcCol];
-        if (value !== null) {
-          node.setDataValue(columns[col], value);
-        }
+        // Written even when blank: a fill repeats the base block exactly, and
+        // an empty source cell is part of that pattern, not a gap in it — the
+        // same reason dragging a blank cell over a filled one clears it in
+        // every spreadsheet this is standing in for.
+        node.setDataValue(columns[col], source[srcRow][srcCol] ?? '');
       }
     }
   }
@@ -1700,6 +1703,39 @@ export class SplitGrid {
         if (value !== undefined) {
           node.setDataValue(columns[col], value);
         }
+      }
+    }
+  }
+
+  /**
+   * Delete and Backspace clear the selected block — Backspace too, since a
+   * Mac keyboard has no other key that means "delete" and there is nothing
+   * else here for it to do: neither key starts an edit on a focused, resting
+   * cell the way a printable one does, so today they land on nothing at all.
+   *
+   * `isTyping` guards this the same way it guards {@link onCopy} and
+   * {@link onPaste}: with a cell actually being edited, Backspace has its
+   * ordinary job of erasing a character and must be left alone.
+   */
+  protected onKeyDown(event: KeyboardEvent): void {
+    if (event.key !== 'Delete' && event.key !== 'Backspace') {
+      return;
+    }
+    const api = this.api;
+    const range = this.selection();
+    if (!api || !range || isTyping(event.target)) {
+      return;
+    }
+    event.preventDefault();
+    const columns = this.selectableColumns();
+    const { top, left, bottom, right } = rangeBounds(range);
+    for (let row = top; row <= bottom; row++) {
+      const node = api.getDisplayedRowAtIndex(row);
+      if (node?.data?.kind !== 'item') {
+        continue;
+      }
+      for (let col = left; col <= right; col++) {
+        node.setDataValue(columns[col], '');
       }
     }
   }
