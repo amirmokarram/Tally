@@ -55,6 +55,7 @@ import {
   ColSpanParams,
   ColumnApiModule,
   ColumnMovedEvent,
+  ColumnResizedEvent,
   _ColumnMoveModule,
   EventApiModule,
   GetRowIdParams,
@@ -1020,6 +1021,28 @@ export class SplitGrid {
     }
   }
 
+  /**
+   * The band's own resync for a viewport resize — a window resize or a
+   * browser zoom, both of which resize `.ag-grid-viewport` and leave AG
+   * Grid to re-resolve Item's flex width against the new box.
+   *
+   * Bound to `columnResized` rather than a `ResizeObserver` on the viewport:
+   * a `ResizeObserver` fires the instant the box changes, before AG Grid's
+   * *own* resize handling — queued behind a `requestAnimationFrame` inside
+   * `centerContainerCtrl`'s listener — has actually recomputed Item's width,
+   * so reading `getActualWidth()` from one raced AG Grid's own recalculation
+   * and could as easily read the width the box had a moment ago. A
+   * `columnResized` event with `flexColumns` set is dispatched from inside
+   * that same recomputation, once it is done — the grid's own signal that a
+   * fresh read will actually be fresh, the same reasoning `onModelUpdated`'s
+   * own doc comment gives for why a guessed delay is the wrong tool here.
+   */
+  protected onColumnResized(event: ColumnResizedEvent<LedgerRowData>): void {
+    if (event.flexColumns?.length) {
+      this.refreshItemColumnWidth();
+    }
+  }
+
   constructor() {
     // A person added or removed changes how many fixed-width columns Item's
     // flex share is competing with — {@link onModelUpdated} does not see
@@ -1091,14 +1114,6 @@ export class SplitGrid {
         };
         viewport.addEventListener('scroll', syncBand, { passive: true });
         this.destroyRef.onDestroy(() => viewport.removeEventListener('scroll', syncBand));
-
-        // Re-reads `itemColumnWidth` whenever the viewport's own box changes
-        // — a window resize being the case a row-count-driven scrollbar
-        // (handled in {@link onModelUpdated} instead, since that does not
-        // resize the viewport itself) does not cover.
-        const widthObserver = new ResizeObserver(() => this.refreshItemColumnWidth());
-        widthObserver.observe(viewport);
-        this.destroyRef.onDestroy(() => widthObserver.disconnect());
       }
 
       this.refreshItemColumnWidth();
