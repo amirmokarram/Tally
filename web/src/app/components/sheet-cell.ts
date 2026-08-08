@@ -182,6 +182,7 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
        above — the basis is what the line has left once \`⋯\` has its 18. */
     .name {
       flex: 1;
+      text-align: center;
       font-weight: 600;
       font-size: 15px;
       color: var(--navy-800);

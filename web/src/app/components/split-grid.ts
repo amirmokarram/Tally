@@ -514,10 +514,18 @@ const money = new MoneyPipe();
 
     /* Scaffolding for the eye, not data: it should sit behind everything. */
     :host ::ng-deep .ledger-index {
-      justify-content: flex-end;
+      justify-content: center;
+      align-items: center;
       color: var(--text-muted);
       font-variant-numeric: tabular-nums;
       font-size: 12px;
+      /* The column is 45 pixels wide, and AG Grid's default 15 either side
+         would leave a centered number nowhere to breathe — dropped so the
+         number can sit centered in the cell it actually has. */
+      --ag-cell-horizontal-padding: 0px;
+      /* The value is a bare text node, not a flex child, so justify-content
+         above has nothing to act on — this is what actually centers it. */
+      text-align: center;
     }
 
     /* A line's own number doubles as its tick box now, so it needs to read as
