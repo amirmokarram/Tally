@@ -155,6 +155,17 @@ ModuleRegistry.registerModules([
 const NO_SHEET = '(no sheet)';
 
 /**
+ * How wide AG Grid's own vertical/horizontal scrollbars are drawn — passed
+ * to the grid's `scrollbarWidth` option and, since the grid pads its
+ * scrollable row content by this much again on the right so the (always-on)
+ * vertical scrollbar never overlaps the last column, added a second time as
+ * a trailing spacer in {@link SplitGrid.totalsColumns}. Without that second
+ * copy the band runs out of room to scroll {@link GRID_SCROLLBAR_WIDTH}px
+ * before the grid does, so at full scroll the two fall out of alignment.
+ */
+const GRID_SCROLLBAR_WIDTH = 10;
+
+/**
  * The app's money formatting — thousands separators, and a credit in
  * parentheses rather than behind a minus sign, which is how the spreadsheet
  * showed someone who is owed. Reused through the pipe class so the grid cannot
@@ -603,6 +614,79 @@ const money = new MoneyPipe();
       cursor: crosshair;
     }
 
+    /* AG Grid's own scrollbar element, not the browser's native one on the
+       grid body itself (that one is hidden entirely) — see \`scrollbarWidth\`
+       on the grid for the width this has to match, since that number also
+       sets how much layout space the grid reserves for it. The up/down
+       buttons Windows Chrome draws on a classic scrollbar have no matching
+       AG Grid option, so they come off here instead.
+       \`scrollbar-color\`/\`scrollbar-width\` are set alongside the
+       \`::-webkit-scrollbar-*\` pseudo-elements, not instead of them: without
+       an explicit thumb colour the browser falls back to its own default,
+       which can render indistinguishable from the track depending on the
+       OS/browser theme — the standard properties are Chromium's newer,
+       better-supported path for the same thing. */
+    :host ::ng-deep .ag-body-vertical-scroll-viewport {
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-strong) transparent;
+    }
+    :host ::ng-deep .ag-body-vertical-scroll-viewport::-webkit-scrollbar {
+      width: ${GRID_SCROLLBAR_WIDTH}px;
+    }
+    :host ::ng-deep .ag-body-vertical-scroll-viewport::-webkit-scrollbar-button {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+    :host ::ng-deep .ag-body-vertical-scroll-viewport::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    :host ::ng-deep .ag-body-vertical-scroll-viewport::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border-radius: 4px;
+    }
+
+    /* The horizontal counterpart to the block above — same reasoning, but a
+       scrollbar's thickness is its \`height\` on this axis, not its \`width\`. */
+    :host ::ng-deep .ag-body-horizontal-scroll-viewport {
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-strong) transparent;
+    }
+    :host ::ng-deep .ag-body-horizontal-scroll-viewport::-webkit-scrollbar {
+      height: ${GRID_SCROLLBAR_WIDTH}px;
+    }
+    :host ::ng-deep .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-button {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+    :host ::ng-deep .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    :host ::ng-deep .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border-radius: 4px;
+    }
+    /* This one measures the real native scrollbar thickness before
+       \`scrollbarWidth\` reaches it (its own \`eViewport\` sets an inline
+       height from that measurement, ahead of the vertical scrollbar's
+       equivalent read), so it ends up reserving more than the vertical bar
+       actually gets. \`!important\` beats that inline style. */
+    :host ::ng-deep .ag-body-horizontal-scroll-viewport {
+      height: ${GRID_SCROLLBAR_WIDTH}px !important;
+    }
+
+    /* AG Grid positions this wrapper with \`top: 0\` but never sets \`bottom\`,
+       so with nothing else constraining its height it grows to fit its
+       child — a spacer element AG Grid stretches to the grid's *full*
+       (unscrolled) content height — instead of staying pinned to the
+       visible frame. Invisible while \`alwaysShowVerticalScroll\` had no
+       overflowing data to show it, but once a sheet grows past one
+       screen the bar balloons well past the grid's own bottom edge. */
+    :host ::ng-deep .ag-body-vertical-scroll {
+      bottom: 0;
+    }
+
     /* The block a fill drag is about to cover, while the handle is still
        out — dashed rather than the selection's own solid ring, so mid-drag it
        reads as a preview of what letting go would do, not as chosen yet. */
@@ -616,7 +700,7 @@ const money = new MoneyPipe();
        one part of the type this column keeps only for its cell values, not
        its title. */
     :host ::ng-deep .ledger-amount-header .ag-header-cell-text {
-      text-align: start;
+      text-align: center;
     }
 
     /* The Sheet cell is a spine of sideways boxes rather than a line of text:
@@ -772,6 +856,7 @@ export class SplitGrid {
   );
 
   protected readonly theme = ledgerTheme;
+  protected readonly scrollbarWidth = GRID_SCROLLBAR_WIDTH;
 
   /** Shared with the Sheet cell, which has to size a spanned block itself. */
   protected readonly rowHeight = LEDGER_ROW_HEIGHT;
@@ -1786,9 +1871,13 @@ export class SplitGrid {
    * The totals band is plain HTML, not a grid row, so its columns have to be
    * told to match the real ones by hand rather than inheriting them. Every
    * width here is copied from {@link columns} — Sheet's 70, the line number's
-   * 45, Amount's 150, and 44 for every person plus the trailing add-person
-   * column — except Item, which is `flex: 1, minWidth: 150` in the grid and
-   * cannot be copied as a literal: it is read live from {@link
+   * 45, Amount's 100, and 44 for every person plus the trailing add-person
+   * column, plus one more trailing {@link GRID_SCROLLBAR_WIDTH} spacer with
+   * no cell of its own, matching the same padding the grid adds to its own
+   * scrollable content — see that constant's doc comment for why the band's
+   * horizontal scroll falls short of the grid's without it. Item is the one
+   * exception, `flex: 1, minWidth: 150` in the grid and cannot be copied as
+   * a literal: it is read live from {@link
    * itemColumnWidth} instead. Nothing else here is user-resizable
    * (`defaultColDef.resizable` is false) and a person's own width never
    * changes when their column is dragged to reorder, so only Item needs
@@ -1803,7 +1892,15 @@ export class SplitGrid {
     const peopleTracks = Array(this.store.people().length).fill('44px').join(' ');
     const itemWidth = this.itemColumnWidth();
     const itemTrack = itemWidth != null ? `${itemWidth}px` : 'minmax(150px, 1fr)';
-    return ['70px', '45px', itemTrack, '150px', peopleTracks, '44px']
+    return [
+      '70px',
+      '45px',
+      itemTrack,
+      '100px',
+      peopleTracks,
+      '44px',
+      `${GRID_SCROLLBAR_WIDTH}px`,
+    ]
       .filter(Boolean)
       .join(' ');
   });
@@ -1912,13 +2009,13 @@ export class SplitGrid {
       },
       {
         colId: 'amount',
-        headerName: `Amount (${this.sheetCurrencyHeader()})`,
-        width: 150,
+        headerName: 'Amount',
+        width: 100,
         type: 'numericColumn',
         // \`numericColumn\` right-aligns its header text along with the cell
         // values; the values should stay that way (a column of money reads
-        // by its ones place), but the title reads better flush with the
-        // columns beside it. An explicit \`headerClass\` replaces the type's
+        // by its ones place), but the title reads better centered over a
+        // column this narrow. An explicit \`headerClass\` replaces the type's
         // own rather than adding to it, so the cell values keep their own
         // right alignment only because \`ledger-numeric\`/\`ledger-total\`,
         // below, set it independently.
@@ -1932,8 +2029,7 @@ export class SplitGrid {
         // moment you type over them.
         //
         // In the sheet's own currency, not the trip's: this column carries
-        // whatever each block was billed in, which is why its header falls back
-        // to naming no currency at all when the sheets disagree.
+        // whatever each block was billed in.
         valueFormatter: (p) =>
           p.data?.kind === 'item' ? money.transform(p.value, this.symbolForRow(p.data)) : '',
         cellClass: 'ledger-numeric',
@@ -2062,16 +2158,6 @@ export class SplitGrid {
       return true;
     }
     return false;
-  }
-
-  /**
-   * The Amount column is in each *sheet's* own currency, which can differ from
-   * row to row, so the header names the base currency only when every sheet
-   * agrees with it. Per-row currency is shown by the sheet's own cell.
-   */
-  private sheetCurrencyHeader(): string {
-    const symbols = new Set(this.store.sheets().map((s) => this.store.symbolFor(s)));
-    return symbols.size === 1 ? [...symbols][0] : 'sheet ccy';
   }
 
   /** The symbol a row's amount is in — its sheet's, which need not be the trip's. */
