@@ -192,14 +192,14 @@ export interface AddPersonHeaderParams extends IHeaderParams {
 /**
  * The trailing column's header: the button that adds a person.
  *
- * A mirror of `AddSheetHeader` — same 44-pixel column a person's own header
- * sits in, same button. It used to be a "+ Add person" button in the toolbar,
- * which was itself where it went after a first attempt at exactly this
- * trailing column: at 96 pixels wide, an empty column running the full height
- * of the grid was a real cost for a button used once in a while. Narrowed to
- * 44 for the same reason the person columns themselves were, that cost is
- * under half what it was — worth paying again for a person to be added from
- * where people are, the same way a sheet already is.
+ * A mirror of `AddSheetHeader`. It used to be a "+ Add person" button in the
+ * toolbar, which was itself where it went after a first attempt at exactly
+ * this trailing column: at 96 pixels wide, an empty column running the full
+ * height of the grid was a real cost for a button used once in a while.
+ * Narrowed since, first to the 44 pixels a person's own column needs, then
+ * to `ADD_PERSON_COLUMN_WIDTH` (`split-grid.ts`) once the button itself lost
+ * its border and background — an icon on its own doesn't need a person's
+ * full width, only enough to click.
  */
 @Component({
   selector: 'app-add-person-header',
@@ -231,29 +231,35 @@ export interface AddPersonHeaderParams extends IHeaderParams {
       height: 100%;
     }
 
+    /* White, not \`--navy-800\`: the header itself is that navy, so the
+       icon needs the header's *text* colour (\`--text-invert\`, the same
+       white \`.name\`'s placeholder above is mixed from) to read against it
+       at all. Dimmed to 0.5 at rest and full at hover/focus rather than
+       hidden-then-shown — the button is the only way to add a person, so it
+       should be findable without a hover to reveal it, just quieter than
+       the row of names beside it. */
     button {
       display: flex;
       align-items: center;
-      justify-content: center;
+      justify-content: end;
       width: 26px;
       height: 26px;
       padding: 0;
-      border: 1px solid var(--border-strong);
+      border: none;
       border-radius: 6px;
-      background: var(--surface);
-      color: var(--navy-800);
+      background: transparent;
+      color: var(--text-invert);
+      opacity: 0.5;
       cursor: pointer;
-      transition:
-        background 120ms,
-        border-color 120ms;
+      transition: opacity 120ms;
 
-      &:hover {
-        background: var(--navy-050);
-        border-color: var(--navy-700);
+      &:hover,
+      &:focus-visible {
+        opacity: 1;
       }
 
       &:focus-visible {
-        outline: 2px solid var(--navy-700);
+        outline: 2px solid var(--text-invert);
         outline-offset: 1px;
       }
     }

@@ -166,6 +166,15 @@ const NO_SHEET = '(no sheet)';
 const GRID_SCROLLBAR_WIDTH = 10;
 
 /**
+ * The trailing add-person column's width — narrower than a person's own
+ * 44-pixel column (set inline in {@link SplitGrid.columns}) since its header
+ * holds only the add button's icon, not a rotated name. Fits the 26-pixel
+ * button (see `person-header.ts`'s `AddPersonHeader`) with a pixel of
+ * breathing room either side.
+ */
+const ADD_PERSON_COLUMN_WIDTH = 28;
+
+/**
  * The app's money formatting — thousands separators, and a credit in
  * parentheses rather than behind a minus sign, which is how the spreadsheet
  * showed someone who is owed. Reused through the pipe class so the grid cannot
@@ -1871,8 +1880,9 @@ export class SplitGrid {
    * The totals band is plain HTML, not a grid row, so its columns have to be
    * told to match the real ones by hand rather than inheriting them. Every
    * width here is copied from {@link columns} — Sheet's 70, the line number's
-   * 45, Amount's 100, and 44 for every person plus the trailing add-person
-   * column, plus one more trailing {@link GRID_SCROLLBAR_WIDTH} spacer with
+   * 45, Amount's 100, 44 for every person, and {@link ADD_PERSON_COLUMN_WIDTH}
+   * for the trailing add-person column, plus one more trailing
+   * {@link GRID_SCROLLBAR_WIDTH} spacer with
    * no cell of its own, matching the same padding the grid adds to its own
    * scrollable content — see that constant's doc comment for why the band's
    * horizontal scroll falls short of the grid's without it. Item is the one
@@ -1898,7 +1908,7 @@ export class SplitGrid {
       itemTrack,
       '100px',
       peopleTracks,
-      '44px',
+      `${ADD_PERSON_COLUMN_WIDTH}px`,
       `${GRID_SCROLLBAR_WIDTH}px`,
     ]
       .filter(Boolean)
@@ -2104,7 +2114,12 @@ export class SplitGrid {
       headerComponentParams: { addPerson: () => this.addPerson() },
       headerClass: 'ledger-person-header',
       cellClass: 'ledger-add-person-cell',
-      width: 44,
+      width: ADD_PERSON_COLUMN_WIDTH,
+      // AG Grid's own default minWidth is `min(36, rowHeight)` — wider than
+      // this column is meant to be, and left alone it wins over `width`
+      // above. Only `colDef.minWidth` overrides it (see `environment.ts`'s
+      // `getDefaultColumnMinWidth` in ag-grid-community).
+      minWidth: ADD_PERSON_COLUMN_WIDTH,
       editable: false,
       // Every one of its cells carries the same hatch as the filler beneath
       // a short block (see the `.ledger-add-person-cell` rule up top) — the
