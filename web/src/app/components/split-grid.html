@@ -1,3 +1,32 @@
+<!-- Above the report rather than fused into its masthead-cell: none of this
+     row needs to scroll with the grid's own columns, and pulling it out of
+     the totals band keeps it in view regardless of scroll position — see
+     `app-settings-popup`. -->
+<div class="report-toolbar">
+  <div class="toolbar-left">
+    <app-currency-picker
+      class="currency-select plain"
+      label="Base currency"
+      [compact]="true"
+      [value]="store.baseCurrency()"
+      (changed)="store.setBaseCurrency($event)"
+    />
+    <button
+      class="toolbar-link"
+      type="button"
+      title="Download this split as a JSON file"
+      (click)="exportActive()"
+    >
+      Export
+    </button>
+  </div>
+  <button class="toolbar-link" type="button" (click)="settingsOpen.set(true)">Settings</button>
+</div>
+
+@if (settingsOpen()) {
+  <app-settings-popup (closed)="settingsOpen.set(false)" />
+}
+
 <!-- The whole Split page reads as one fused report — the split's own
      identity, the totals, and the grid's own header all share one border and
      one column grid, with no gap or shadow of their own between them. Only
@@ -6,11 +35,15 @@
   <!-- Built here rather than left as the grid's own pinned row: the answer
        belongs at the top of a report, above the detail it comes from, not
        pinned a row down inside it — see `totalsColumns` for how its column
-       widths are kept in step with the grid's own. The split's name,
-       currency and export share this row too, in the merged Sheet/#/Item
-       cell — figures nobody owns, and room a masthead row of its own would
-       have wasted. -->
-  <div #totalsBand class="totals-band" [style.gridTemplateColumns]="totalsColumns()">
+       widths are kept in step with the grid's own. The split's name shares
+       this row too, in the merged Sheet/#/Item cell — a figure nobody owns,
+       and room a masthead row of its own would have wasted. -->
+  <div
+    #totalsBand
+    class="totals-band"
+    [style.gridTemplateColumns]="totalsColumns()"
+    [style.minHeight.px]="settings.totalsBandHeight() ?? defaultTotalsBandHeight"
+  >
     <div class="cell masthead-cell">
       <div class="masthead-title">
         <input
@@ -26,38 +59,6 @@
           · {{ itemCount() }} {{ itemCount() === 1 ? 'item' : 'items' }}
         </div>
       </div>
-      <app-currency-picker
-        class="currency-select"
-        label="Base currency"
-        [compact]="true"
-        [value]="store.baseCurrency()"
-        (changed)="store.setBaseCurrency($event)"
-      />
-      <button
-        class="btn export-btn"
-        type="button"
-        title="Download this split as a JSON file"
-        aria-label="Download this split as a JSON file"
-        (click)="exportActive()"
-      >
-        <svg class="export-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path d="M8 2v8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-          <path
-            d="M4.5 7L8 10.5L11.5 7"
-            stroke="currentColor"
-            stroke-width="1.4"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-          <path
-            d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"
-            stroke="currentColor"
-            stroke-width="1.4"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
     </div>
     <div class="cell grand ledger-numeric">
       {{ store.grandTotal() | money: store.baseSymbol() }}

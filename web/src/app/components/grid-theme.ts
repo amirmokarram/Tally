@@ -44,6 +44,14 @@ export const LEDGER_ROW_HEIGHT = 38;
  */
 export const LEDGER_ADD_ROW_HEIGHT = 20;
 
+/**
+ * The totals band's height when {@link ReportSettings.totalsBandHeight} has no
+ * override — a template-level fallback rather than a setting of its own, so
+ * clearing the override in the settings popup lands here without that value
+ * ever being written to storage as if the user had chosen it.
+ */
+export const DEFAULT_TOTALS_BAND_HEIGHT = 85;
+
 export const ledgerTheme = themeQuartz.withParams({
   accentColor: TOKENS.navy700,
   backgroundColor: TOKENS.surface,

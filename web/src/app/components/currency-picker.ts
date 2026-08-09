@@ -169,6 +169,25 @@ let nextId = 0;
       }
     }
 
+    /* The report's toolbar reads as a strip of plain-text actions (see
+       .toolbar-link in split-grid.ts), so the compact trigger sheds its
+       button chrome there instead of standing out as the one boxed control
+       among them. */
+    :host(.plain) .picker-trigger {
+      padding: 2px 0;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 400;
+
+      &:hover {
+        background: none;
+        color: var(--navy-800);
+        text-decoration: underline;
+      }
+    }
+
     .picker-option {
       display: flex;
       align-items: baseline;

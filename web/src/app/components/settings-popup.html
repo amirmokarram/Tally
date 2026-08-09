@@ -1,0 +1,36 @@
+<div class="backdrop" (click)="close()"></div>
+<div class="panel" role="dialog" aria-label="Report settings">
+  <h2>Report settings</h2>
+
+  <div class="row">
+    <label for="totals-band-height">Totals band height</label>
+    <div class="height-controls">
+      <input
+        id="totals-band-height"
+        class="field"
+        type="number"
+        [min]="min"
+        [max]="max"
+        [placeholder]="defaultHeight + ' (default)'"
+        [value]="settings.totalsBandHeight()"
+        (change)="onHeightInput($event)"
+      />
+      <span>px</span>
+      <button
+        class="btn ghost"
+        type="button"
+        [disabled]="settings.totalsBandHeight() === null"
+        (click)="resetHeight()"
+      >
+        Reset
+      </button>
+    </div>
+  </div>
+  <p class="hint">
+    Leave blank to use the default height, {{ defaultHeight }}px.
+  </p>
+
+  <div class="footer">
+    <button class="btn primary" type="button" (click)="close()">Done</button>
+  </div>
+</div>

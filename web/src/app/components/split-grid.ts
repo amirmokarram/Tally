@@ -83,6 +83,7 @@ import {
 } from 'ag-grid-community';
 
 import { TripStore } from '../core/trip-store';
+import { ReportSettings } from '../core/report-settings';
 import { MoneyPipe } from '../core/money.pipe';
 import { buildExportPayload, downloadJson, exportFileName } from '../core/trip-file';
 import { packShare, unpackShare } from '../models/trip.model';
@@ -98,9 +99,15 @@ import {
   rangeHas,
   toClipboardText,
 } from './cell-range';
-import { LEDGER_ADD_ROW_HEIGHT, LEDGER_ROW_HEIGHT, ledgerTheme } from './grid-theme';
+import {
+  DEFAULT_TOTALS_BAND_HEIGHT,
+  LEDGER_ADD_ROW_HEIGHT,
+  LEDGER_ROW_HEIGHT,
+  ledgerTheme,
+} from './grid-theme';
 import { AddSheetHeader, SheetCell } from './sheet-cell';
 import { SheetEditor } from './sheet-editor';
+import { SettingsPopup } from './settings-popup';
 import { AddPersonHeader, PersonHeader } from './person-header';
 import { IndexHeader } from './index-header';
 import { CurrencyPicker } from './currency-picker';
@@ -185,7 +192,7 @@ const money = new MoneyPipe();
 
 @Component({
   selector: 'app-split-grid',
-  imports: [AgGridAngular, SheetEditor, CurrencyPicker, MoneyPipe],
+  imports: [AgGridAngular, SheetEditor, CurrencyPicker, MoneyPipe, SettingsPopup],
   templateUrl: './split-grid.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
@@ -221,6 +228,40 @@ const money = new MoneyPipe();
        nothing were happening. */
     :host(.filling) ::ng-deep .ag-center-cols-viewport {
       cursor: crosshair;
+    }
+
+    /* Right above the report, not inside it — the totals band scrolls
+       horizontally with the grid's own columns, and controls that matter
+       regardless of scroll position cannot live in a cell that might. */
+    .report-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-inline-start: 10px;
+      margin-inline-end: 10px;
+    }
+
+    .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Shared by Settings and Export — both are plain-text links, not
+       buttons, so the toolbar reads as a strip of actions rather than a row
+       of chrome to match against the report below it. */
+    .toolbar-link {
+      padding: 2px 0;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      font-size: 13px;
+
+      &:hover {
+        color: var(--navy-800);
+        text-decoration: underline;
+      }
     }
 
     /* One block, one border, one shadow — the totals band and the grid below
@@ -277,27 +318,12 @@ const money = new MoneyPipe();
       flex: none;
     }
 
-    /* Icon only — the title attribute still carries what it does. Height
-       fixed to match the currency picker's own trigger next to it: that one
-       is sized by its text's line box, this one by its icon, and the two
-       don't land on the same number by themselves. */
-    .export-btn {
-      flex: none;
-      height: 37px;
-      padding: 0 9px;
-    }
-
-    .export-icon {
-      width: 18px;
-      height: 18px;
-    }
-
-    /* The report's own top line: the split's identity — name, currency,
-       export — sharing a row with its answer, each person's balance under
-       their column and the trip total under Amount, rather than spending a
-       whole row of its own above them. Rounded and bordered on every side —
-       this is the top of the report now — except the bottom, which is the
-       seam to the grid's own header directly under it. */
+    /* The report's own top line: the split's name sharing a row with its
+       answer, each person's balance under their column and the trip total
+       under Amount, rather than spending a whole row of its own above them.
+       Rounded and bordered on every side — this is the top of the report
+       now — except the bottom, which is the seam to the grid's own header
+       directly under it. */
     .totals-band {
       display: grid;
       align-items: stretch;
@@ -326,17 +352,12 @@ const money = new MoneyPipe();
     }
 
     /* The merged first three columns — Sheet, the line number, Item — are
-       nobody's own figure, which is the room the split's name, currency and
-       export borrow instead of a masthead row of their own. Wraps rather
-       than clips, and \`overflow: visible\` overrides the plain cell's own
-       \`hidden\`: the currency picker's dropdown has to escape this cell's
-       bounds to open over what is below it. */
+       nobody's own figure, which is the room the split's name borrows
+       instead of a masthead row of its own. Currency and export used to
+       share this cell too; they moved to .report-toolbar, above. */
     .totals-band .cell.masthead-cell {
       grid-column: span 3;
-      flex-wrap: wrap;
-      gap: 8px 14px;
       padding: 10px 15px;
-      overflow: visible;
     }
 
     .totals-band .cell.grand {
@@ -792,6 +813,8 @@ const money = new MoneyPipe();
 })
 export class SplitGrid {
   protected readonly store = inject(TripStore);
+  protected readonly settings = inject(ReportSettings);
+  protected readonly defaultTotalsBandHeight = DEFAULT_TOTALS_BAND_HEIGHT;
   private readonly elementRef = inject(ElementRef<HTMLElement>);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -956,6 +979,9 @@ export class SplitGrid {
 
   /** The sheet whose settings panel is open, or null. */
   protected readonly editingSheetId = signal<string | null>(null);
+
+  /** Whether the report's own settings popup — see `settings-popup.ts` — is open. */
+  protected readonly settingsOpen = signal(false);
 
   /** The block of cells a copy or a paste applies to, or null. */
   private readonly selection = signal<CellRange | null>(null);

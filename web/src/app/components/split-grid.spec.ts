@@ -285,7 +285,7 @@ describe('the ledger grid', () => {
   describe('the split header', () => {
     function exportButton(fixture: ComponentFixture<SplitGrid>): HTMLButtonElement {
       return (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
-        '.masthead-cell .export-btn',
+        '.toolbar-left .toolbar-link',
       )!;
     }
 
