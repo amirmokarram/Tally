@@ -809,6 +809,19 @@ const money = new MoneyPipe();
     :host ::ng-deep .ag-grid-pinned-top-rows {
       z-index: 3;
     }
+
+    /* AG Grid only paints the header's navy background on
+       .ag-grid-scrolling-cells, sized to the real column content — it stops
+       short of the header's own full width by GRID_SCROLLBAR_WIDTH, the
+       gutter reserved for the always-on vertical scrollbar (see "Always
+       reserve the grid's vertical scrollbar space"). Left unpainted, that
+       gutter shows .ag-grid-pinned-top-rows's own white background through
+       as a sliver right of the add-person column. Backstopped here so the
+       header reads as one solid bar edge to edge no matter what AG Grid's
+       own content wrapper covers. */
+    :host ::ng-deep .ag-header {
+      background: var(--navy-800);
+    }
   `,
 })
 export class SplitGrid {
