@@ -230,7 +230,11 @@ const money = new MoneyPipe();
       cursor: crosshair;
     }
 
-    /* Right above the report, not inside it — the totals band scrolls
+    /* This block's own top edge, not a strip floating above it — same
+       border and top corners as the totals band directly under it (which
+       drops its own top border and radius to match, below), so toolbar,
+       totals and grid read as one report rather than chrome sitting on a
+       document. Still outside the totals band itself: that one scrolls
        horizontally with the grid's own columns, and controls that matter
        regardless of scroll position cannot live in a cell that might. */
     .report-toolbar {
@@ -238,29 +242,48 @@ const money = new MoneyPipe();
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      margin-inline-start: 10px;
-      margin-inline-end: 10px;
+      padding: 8px 14px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-top-left-radius: var(--radius);
+      border-top-right-radius: var(--radius);
     }
 
-    .toolbar-left {
+    .toolbar-group {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 4px;
     }
 
-    /* Shared by Settings and Export — both are plain-text links, not
-       buttons, so the toolbar reads as a strip of actions rather than a row
-       of chrome to match against the report below it. */
-    .toolbar-link {
-      padding: 2px 0;
-      border: none;
+    .toolbar-divider {
+      width: 1px;
+      height: 18px;
+      background: var(--border-strong);
+      margin-inline: 6px;
+    }
+
+    /* Icon plus label, matching the add-person / add-sheet buttons' own
+       stroke-based icons rather than introducing a new visual language. */
+    .toolbar-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
       background: none;
       color: var(--text-muted);
       font-size: 13px;
+      font-weight: 600;
+
+      svg {
+        flex: none;
+      }
 
       &:hover {
+        background: var(--navy-050);
         color: var(--navy-800);
-        text-decoration: underline;
       }
     }
 
@@ -315,17 +338,16 @@ const money = new MoneyPipe();
     /* The report's own top line: the split's name sharing a row with its
        answer, each person's balance under their column and the trip total
        under Amount, rather than spending a whole row of its own above them.
-       Rounded and bordered on every side — this is the top of the report
-       now — except the bottom, which is the seam to the grid's own header
-       directly under it. */
+       Bordered on every side but the top and bottom: the toolbar above owns
+       the top edge and its rounded corners now (\`.report-toolbar\`), and the
+       bottom is the seam to the grid's own header directly under it. */
     .totals-band {
       display: grid;
       align-items: stretch;
       background: var(--surface);
       border: 1px solid var(--border);
+      border-top: none;
       border-bottom: none;
-      border-top-left-radius: var(--radius);
-      border-top-right-radius: var(--radius);
       /* Enough people push the columns wider than the page. AG Grid's own
          body clips and scrolls that internally; this clips the same way —
          see {@link SplitGrid.onBodyScroll} for what keeps it lined up with
