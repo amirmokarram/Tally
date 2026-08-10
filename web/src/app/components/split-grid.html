@@ -71,6 +71,14 @@
     <div class="cell"></div>
   </div>
 
+  <!-- `enterNavigatesVerticallyAfterEdit` below: AG Grid's own default
+       already starts editing on a bare Enter; this is the other half — Enter
+       while editing commits and drops one row, the way a spreadsheet does.
+       `enterNavigatesVertically` (the sibling flag) is left off: that one
+       would make a bare Enter navigate instead of edit, which is not wanted
+       here. The add-item row's own Enter is intercepted earlier by its
+       columns' `suppressKeyboardEvent` (split-grid.ts), so this never
+       reaches it. -->
   <ag-grid-angular
     class="grid"
     [theme]="theme"
@@ -92,6 +100,7 @@
     [scrollbarWidth]="scrollbarWidth"
     [enableCellSpan]="true"
     [stopEditingWhenCellsLoseFocus]="true"
+    [enterNavigatesVerticallyAfterEdit]="true"
     [animateRows]="false"
     [getRowClass]="getRowClass"
     [rowSelection]="rowSelection"
