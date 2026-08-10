@@ -919,10 +919,12 @@ describe('the ledger grid', () => {
   });
 
   /**
-   * Short and merged until it's actually the one being typed on — see the
-   * plan behind this: a blank row that looked and behaved like every other
-   * one made it easy to lose track of, entering data by keyboard across
-   * several sheets.
+   * Short until it's actually the one being typed on — see the plan behind
+   * this: a blank row that looked and behaved like every other one made it
+   * easy to lose track of, entering data by keyboard across several sheets.
+   * Item and Amount are both live, separate fields — a new item can start
+   * from either one — while index, person, and add-person stay hatched,
+   * unfocusable blocks since there is no line yet to number or split.
    */
   describe('the add-item row', () => {
     function row(fixture: ComponentFixture<SplitGrid>, rowId: string): HTMLElement {
@@ -942,29 +944,35 @@ describe('the ledger grid', () => {
       api.startEditingCell({ rowIndex: api.getRowNode(rowId)!.rowIndex!, colKey: 'item' });
     }
 
-    it('is short and merged into one cell by default', async () => {
+    it('is short by default, with Item and Amount both live', async () => {
       const { fixture, store } = await grid();
       const rowId = `add-item:${store.sheets()[0].id}`;
 
       expect(row(fixture, rowId).style.height).toBe(`${LEDGER_ADD_ROW_HEIGHT}px`);
-      // Merged: no separate Amount or person cells to click into.
-      expect(cellIds(fixture, rowId)).not.toContain('amount');
+      // Item and Amount are both real, separate cells — a new item can start
+      // from either one.
+      expect(cellIds(fixture, rowId)).toEqual([
+        'index',
+        'item',
+        'amount',
+        'person:p1',
+        'add-person',
+      ]);
     });
 
-    it('stays merged into one cell even once it is only focused, not edited', async () => {
+    it('stays short even once it is only focused, not edited', async () => {
       const { fixture, store, api } = await grid();
       const rowId = `add-item:${store.sheets()[0].id}`;
 
-      // A plain click selects the row's one field; it is not yet a request
-      // to type, so nothing about the row should react to it.
+      // A plain click selects one of the row's fields; it is not yet a
+      // request to type, so nothing about the row should react to it.
       focusCell(api, rowId);
       await settle(fixture);
 
       expect(row(fixture, rowId).style.height).toBe(`${LEDGER_ADD_ROW_HEIGHT}px`);
-      expect(cellIds(fixture, rowId)).not.toContain('amount');
     });
 
-    it('grows to full height once it is actually being edited, staying one merged cell', async () => {
+    it('grows to full height once it is actually being edited', async () => {
       const { fixture, store, api } = await grid();
       const rowId = `add-item:${store.sheets()[0].id}`;
 
@@ -972,9 +980,6 @@ describe('the ledger grid', () => {
       await settle(fixture);
 
       expect(row(fixture, rowId).style.height).toBe(`${LEDGER_ROW_HEIGHT}px`);
-      // Taller, but still one field — Amount only ever exists once the name
-      // is committed and this becomes a real item row.
-      expect(cellIds(fixture, rowId)).not.toContain('amount');
     });
 
     it('collapses again once editing ends without a name being entered', async () => {
@@ -987,7 +992,6 @@ describe('the ledger grid', () => {
       await settle(fixture);
 
       expect(row(fixture, rowId).style.height).toBe(`${LEDGER_ADD_ROW_HEIGHT}px`);
-      expect(cellIds(fixture, rowId)).not.toContain('amount');
     });
 
     it('creates the item and moves focus to Amount when Tab is pressed after typing a name', async () => {
@@ -1011,8 +1015,8 @@ describe('the ledger grid', () => {
       expect(items.length).toBe(before + 1);
       expect(items.at(-1)!.name).toBe('Digestif');
 
-      // Unmerged: committing turned this into a real item row, which was
-      // never subject to the add-item row's merge in the first place.
+      // A real item row now, so Amount reads its usual way — not the
+      // add-item row's own suppressed keyboard handling.
       const focused = api.getFocusedCell();
       expect(focused?.column.getColId()).toBe('amount');
       expect(api.getDisplayedRowAtIndex(focused!.rowIndex)?.data).toEqual(
@@ -1059,7 +1063,7 @@ describe('the ledger grid', () => {
       pressKey(fixture, 'Tab');
       await settle(fixture);
 
-      // Still one merged field, with nothing created to move focus to.
+      // Nothing typed, so nothing created — focus has nowhere new to move.
       expect(store.sheets()[0].items.length).toBe(before);
       const focused = api.getFocusedCell();
       expect(focused?.column.getColId()).toBe('item');
