@@ -567,6 +567,7 @@ const money = new MoneyPipe();
     :host ::ng-deep .ledger-index {
       justify-content: center;
       align-items: center;
+      align-content: center;
       color: var(--text-muted);
       font-variant-numeric: tabular-nums;
       font-size: 12px;
