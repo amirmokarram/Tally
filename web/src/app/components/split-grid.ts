@@ -760,6 +760,13 @@ const money = new MoneyPipe();
       --ag-cell-horizontal-padding: 0px;
     }
 
+    /* The same fix, for the same reason: the line-number header's "#" button
+       is meant to fill its 30-pixel column, not sit inside AG Grid's 16
+       either side. */
+    :host ::ng-deep .ledger-index-header {
+      --ag-cell-horizontal-padding: 0px;
+    }
+
     /* AG Grid raises a row to \`z-index: 1\` for as long as one of its cells is
        being edited — headroom meant for an editor's own dropdown to sit above
        the *other* rows around it. The layer that paints every spanned cell,
@@ -1934,7 +1941,7 @@ export class SplitGrid {
    * The totals band is plain HTML, not a grid row, so its columns have to be
    * told to match the real ones by hand rather than inheriting them. Every
    * width here is copied from {@link columns} — Sheet's 70, the line number's
-   * 45, Amount's 100, 44 for every person, and {@link ADD_PERSON_COLUMN_WIDTH}
+   * 30, Amount's 100, 44 for every person, and {@link ADD_PERSON_COLUMN_WIDTH}
    * for the trailing add-person column, plus one more trailing
    * {@link GRID_SCROLLBAR_WIDTH} spacer with
    * no cell of its own, matching the same padding the grid adds to its own
@@ -1958,7 +1965,7 @@ export class SplitGrid {
     const itemTrack = itemWidth != null ? `${itemWidth}px` : 'minmax(150px, 1fr)';
     return [
       '70px',
-      '45px',
+      '30px',
       itemTrack,
       '100px',
       peopleTracks,
@@ -2013,7 +2020,12 @@ export class SplitGrid {
         colId: 'index',
         headerName: '#',
         headerComponent: IndexHeader,
-        width: 45,
+        headerClass: 'ledger-index-header',
+        width: 30,
+        // AG Grid's own default minWidth is `min(36, rowHeight)`, wider than
+        // this column is meant to be, and left alone it wins over `width`
+        // above — see `ADD_PERSON_COLUMN_WIDTH`'s colDef for the same fix.
+        minWidth: 30,
         editable: false,
         // Derived, so it is not part of a copy: pasting a line number over
         // another line would mean nothing.

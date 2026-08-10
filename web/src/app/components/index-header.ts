@@ -43,7 +43,7 @@ function selectableNodes(api: GridApi<LedgerRowData>): IRowNode<LedgerRowData>[]
     :host {
       display: flex;
       align-items: center;
-      justify-content: flex-end;
+      justify-content: center;
       width: 100%;
       height: 100%;
     }
