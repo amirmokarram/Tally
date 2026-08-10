@@ -418,8 +418,13 @@ export interface AddSheetHeaderParams extends IHeaderParams<LedgerRowData> {
  * A sheet is a block of this column, so this is the head of the thing it makes —
  * which is worth more than the word "Add expense sheet" was in the toolbar. The
  * column is 70 pixels wide and its names are written on their side, so there is
- * no room for the label anyway: the plus is the whole button, and the tooltip
- * and the accessible name carry the words.
+ * no room for the label anyway: the receipt is the whole button, and the
+ * tooltip and the accessible name carry the words.
+ *
+ * Styled to match {@link AddPersonHeader} — borderless, dimmed to 0.5 opacity
+ * at rest and full at hover/focus — rather than the bordered, surface-filled
+ * button this used to draw: two "add" affordances on the same navy header
+ * band read as one family now, not two different weights of button.
  *
  * Adding a sheet from a *row* at the bottom of the grid was the first design,
  * and AG Grid renders no cell for it in a spanned column — see the note in
@@ -435,15 +440,21 @@ export interface AddSheetHeaderParams extends IHeaderParams<LedgerRowData> {
       aria-label="Add expense sheet"
       (click)="add()"
     >
-      <!-- Drawn rather than typed: a `+` glyph is set on a text baseline and
-           sits high in a button this small, and its weight follows whatever
-           font the browser falls back to. -->
+      <!-- A receipt, not a bare plus: this button starts a sheet, and a sheet
+           reads as a receipt everywhere else in the app. -->
       <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
         <path
-          d="M8 3.25v9.5M3.25 8h9.5"
+          d="M3.5 1.5h9v13l-1.5-1-1.5 1-1.5-1-1.5 1-1.5-1-1.5 1z"
           fill="none"
           stroke="currentColor"
-          stroke-width="1.75"
+          stroke-width="1.2"
+          stroke-linejoin="round"
+        />
+        <path
+          d="M5.5 4.5h5M5.5 7h5M5.5 9.5h3"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.1"
           stroke-linecap="round"
         />
       </svg>
@@ -460,6 +471,9 @@ export interface AddSheetHeaderParams extends IHeaderParams<LedgerRowData> {
       height: 100%;
     }
 
+    /* White, not \`--navy-800\`: the header itself is that navy, so the icon
+       needs the header's *text* colour (\`--text-invert\`) to read against it
+       at all — the same reasoning as \`AddPersonHeader\`'s own button. */
     button {
       display: flex;
       align-items: center;
@@ -467,22 +481,21 @@ export interface AddSheetHeaderParams extends IHeaderParams<LedgerRowData> {
       width: 26px;
       height: 26px;
       padding: 0;
-      border: 1px solid var(--border-strong);
+      border: none;
       border-radius: 6px;
-      background: var(--surface);
-      color: var(--navy-800);
+      background: transparent;
+      color: var(--text-invert);
+      opacity: 0.5;
       cursor: pointer;
-      transition:
-        background 120ms,
-        border-color 120ms;
+      transition: opacity 120ms;
 
-      &:hover {
-        background: var(--navy-050);
-        border-color: var(--navy-700);
+      &:hover,
+      &:focus-visible {
+        opacity: 1;
       }
 
       &:focus-visible {
-        outline: 2px solid var(--navy-700);
+        outline: 2px solid var(--text-invert);
         outline-offset: 1px;
       }
     }
