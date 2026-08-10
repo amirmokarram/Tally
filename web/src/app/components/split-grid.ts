@@ -1455,8 +1455,9 @@ export class SplitGrid {
    *     a real, unmerged item row by then and whichever field started it is
    *     the one already filled in.
    *   - Enter commits and focuses (and starts editing) the sheet's new,
-   *     now-blank add-item row's Item cell either way, so a run of Enter
-   *     presses adds several items by name without touching the mouse.
+   *     now-blank add-item row's *same* field that was just typed into —
+   *     Item after Item, Amount after Amount — so a run of Enter presses
+   *     adds several items by whichever field without touching the mouse.
    *
    * A blank commit (nothing typed) creates nothing — {@link setItemField}
    * rejects it — so there is nothing new to focus, on either key: the row
@@ -1487,7 +1488,7 @@ export class SplitGrid {
     }
 
     if (itemId) {
-      this.pendingAddRowFocus = { rowId: `add-item:${sheetId}`, col: 'item', startEdit: true };
+      this.pendingAddRowFocus = { rowId: `add-item:${sheetId}`, col: sourceCol, startEdit: true };
     }
   }
 
