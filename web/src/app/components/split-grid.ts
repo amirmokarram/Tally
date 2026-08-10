@@ -175,7 +175,7 @@ const GRID_SCROLLBAR_WIDTH = 10;
 
 /**
  * The trailing add-person column's width — narrower than a person's own
- * 44-pixel column (set inline in {@link SplitGrid.columns}) since its header
+ * 40-pixel column (set inline in {@link SplitGrid.columns}) since its header
  * holds only the add button's icon, not a rotated name. Fits the 26-pixel
  * button (see `person-header.ts`'s `AddPersonHeader`) with a pixel of
  * breathing room either side.
@@ -477,9 +477,14 @@ const money = new MoneyPipe();
        can type in," faint enough to read as texture rather than compete with
        the rows around it.
        The same hatch covers the add-person column's own cell on every row,
-       not just this one: the button that adds a person lives in its header,
-       not down here, so every cell below it — an item row's, an add row's —
-       is exactly as untypeable as a filler row's are.
+       the merged block of person columns on an add-item row (a share means
+       nothing until there is an item to share), and that row's own
+       line-number cell (nothing to number until it is one): the button that
+       adds a person lives in its header, not down here, a share is typed on
+       the item row it belongs to, not the row that creates that item, and a
+       line number is read off a real item, not the row still waiting for
+       one — so every one of these is exactly as untypeable as a filler
+       row's cells.
        The hatch has to sit on each \`.ag-cell\`, not the row: a cell paints its
        own opaque background over whatever the row underneath it has. */
     :host ::ng-deep .ledger-filler-row {
@@ -487,7 +492,9 @@ const money = new MoneyPipe();
     }
 
     :host ::ng-deep .ledger-filler-row .ag-cell,
-    :host ::ng-deep .ledger-add-person-cell {
+    :host ::ng-deep .ledger-add-person-cell,
+    :host ::ng-deep .ledger-add-row-people,
+    :host ::ng-deep .ledger-add-row-index {
       background-color: var(--surface);
       background-image: repeating-linear-gradient(
         45deg,
@@ -501,16 +508,24 @@ const money = new MoneyPipe();
     /* \`onCellFocused\` (split-grid.ts) only runs once AG Grid has already
        drawn its own focus ring for the click that triggered it — a full
        frame the border is visible before the bounce clears it, which reads
-       as a flicker. Neither of these cells can hold anything, so the ring
+       as a flicker. None of these cells can hold anything, so the ring
        should never draw here at all; painting it and then erasing it a
        frame later is the wrong order. \`!important\` because AG Grid's own
-       rule matches on the same three classes this one does — same
-       specificity, so without it the winner would come down to which
-       stylesheet happens to load second. */
+       rule matches on the same classes this one does — same specificity,
+       so without it the winner would come down to which stylesheet happens
+       to load second. */
     :host ::ng-deep .ledger-filler-row .ag-cell.ag-cell-focus,
-    :host ::ng-deep .ledger-add-person-cell.ag-cell-focus {
+    :host ::ng-deep .ledger-add-person-cell.ag-cell-focus,
+    :host ::ng-deep .ledger-add-row-people.ag-cell-focus,
+    :host ::ng-deep .ledger-add-row-index.ag-cell-focus {
       border-color: transparent !important;
       outline: none !important;
+    }
+
+    /* The index column is 30 pixels wide, and AG Grid's own padding either
+       side leaves the hatch short of the column's real edges. */
+    :host ::ng-deep .ledger-add-row-index {
+      padding: 0;
     }
 
     /* All of them but the sheet's own heading: a sheet with no lines yet is a
@@ -592,7 +607,7 @@ const money = new MoneyPipe();
       text-align: center;
     }
 
-    /* A person column is 44 pixels wide, and AG Grid's 15 either side leaves
+    /* A person column is 40 pixels wide, and AG Grid's 15 either side leaves
        a share reading "9.9" nowhere to go but off the edge. Dropped only
        while the cell is showing its value, not while it holds the editor —
        that still wants room around the input. */
@@ -748,8 +763,8 @@ const money = new MoneyPipe();
     }
 
     /* The same fix, for the same reason: a person column turned on its side
-       is 44 pixels wide, and AG Grid's 16 either side would leave the header
-       component 12 to work with instead of the 44 it is sized for. */
+       is 40 pixels wide, and AG Grid's 16 either side would leave the header
+       component 8 to work with instead of the 40 it is sized for. */
     :host ::ng-deep .ledger-person-header {
       --ag-cell-horizontal-padding: 0px;
     }
@@ -1346,17 +1361,19 @@ export class SplitGrid {
 
   /**
    * Bounces focus off cells that hold nothing to read or type: the filler
-   * beneath a short block, and the add-person column, hatched the same way
-   * on every row for the same reason — see {@link columns}'s `add-person`
-   * entry.
+   * beneath a short block, the add-person column, and — on an add-item row —
+   * both the line-number cell and the merged block of person columns beside
+   * it, all hatched the same way for the same reason, see {@link columns}'s
+   * `add-person` entry.
    *
    * `suppressNavigable` (on {@link defaultColDef} for the filler rows, on
-   * the `add-person` column itself for every row) already keeps Tab and the
-   * arrow keys from stopping on either. A mouse click is the one way in
-   * neither covers, since AG Grid focuses the cell as part of its own
-   * mousedown handling, before `(cellMouseDown)` — an output, not a hook —
-   * gets a chance to react. Clearing it back out here is a click late, but
-   * a click late is as early as there is.
+   * the `add-person` column itself for every row, on the index and person
+   * columns for an add-item row) already keeps Tab and the arrow keys from
+   * stopping on any of them. A mouse click is the one way in none of them
+   * covers, since AG Grid focuses the cell as part of its own mousedown
+   * handling, before `(cellMouseDown)` — an output, not a hook — gets a
+   * chance to react. Clearing it back out here is a click late, but a click
+   * late is as early as there is.
    */
   protected onCellFocused(event: CellFocusedEvent<LedgerRowData>): void {
     if (event.rowIndex == null) {
@@ -1369,6 +1386,10 @@ export class SplitGrid {
     }
     const node = this.api?.getDisplayedRowAtIndex(event.rowIndex);
     if (node?.data?.kind === 'filler') {
+      this.api?.clearFocusedCell();
+      return;
+    }
+    if (node?.data?.kind === 'add-item' && (colId === 'index' || colId?.startsWith('person:'))) {
       this.api?.clearFocusedCell();
     }
   }
@@ -1401,45 +1422,52 @@ export class SplitGrid {
     }
     this.editingAddRowId.set(null);
     this.api?.resetRowHeights();
-    // The collapsed-look `cellClassRules` on the item column only re-checks
-    // itself when a cell is told to — unlike the row height above, which
-    // `resetRowHeights` re-asks for on its own. Only needed here, not from
-    // `onCellEditingStarted`: while actually editing, the live text-editor
-    // covers the resting cell entirely, so its class being stale for that
-    // one moment is invisible.
-    this.api?.refreshCells({ columns: ['item'], force: true });
+    // The collapsed-look `cellClassRules` on the item and amount columns
+    // only re-check themselves when a cell is told to — unlike the row
+    // height above, which `resetRowHeights` re-asks for on its own. Only
+    // needed here, not from `onCellEditingStarted`: while actually editing,
+    // the live text-editor covers the resting cell entirely, so its class
+    // being stale for that one moment is invisible.
+    this.api?.refreshCells({ columns: ['item', 'amount'], force: true });
   }
 
   /**
-   * Tab and Enter get their own behaviour on the add-item row's Item cell,
-   * suppressing AG Grid's own default handling for the two — see the item
-   * column's `suppressKeyboardEvent` in {@link columns}, which is what calls
-   * this. Left to AG Grid's own default Tab/Enter, this can't be reliably
+   * Tab and Enter get their own behaviour on the add-item row's Item and
+   * Amount cells — a new line can start from either field — suppressing AG
+   * Grid's own default handling for the two — see both columns' own
+   * `suppressKeyboardEvent` in {@link columns}, which is what calls this.
+   * Left to AG Grid's own default Tab/Enter, this can't be reliably
    * overridden from the `(cellKeyDown)` *output*: that fires as a
    * notification of a keydown AG Grid's own internal listener has, by then,
    * already acted on — `preventDefault()` from there is too late to stop it.
    * `suppressKeyboardEvent` runs *before* AG Grid decides what to do with the
    * key, which is the one hook actually meant for replacing that decision.
    *
-   * Custom handling is needed at all because committing a name here turns
+   * Custom handling is needed at all because committing a value here turns
    * this row into a real item row and moves the add-item id onto a fresh
    * blank row below it (`ledger-model.ts`'s `buildLedgerRows`) — a
    * destroy-and-recreate under `getRowId`, not an in-place update, and
    * default Tab/Enter target resolution is not guaranteed to survive that.
    *
-   *   - Tab commits and focuses the new item's Amount cell — the row is a
-   *     real, unmerged item row by then, so Amount is there to focus.
+   *   - Tab commits and focuses the new item's *other* field — Amount if the
+   *     name was what got typed, Item if the amount was — since the row is
+   *     a real, unmerged item row by then and whichever field started it is
+   *     the one already filled in.
    *   - Enter commits and focuses (and starts editing) the sheet's new,
-   *     now-blank add-item row, so a run of Enter presses adds several items
-   *     without touching the mouse.
+   *     now-blank add-item row's Item cell either way, so a run of Enter
+   *     presses adds several items by name without touching the mouse.
    *
    * A blank commit (nothing typed) creates nothing — {@link setItemField}
    * rejects it — so there is nothing new to focus, on either key: the row
-   * is still add-item, still one merged field with nowhere else on it to
-   * send focus to, so this just leaves editing, the way it would anywhere
-   * else in this grid with nothing to react to.
+   * is still add-item, and this just leaves editing, the way it would
+   * anywhere else in this grid with nothing to react to.
    */
-  private commitAddItemRow(key: 'Tab' | 'Enter', sheetId: string, rowIndex: number | null): void {
+  private commitAddItemRow(
+    key: 'Tab' | 'Enter',
+    sheetId: string,
+    rowIndex: number | null,
+    sourceCol: 'item' | 'amount',
+  ): void {
     const api = this.api;
     if (!api || rowIndex == null) {
       return;
@@ -1451,7 +1479,8 @@ export class SplitGrid {
 
     if (key === 'Tab') {
       if (itemId) {
-        this.pendingAddRowFocus = { rowId: `item:${itemId}`, col: 'amount', startEdit: false };
+        const col = sourceCol === 'item' ? 'amount' : 'item';
+        this.pendingAddRowFocus = { rowId: `item:${itemId}`, col, startEdit: false };
       }
       return;
     }
@@ -1759,10 +1788,19 @@ export class SplitGrid {
    *
    * The filler beneath a short block is padding, not a line — nothing to
    * copy from, paste into, or drag a block across, so a click there can
-   * start or extend nothing.
+   * start or extend nothing. The merged, hatched block of person columns on
+   * an add-item row is the same story: a share means nothing until there is
+   * an item to share, so it is excluded here the same way, not just
+   * repainted differently — {@link onCellMouseDown} falls back to clearing
+   * the selection outright for a `null` ref, which is the point: a click on
+   * either should behave like a click on nothing, not like a click that
+   * happens to land on an empty cell.
    */
   private cellRef(node: IRowNode<LedgerRowData>, colId: string): CellRef | null {
     if (node.data?.kind === 'filler') {
+      return null;
+    }
+    if (node.data?.kind === 'add-item' && colId.startsWith('person:')) {
       return null;
     }
     const col = this.selectableColumns().indexOf(colId);
@@ -1930,7 +1968,7 @@ export class SplitGrid {
    * The totals band is plain HTML, not a grid row, so its columns have to be
    * told to match the real ones by hand rather than inheriting them. Every
    * width here is copied from {@link columns} — Sheet's 70, the line number's
-   * 30, Amount's 100, 44 for every person, and {@link ADD_PERSON_COLUMN_WIDTH}
+   * 30, Amount's 100, 40 for every person, and {@link ADD_PERSON_COLUMN_WIDTH}
    * for the trailing add-person column, plus one more trailing
    * {@link GRID_SCROLLBAR_WIDTH} spacer with
    * no cell of its own, matching the same padding the grid adds to its own
@@ -1945,11 +1983,11 @@ export class SplitGrid {
    * column can't be re-derived from a `minmax()` guess of the same width.
    */
   protected readonly totalsColumns = computed(() => {
-    // Not `repeat(N, 44px)`: with nobody in the split yet, N is 0, and
+    // Not `repeat(N, 40px)`: with nobody in the split yet, N is 0, and
     // `repeat()` treats a zero count as invalid — which invalidates the
     // whole `grid-template-columns` declaration, not just that term, and
     // the band collapses to an unstyled implicit grid.
-    const peopleTracks = Array(this.store.people().length).fill('44px').join(' ');
+    const peopleTracks = Array(this.store.people().length).fill('40px').join(' ');
     const itemWidth = this.itemColumnWidth();
     const itemTrack = itemWidth != null ? `${itemWidth}px` : 'minmax(150px, 1fr)';
     return [
@@ -2018,10 +2056,24 @@ export class SplitGrid {
         editable: false,
         // Derived, so it is not part of a copy: pasting a line number over
         // another line would mean nothing.
-        cellClass: (p) => (p.data?.kind === 'item' ? 'ledger-index ledger-index-tickable' : 'ledger-index'),
+        cellClass: (p) =>
+          p.data?.kind === 'item'
+            ? 'ledger-index ledger-index-tickable'
+            : p.data?.kind === 'add-item'
+              ? 'ledger-add-row-index'
+              : 'ledger-index',
         cellClassRules: {
           'ledger-index-ticked': (p) => p.node.isSelected() ?? false,
         },
+        // There is no line to number yet, so — like the merged person block
+        // beside it — this is hatched rather than left reading as a tickable
+        // line. `onCellFocused` bounces the click a colDef can't stop; the
+        // `filler` half here just repeats {@link defaultColDef}'s own rule,
+        // which a colDef's own `suppressNavigable` replaces rather than adds
+        // to.
+        suppressNavigable: ((p) =>
+          p.data?.kind === 'add-item' ||
+          p.data?.kind === 'filler') satisfies SuppressNavigableCallback<LedgerRowData>,
         valueGetter: (p: ValueGetterParams<LedgerRowData>) =>
           p.data?.kind === 'item' ? p.data.index : '',
       },
@@ -2031,24 +2083,17 @@ export class SplitGrid {
         flex: 1,
         minWidth: 150,
         editable: (p) => p.data?.kind === 'item' || p.data?.kind === 'add-item',
-        // A blank add-item row is one field, not three, for as long as it
-        // stays an add-item row: Item spans over Amount and every person
-        // column, so entering a name is the only thing the row ever asks
-        // for. Unconditional on focus or editing — Tab/Enter turning it
-        // into a real item row (`commitAddItemRow`) is what reveals Amount
-        // and the person columns, not a state this cell tracks itself.
-        // `+ 2` is Amount plus this column; the person columns are however
-        // many {@link people} holds at the time these `ColDef`s are built.
-        colSpan: (p: ColSpanParams<LedgerRowData>) => (p.data?.kind === 'add-item' ? 2 + people.length : 1),
         // Tab and Enter get their own behaviour on this row — see
         // {@link commitAddItemRow} for why AG Grid's own default handling has
-        // to be suppressed here rather than reacted to afterwards.
+        // to be suppressed here rather than reacted to afterwards. Amount's
+        // own `suppressKeyboardEvent` calls the same method, since a new
+        // item can start from either field.
         suppressKeyboardEvent: (p: SuppressKeyboardEventParams<LedgerRowData>) => {
           if (p.data?.kind !== 'add-item' || (p.event.key !== 'Tab' && p.event.key !== 'Enter')) {
             return false;
           }
           p.event.preventDefault();
-          this.commitAddItemRow(p.event.key, p.data.sheetId, p.node.rowIndex);
+          this.commitAddItemRow(p.event.key, p.data.sheetId, p.node.rowIndex, 'item');
           return true;
         },
         valueGetter: (p: ValueGetterParams<LedgerRowData>) =>
@@ -2086,6 +2131,18 @@ export class SplitGrid {
         // below, set it independently.
         headerClass: 'ledger-amount-header',
         editable: (p) => p.data?.kind === 'item' || p.data?.kind === 'add-item',
+        // The other half of the Item column's own `suppressKeyboardEvent` —
+        // see {@link commitAddItemRow}. A new item can start from either
+        // field, so committing an amount here goes through the same
+        // destroy-and-recreate-aware Tab/Enter handling Item needs.
+        suppressKeyboardEvent: (p: SuppressKeyboardEventParams<LedgerRowData>) => {
+          if (p.data?.kind !== 'add-item' || (p.event.key !== 'Tab' && p.event.key !== 'Enter')) {
+            return false;
+          }
+          p.event.preventDefault();
+          this.commitAddItemRow(p.event.key, p.data.sheetId, p.node.rowIndex, 'amount');
+          return true;
+        },
         valueGetter: (p: ValueGetterParams<LedgerRowData>) =>
           p.data?.kind === 'item' ? p.data.row.item.amount : null,
         // Money on the way out, a plain number on the way in. A formatter only
@@ -2108,11 +2165,15 @@ export class SplitGrid {
           'ledger-selected': (p) => this.isSelected(p.node, 'amount'),
           'ledger-fill-handle': (p) => this.isFillHandle(p.node, 'amount'),
           'ledger-fill-preview': (p) => this.isFillPreview(p.node, 'amount'),
+          // Same fix as Item's own rule, for the same reason: this cell
+          // renders on the add-item row now too, not just Item's.
+          'ledger-add-row-collapsed': (p) =>
+            p.data?.kind === 'add-item' && ledgerRowId(p.data) !== this.editingAddRowId(),
         },
       },
     ];
 
-    for (const person of people) {
+    for (const [personIndex, person] of people.entries()) {
       columns.push({
         colId: `person:${person.id}`,
         // The name lives in the header component, which is also where it is
@@ -2121,12 +2182,38 @@ export class SplitGrid {
         headerComponent: PersonHeader,
         headerComponentParams: { personId: person.id },
         headerClass: 'ledger-person-header',
-        width: 44,
+        width: 40,
         // The one column left movable — reordering people is a drag on their
         // own header now, not a pair of arrows. {@link onColumnMoved} is what
         // carries the drop back into the trip's own order.
         suppressMovable: false,
-        cellClass: 'ledger-share',
+        // Only the first person column's own colDef is read for a spanned
+        // cell (AG Grid's rule, not this one) — see `colSpan` below — so
+        // this function is what the whole merged block on an add-item row
+        // actually renders through, and the plain `ledger-share` on every
+        // other row is what each of the rest keeps on its own.
+        cellClass: (p) => (p.data?.kind === 'add-item' ? 'ledger-add-row-people' : 'ledger-share'),
+        // A share means nothing until there is an item to share — the
+        // add-item row has none yet, so this whole block is merged into one
+        // hatched cell rather than left as one still-editable-looking box
+        // per person. Only the first column's own `colSpan` needs a real
+        // count: the rest fall inside the block it opens and are never
+        // themselves reached.
+        colSpan:
+          personIndex === 0
+            ? (p: ColSpanParams<LedgerRowData>) => (p.data?.kind === 'add-item' ? people.length : 1)
+            : undefined,
+        // Nothing to type here yet, so — like the filler rows and the
+        // add-person column — neither Tab nor the arrow keys should stop on
+        // it. `onCellFocused` bounces the one way in that misses: a mouse
+        // click, which AG Grid focuses before any handler here runs.
+        // A colDef's own `suppressNavigable` replaces {@link defaultColDef}'s
+        // rather than adding to it, so the filler-row half of that default
+        // has to be repeated here explicitly, or a person column would start
+        // catching Tab/arrow keys on filler rows it never used to.
+        suppressNavigable: ((p) =>
+          p.data?.kind === 'add-item' ||
+          p.data?.kind === 'filler') satisfies SuppressNavigableCallback<LedgerRowData>,
         editable: (p) => p.data?.kind === 'item',
         valueGetter: (p: ValueGetterParams<LedgerRowData>) =>
           p.data?.kind === 'item'
