@@ -306,12 +306,6 @@ const money = new MoneyPipe();
       }
     }
 
-    .masthead-sub {
-      margin-top: 1px;
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
     /* The picker paints itself, compact now that it is a symbol and a code
        rather than the full "(USD) US Dollar" line — its own width is enough. */
     .currency-select {
@@ -1930,11 +1924,6 @@ export class SplitGrid {
 
   protected readonly rows = computed<LedgerRowData[]>(() =>
     buildLedgerRows(this.store.split().rows, this.store.sheets()),
-  );
-
-  /** For the masthead's "N people · M items" line. */
-  protected readonly itemCount = computed(() =>
-    this.store.sheets().reduce((count, sheet) => count + sheet.items.length, 0),
   );
 
   /**

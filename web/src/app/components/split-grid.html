@@ -54,10 +54,6 @@
           [value]="store.title()"
           (input)="onTitle($event)"
         />
-        <div class="masthead-sub">
-          {{ store.people().length }} {{ store.people().length === 1 ? 'person' : 'people' }}
-          · {{ itemCount() }} {{ itemCount() === 1 ? 'item' : 'items' }}
-        </div>
       </div>
     </div>
     <div class="cell grand ledger-numeric">
