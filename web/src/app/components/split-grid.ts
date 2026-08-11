@@ -633,13 +633,27 @@ const money = new MoneyPipe();
       line-height: normal;
     }
 
+    /* A cell paints its own opaque background over the row's (see the
+       filler-row comment above), so without a rule of its own a paid cell
+       would be exactly the same colour on a plain row and a striped one —
+       the one place the alternating banding stops. The odd-row variant is
+       the same tint mixed a little darker, so the banding keeps reading
+       through underneath it instead of flattening out. */
     :host ::ng-deep .ledger-paid {
       background: var(--paid-bg);
+    }
+
+    :host ::ng-deep .ag-row-odd .ledger-paid {
+      background: color-mix(in srgb, var(--paid-bg) 100%, var(--text) 6%);
     }
 
     /* A priced row nobody has claimed a share of — the workbook's red cells. */
     :host ::ng-deep .ledger-missing {
       background: var(--credit-bg);
+    }
+
+    :host ::ng-deep .ag-row-odd .ledger-missing {
+      background: color-mix(in srgb, var(--credit-bg) 100%, var(--text) 6%);
     }
 
     /* Scaffolding for the eye, not data: it should sit behind everything. */
