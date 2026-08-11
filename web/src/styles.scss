@@ -9,6 +9,10 @@
   --navy-100: #dbe6f5;
   --navy-050: #eef4fc;
 
+  /* The Sheet cell alternates between this and --navy-800 (the grid header's
+     own colour) so each expense sheet reads as its own block. */
+  --sheet-tint: #416eb4;
+
   --bg: #f4f6fa;
   --surface: #ffffff;
   --surface-alt: #f8fafd;

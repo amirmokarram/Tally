@@ -55,6 +55,9 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
 @Component({
   selector: 'app-sheet-cell',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[style.background-color]': 'tint()',
+  },
   template: `
     @if (sheet(); as sheet) {
       <div class="line">
@@ -98,16 +101,12 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
           }
         </div>
       }
-
-      @if (payers(); as text) {
-        <span class="caption">Paid by {{ text }}</span>
-      }
     }
   `,
   styles: `
     /* The quarter turn: \`sideways-lr\` lays every line on its side and reads it
        from the bottom up in one step, with lines stacking left to right — the
-       name at the column's left edge, the charges next, the caption last. The
+       name at the column's left edge, the charges next. The
        older \`vertical-rl\` plus a \`rotate(180deg)\` this used to take was a
        stand-in for browsers that lacked \`sideways-lr\` outright; current
        Chrome and Safari render it directly, and without the transform, the
@@ -125,6 +124,12 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
       /* Two lines of boxes and a caption have to sit across a column 70 pixels
          wide, which is what the turn bought. */
       font-size: 12px;
+      /* The tint (bound above) is always one of the two dark blues in
+         --sheet-tint / --navy-800, so white is the one text colour this
+         whole cell needs — everything below just dims it rather than
+         switching hue, the same "quiet on navy" idiom the header's own
+         column border and the add-sheet/add-person icon buttons use. */
+      color: var(--text-invert);
     }
 
     .line {
@@ -162,18 +167,24 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
       font: inherit;
 
       &::placeholder {
-        color: var(--text-muted);
-        opacity: 0.75;
+        color: rgb(255 255 255 / 55%);
       }
 
+      /* Matches person-header.ts's own input: a hint of border on hover so
+         the box reads as editable before you click into it. */
       &:hover {
-        border-color: var(--border-strong);
+        border-color: rgb(255 255 255 / 35%);
       }
 
+      /* Matches person-header.ts's own input: the box does not switch to a
+         separate white surface on focus — its border turns solid white and
+         its background gets a translucent white wash, staying on the
+         cell's own tint rather than a border-width change (that's what
+         made focus reflow the whole cell earlier — see split-grid.ts). */
       &:focus {
         outline: none;
-        border-color: var(--navy-700);
-        background: var(--surface);
+        border-color: var(--text-invert);
+        background: rgb(255 255 255 / 12%);
       }
     }
 
@@ -184,11 +195,13 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
       flex: 1;
       text-align: center;
       font-weight: 600;
-      font-size: 15px;
-      color: var(--navy-800);
+      font-size: 18px;
 
+      /* The ordinary --credit red is tuned for a white background and goes
+         near-illegible on the tint; this is that same red, lightened to
+         read against --sheet-tint / --navy-800 instead. */
       &.has-error {
-        color: var(--credit);
+        color: #ffb4a8;
       }
     }
 
@@ -211,11 +224,14 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
       }
     }
 
+    /* Same dim-then-full-opacity convention as the add-sheet / add-person
+       header buttons, rather than the colour-shift a white cell used. */
     .more {
       flex: none;
       border: none;
       background: transparent;
-      color: var(--text-muted);
+      color: var(--text-invert);
+      opacity: 0.5;
       padding-inline: 3px;
       font-size: 14px;
       line-height: 1;
@@ -223,17 +239,8 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
 
       &:hover,
       &:focus-visible {
-        color: var(--navy-800);
+        opacity: 1;
       }
-    }
-
-    .caption {
-      display: block;
-      font-size: 10px;
-      color: var(--text-muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
   `,
 })
@@ -303,6 +310,21 @@ export class SheetCell implements ICellRendererAngularComp {
       return undefined;
     }
     return this.store.sheets().find((s) => s.id === data.sheetId);
+  }
+
+  /**
+   * The cell's own background — alternates by the sheet's position in the
+   * trip, not by row, so the tint marks a whole block regardless of how
+   * many lines are in it (a row-level stripe would cut across the block and
+   * could land the same shade on two sheets in a row).
+   */
+  protected tint(): string | undefined {
+    const sheet = this.sheet();
+    if (!sheet) {
+      return undefined;
+    }
+    const index = this.store.sheets().findIndex((s) => s.id === sheet.id);
+    return index % 2 === 0 ? 'var(--sheet-tint)' : 'var(--navy-800)';
   }
 
   // --- Editing the sheet in place ----------------------------------------
@@ -376,17 +398,6 @@ export class SheetCell implements ICellRendererAngularComp {
 
   protected commit(event: Event): void {
     (event.target as HTMLInputElement).blur();
-  }
-
-  protected payers(): string {
-    const sheet = this.sheet();
-    if (!sheet?.paidBy.length) {
-      return '';
-    }
-    const people = this.store.people();
-    return sheet.paidBy
-      .map((id) => people.find((p) => p.id === id)?.name || 'Unnamed')
-      .join(', ');
   }
 
   protected hasError(): boolean {

@@ -773,6 +773,30 @@ const money = new MoneyPipe();
       align-items: stretch;
       padding: 0;
       line-height: 1.35;
+      border-top-width: 0;
+      border-left-width: 0;
+      border-bottom-width: 0;
+    }
+
+    /* AG Grid sets its own one-pixel border on every side the instant a
+       click lands on this cell — including a click that only meant to
+       focus the name/charge box inside it — regardless of the rule above,
+       which only zeroed those three sides' width for the ordinary,
+       unfocused case and never touched what happens on focus. The colour
+       was transparent either way, but the width genuinely changing (0 to
+       1px and back) shrinks the content box and shifts everything inside
+       it by a pixel — a real reflow, not just a colour flash, which is
+       what actually reads as a flicker. Repeating the same zero here, this
+       time for the focused case specifically, is the fix. !important
+       because AG Grid's own rule matches the same class at the same
+       specificity, so without it the winner is whichever stylesheet
+       happens to load second. */
+    :host ::ng-deep .ledger-sheet-cell.ag-cell-focus {
+      border-top-width: 0 !important;
+      border-left-width: 0 !important;
+      border-bottom-width: 0 !important;
+      border-color: transparent !important;
+      outline: none !important;
     }
 
     /* The header over that column holds one 26-pixel button, and AG Grid's
