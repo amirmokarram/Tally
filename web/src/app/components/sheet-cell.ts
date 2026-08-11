@@ -429,13 +429,14 @@ export interface AddSheetHeaderParams extends IHeaderParams<LedgerRowData> {
  * A sheet is a block of this column, so this is the head of the thing it makes —
  * which is worth more than the word "Add expense sheet" was in the toolbar. The
  * column is 70 pixels wide and its names are written on their side, so there is
- * no room for the label anyway: the receipt is the whole button, and the
+ * no room for the label anyway: the icon is the whole button, and the
  * tooltip and the accessible name carry the words.
  *
- * Styled to match {@link AddPersonHeader} — borderless, dimmed to 0.5 opacity
- * at rest and full at hover/focus — rather than the bordered, surface-filled
- * button this used to draw: two "add" affordances on the same navy header
- * band read as one family now, not two different weights of button.
+ * Styled and iconed to match {@link AddPersonHeader} — the same plus, borderless,
+ * dimmed to 0.5 opacity at rest and full at hover/focus — rather than the
+ * bordered, surface-filled button this used to draw: two "add" affordances on
+ * the same navy header band read as one family now, not two different shapes
+ * or weights of button.
  *
  * Adding a sheet from a *row* at the bottom of the grid was the first design,
  * and AG Grid renders no cell for it in a spanned column — see the note in
@@ -451,21 +452,12 @@ export interface AddSheetHeaderParams extends IHeaderParams<LedgerRowData> {
       aria-label="Add expense sheet"
       (click)="add()"
     >
-      <!-- A receipt, not a bare plus: this button starts a sheet, and a sheet
-           reads as a receipt everywhere else in the app. -->
       <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
         <path
-          d="M3.5 1.5h9v13l-1.5-1-1.5 1-1.5-1-1.5 1-1.5-1-1.5 1z"
+          d="M8 3.25v9.5M3.25 8h9.5"
           fill="none"
           stroke="currentColor"
-          stroke-width="1.2"
-          stroke-linejoin="round"
-        />
-        <path
-          d="M5.5 4.5h5M5.5 7h5M5.5 9.5h3"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.1"
+          stroke-width="1.75"
           stroke-linecap="round"
         />
       </svg>
