@@ -179,7 +179,7 @@ let nextId = 0;
       background: none;
       color: var(--text-muted);
       font-size: 13px;
-      font-weight: 400;
+      font-weight: 600;
 
       &:hover {
         background: none;
