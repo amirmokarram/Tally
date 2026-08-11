@@ -87,6 +87,7 @@ interface SplitRow {
     .search {
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 8px;
       margin-bottom: 14px;
     }
