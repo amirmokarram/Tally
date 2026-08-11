@@ -77,6 +77,11 @@
           [value]="store.title()"
           (input)="onTitle($event)"
         />
+        @if (store.primaryIssue(); as issue) {
+          <p class="masthead-issue" [class.warning]="issue.severity === 'warning'" role="status">
+            {{ issue.message }}
+          </p>
+        }
       </div>
     </div>
     <div class="cell grand ledger-numeric">
@@ -178,3 +183,34 @@
     </button>
   </div>
 }
+
+<!-- The split's own row-level problem already sits under its title, above —
+     this is for the rest: storage and cross-tab issues that are about the
+     split as a whole rather than any one row in it. -->
+<div class="alerts-overlay">
+  @if (store.saveFailed()) {
+    <div class="alert warning" role="status">
+      Changes could not be saved — browser storage is full or unavailable. This split will be
+      lost if you reload.
+    </div>
+  }
+
+  @if (store.pendingRemote()) {
+    <div class="alert conflict with-actions" role="alertdialog" aria-label="Conflicting change">
+      <span>
+        This split was changed in another tab while you were editing here. Keeping both is not
+        possible — choose which version to continue with.
+      </span>
+      <span class="alert-actions">
+        <button class="btn" type="button" (click)="store.acceptRemoteChange()">
+          Use the other tab's
+        </button>
+        <button class="btn primary" type="button" (click)="store.keepLocalVersion()">
+          Keep this one
+        </button>
+      </span>
+    </div>
+  } @else if (store.syncedFromOtherTab()) {
+    <div class="alert info" role="status">Updated with a change made in another tab.</div>
+  }
+</div>

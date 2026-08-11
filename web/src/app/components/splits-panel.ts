@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   inject,
+  input,
   output,
   signal,
 } from '@angular/core';
@@ -328,6 +329,17 @@ export class SplitsPanel {
   readonly exportRequested = output<SavedSplit>();
   readonly importRequested = output<void>();
   readonly exportAllRequested = output<void>();
+
+  /**
+   * Import is the only action on this page that can fail, so its result is
+   * shown here rather than in a shell-wide banner — the shell still owns the
+   * file dialog and the read itself (`app.ts`), since that has nothing to do
+   * with this list.
+   */
+  readonly importError = input<string | null>(null);
+  readonly importNotice = input<string | null>(null);
+  readonly importErrorDismissed = output<void>();
+  readonly importNoticeDismissed = output<void>();
 
   /** What the user has typed into the search box. */
   protected readonly query = signal('');

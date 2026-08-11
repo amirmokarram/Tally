@@ -178,3 +178,21 @@
 } @else {
   <div class="card empty">No splits saved yet.</div>
 }
+
+<div class="alerts-overlay">
+  @if (importError(); as message) {
+    <div class="alert conflict with-actions" role="alert">
+      <span>{{ message }}</span>
+      <span class="alert-actions">
+        <button class="btn" type="button" (click)="importErrorDismissed.emit()">Dismiss</button>
+      </span>
+    </div>
+  } @else if (importNotice(); as message) {
+    <div class="alert info with-actions" role="status">
+      <span>{{ message }}</span>
+      <span class="alert-actions">
+        <button class="btn" type="button" (click)="importNoticeDismissed.emit()">Dismiss</button>
+      </span>
+    </div>
+  }
+</div>

@@ -301,6 +301,20 @@ const money = new MoneyPipe();
       min-width: 160px;
     }
 
+    /* The split's own red message, read right where its name is — the
+       thing being edited when it happened, not a banner elsewhere on the
+       page. */
+    .masthead-issue {
+      margin: 3px 0 0;
+      color: var(--credit);
+      font-size: 12px;
+      font-weight: 600;
+
+      &.warning {
+        color: var(--warn);
+      }
+    }
+
     /* A document's own title, not a form field — plain until it is reached
        for, the same way a person's name in its column header is. */
     .title-input {
@@ -371,9 +385,14 @@ const money = new MoneyPipe();
     /* The merged first three columns — Sheet, the line number, Item — are
        nobody's own figure, which is the room the split's name borrows
        instead of a masthead row of its own. Currency and export used to
-       share this cell too; they moved to .report-toolbar, above. */
+       share this cell too; they moved to .report-toolbar, above.
+       Top-aligned rather than the cell's own default centering: centered,
+       the title would slide up whenever \`.masthead-issue\` appears beneath
+       it and back down when it clears — pinning both to the top keeps the
+       title still and lets the message claim space below it instead. */
     .totals-band .cell.masthead-cell {
       grid-column: span 3;
+      align-items: flex-start;
       padding: 10px 15px;
     }
 

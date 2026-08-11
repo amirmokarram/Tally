@@ -200,3 +200,70 @@ select {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* Fixed to the viewport rather than laid out in flow, so an alert appearing
+   or clearing never shifts the page content above it. Each page that can
+   raise its own alerts (Splits, Split) carries one of these, so only the
+   alerts relevant to what is on screen ever show. Stacks top-down in source
+   order: the first one to match sits closest to the page content, later
+   ones pile beneath it. */
+.alerts-overlay {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  width: min(100% - 48px, 1240px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.alert {
+  pointer-events: auto;
+  box-shadow: var(--shadow);
+  padding: 11px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--credit-bg);
+  color: var(--credit);
+  font-size: 14px;
+  font-weight: 550;
+
+  &.warning {
+    background: var(--warn-bg);
+    color: var(--warn);
+  }
+
+  &.info {
+    background: var(--navy-050);
+    color: var(--navy-800);
+  }
+
+  /* Layout only — carries no meaning, so it never doubles as a state class. */
+  &.with-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  &.conflict {
+    background: var(--warn-bg);
+    color: var(--warn);
+  }
+}
+
+.alert-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
+@media (max-width: 640px) {
+  .alerts-overlay {
+    bottom: 12px;
+    width: calc(100% - 24px);
+  }
+}
