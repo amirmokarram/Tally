@@ -69,7 +69,6 @@ interface SplitRow {
   styles: `
     :host {
       display: block;
-      max-width: 900px;
     }
 
     .intro {

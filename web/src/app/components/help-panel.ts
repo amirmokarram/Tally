@@ -16,7 +16,6 @@ import { SampleTripId } from '../data/sample-trips';
   styles: `
     :host {
       display: block;
-      max-width: 780px;
     }
 
     section {
