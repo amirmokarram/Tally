@@ -734,7 +734,6 @@ const money = new MoneyPipe();
     /* The selected block. An inset ring rather than a fill, so the paid and
        unassigned colours underneath still read through it. */
     :host ::ng-deep .ledger-selected {
-      background: var(--navy-050);
       box-shadow: inset 0 0 0 1px var(--navy-700);
     }
 
