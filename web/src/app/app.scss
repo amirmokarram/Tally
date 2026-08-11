@@ -1,9 +1,18 @@
+/* A fixed-height shell rather than a tall page: `main` is the one scroll
+   container now, in place of the browser window. On the Split tab that
+   scroll never actually fires — the report fills `main` exactly and hands
+   its own overflow to the grid's body — but Splits and Help still have
+   ordinary page-length content, so `main` scrolling is what lets them grow
+   past one screen. Phones opt back out of all of this, below: a pinned
+   report fights the on-screen keyboard and pull-to-refresh there. */
 :host {
-  display: block;
-  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
 }
 
 .topbar {
+  flex: none;
   background: var(--navy-900);
   color: var(--text-invert);
   padding: 0 24px;
@@ -53,10 +62,21 @@
   text-align: center;
 }
 
+/* \`width: 100%\` is load-bearing, not decoration: as a flex item with
+   auto side margins (for centering), \`main\` would otherwise size itself
+   to its own content's fit-content width instead of stretching to fill
+   \`:host\` — flexbox disables cross-axis stretch the moment an item's
+   cross-axis margins are auto, which is exactly the trick used here to
+   center it. Forcing the width to 100% (then clamped by \`max-width\`)
+   is what makes it actually fill the available space up to 1240px. */
 main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  width: 100%;
   max-width: 1240px;
   margin: 0 auto;
-  padding: 22px 24px 60px;
+  padding: 22px 24px;
 }
 
 main h2 {
@@ -70,6 +90,21 @@ main h2 {
    fold behind a menu button. `flex-wrap` on `.tabs` above already lets four
    tabs run to a second line if a narrow phone needs it. */
 @media (max-width: 640px) {
+  /* Back to an ordinary tall page: the browser window scrolls, and the
+     Split tab goes back to sizing its own grid off `100vh` — see its
+     `@media` override in `split-grid.ts`. */
+  :host {
+    display: block;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  main {
+    flex: none;
+    overflow-y: visible;
+    padding: 16px;
+  }
+
   .topbar {
     padding: 0 16px;
   }
@@ -78,9 +113,5 @@ main h2 {
   .tab {
     padding: 11px 12px;
     font-size: 15px;
-  }
-
-  main {
-    padding: 16px 16px 48px;
   }
 }

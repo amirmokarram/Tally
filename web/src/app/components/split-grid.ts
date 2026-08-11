@@ -213,8 +213,13 @@ const money = new MoneyPipe();
     '[class.filling]': 'fillDragging',
   },
   styles: `
+    /* Fills \`main\` exactly (see app.scss) rather than sizing itself off
+       \`100vh\` — \`.report\` below stretches to match and hands its own
+       leftover space to \`.grid\`, so the grid's body is the only thing that
+       scrolls instead of the browser window. */
     :host {
       display: block;
+      height: 100%;
     }
 
     /* A drag across cells would otherwise sweep up the text under it. */
@@ -238,6 +243,7 @@ const money = new MoneyPipe();
        horizontally with the grid's own columns, and controls that matter
        regardless of scroll position cannot live in a cell that might. */
     .report-toolbar {
+      flex: none;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -289,11 +295,18 @@ const money = new MoneyPipe();
 
     /* One block, one border, one shadow — the totals band and the grid below
        draw no edges of their own but the hairline between them, so the whole
-       thing reads as a single report rather than stacked pieces of UI. */
+       thing reads as a single report rather than stacked pieces of UI.
+       A flex column filling the host: toolbar and totals band take their
+       own content height, \`.grid\` takes whatever is left — see its own
+       rule, below. No bottom margin: nothing sits under the report any
+       more, and it would otherwise push the report past \`:host\`'s own
+       height and force a scrollbar \`main\` never needed. */
     .report {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
       border-radius: var(--radius);
       box-shadow: 0 1px 2px rgb(20 53 95 / 8%), 0 4px 16px rgb(20 53 95 / 6%);
-      margin-bottom: 16px;
     }
 
     .masthead-title {
@@ -358,6 +371,7 @@ const money = new MoneyPipe();
        looking fused. The bottom stays open — that seam is to the grid's
        own header directly under it. */
     .totals-band {
+      flex: none;
       display: grid;
       align-items: stretch;
       background: var(--surface);
@@ -414,16 +428,39 @@ const money = new MoneyPipe();
       padding: 4px;
     }
 
-    /* Tall enough to be a working surface, short enough that the topbar, the
-       alert strip and the footer all stay on screen. Square at the top —
-       there is no gap or border between the totals band's own bottom edge
-       and this one, which is the seam — and rounded only at the bottom,
-       where the report block actually ends; see the \`.ag-root-wrapper\`
-       override below. */
+    /* Takes whatever height \`.report\` has left over above (see \`:host\` and
+       \`.report\`), rather than guessing at the surrounding chrome's height
+       with \`vh\` math — so the grid's own body is what scrolls, not the
+       page. \`min-height: 0\` is load-bearing: a flex item's automatic
+       minimum is its content size, which for AG Grid is "every row," and
+       without overriding it the grid would refuse to shrink below that and
+       force the page to scroll after all. Square at the top — there is no
+       gap or border between the totals band's own bottom edge and this
+       one, which is the seam — and rounded only at the bottom, where the
+       report block actually ends; see the \`.ag-root-wrapper\` override
+       below. On phones this reverts to a fixed, \`vh\`-based height instead
+       — see the \`@media\` block below. */
     .grid {
       display: block;
       width: 100%;
-      height: clamp(320px, calc(100vh - 260px), 900px);
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* A pinned, page-filling report fights the on-screen keyboard and
+       pull-to-refresh on a phone, so this reverts to the page scrolling as
+       a whole, with the grid sized off the viewport the way it always was
+       — see app.scss's own \`@media\` override for \`:host\` and \`main\`. */
+    @media (max-width: 640px) {
+      .report {
+        display: block;
+        height: auto;
+        margin-bottom: 16px;
+      }
+
+      .grid {
+        height: clamp(320px, calc(100vh - 260px), 900px);
+      }
     }
 
     :host ::ng-deep .ag-root-wrapper {
