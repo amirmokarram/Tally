@@ -338,15 +338,16 @@ const money = new MoneyPipe();
     /* The report's own top line: the split's name sharing a row with its
        answer, each person's balance under their column and the trip total
        under Amount, rather than spending a whole row of its own above them.
-       Bordered on every side but the top and bottom: the toolbar above owns
-       the top edge and its rounded corners now (\`.report-toolbar\`), and the
-       bottom is the seam to the grid's own header directly under it. */
+       Bordered on every side but the bottom: the toolbar above owns the
+       rounded top corners (\`.report-toolbar\`), but a border here still
+       marks the seam between it and the totals rather than leaving them
+       looking fused. The bottom stays open — that seam is to the grid's
+       own header directly under it. */
     .totals-band {
       display: grid;
       align-items: stretch;
       background: var(--surface);
       border: 1px solid var(--border);
-      border-top: none;
       border-bottom: none;
       /* Enough people push the columns wider than the page. AG Grid's own
          body clips and scrolls that internally; this clips the same way —
