@@ -40,14 +40,6 @@ describe('App', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('app-help-panel')).toBeTruthy();
   });
-
-  it('says so when the browser will not let it save', () => {
-    configure(null);
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
-    const footer = (fixture.nativeElement as HTMLElement).querySelector('footer');
-    expect(footer?.textContent).toContain('will not let the app save');
-  });
 });
 
 describe('App — resuming a saved split', () => {
@@ -70,7 +62,6 @@ describe('App — resuming a saved split', () => {
 
     expect(TestBed.inject(TripStore).restoredFromStorage).toBe(true);
     expect(compiled.querySelector('app-split-grid')).toBeTruthy();
-    expect(compiled.querySelector('footer')?.textContent).toContain('Saved automatically');
   });
 
   it('writes every edit straight back to storage', () => {

@@ -58,14 +58,3 @@
     }
   }
 </main>
-
-<footer>
-  @if (store.saveFailed()) {
-    Saving is currently failing.
-  } @else if (store.persistenceAvailable) {
-    Saved automatically in this browser.
-  } @else {
-    This browser will not let the app save, so the split will be lost on reload.
-  }
-  Exchange rates are a bundled snapshot.
-</footer>

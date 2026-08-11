@@ -64,14 +64,6 @@ main h2 {
   margin-bottom: 4px;
 }
 
-footer {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 0 24px 30px;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
 /* --- Phones -------------------------------------------------------------
    Only the tabs live in the bar now — the split's own name, currency and
    actions moved to the Split tab itself, so there is nothing left here to
@@ -90,9 +82,5 @@ footer {
 
   main {
     padding: 16px 16px 48px;
-  }
-
-  footer {
-    padding: 0 16px 24px;
   }
 }
