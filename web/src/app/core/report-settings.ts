@@ -24,6 +24,8 @@ interface SettingsDocument {
   version: number;
   /** `null` means automatic — sized to fit its content. */
   totalsBandHeight: number | null;
+  /** Whether hovering a row highlights it. */
+  rowHoverEnabled: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -41,7 +43,11 @@ function isValidHeight(value: unknown): value is number {
 
 /** Reads and validates the stored document. Anything malformed reverts to defaults. */
 function readSettings(storage: Storage | null): SettingsDocument {
-  const fallback: SettingsDocument = { version: SETTINGS_VERSION, totalsBandHeight: null };
+  const fallback: SettingsDocument = {
+    version: SETTINGS_VERSION,
+    totalsBandHeight: null,
+    rowHoverEnabled: true,
+  };
   if (!storage) {
     return fallback;
   }
@@ -55,9 +61,11 @@ function readSettings(storage: Storage | null): SettingsDocument {
       return fallback;
     }
     const height = parsed['totalsBandHeight'];
+    const rowHoverEnabled = parsed['rowHoverEnabled'];
     return {
       version: SETTINGS_VERSION,
       totalsBandHeight: height === null || isValidHeight(height) ? height : null,
+      rowHoverEnabled: typeof rowHoverEnabled === 'boolean' ? rowHoverEnabled : true,
     };
   } catch {
     return fallback;
@@ -77,23 +85,33 @@ function writeSettings(storage: Storage | null, document: SettingsDocument): voi
 export class ReportSettings {
   private readonly storage = inject(TRIP_STORAGE);
 
-  private readonly totalsBandHeightState = signal<number | null>(
-    readSettings(this.storage).totalsBandHeight,
-  );
+  private readonly initial = readSettings(this.storage);
+
+  private readonly totalsBandHeightState = signal<number | null>(this.initial.totalsBandHeight);
 
   /** The totals band's height override, in pixels — `null` for automatic. */
   readonly totalsBandHeight = this.totalsBandHeightState.asReadonly();
+
+  private readonly rowHoverEnabledState = signal<boolean>(this.initial.rowHoverEnabled);
+
+  /** Whether hovering a row highlights it. */
+  readonly rowHoverEnabled = this.rowHoverEnabledState.asReadonly();
 
   constructor() {
     effect(() => {
       writeSettings(this.storage, {
         version: SETTINGS_VERSION,
         totalsBandHeight: this.totalsBandHeightState(),
+        rowHoverEnabled: this.rowHoverEnabledState(),
       });
     });
   }
 
   setTotalsBandHeight(px: number | null): void {
     this.totalsBandHeightState.set(px === null ? null : Math.round(px));
+  }
+
+  setRowHoverEnabled(enabled: boolean): void {
+    this.rowHoverEnabledState.set(enabled);
   }
 }

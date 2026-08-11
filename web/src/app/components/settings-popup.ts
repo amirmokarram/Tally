@@ -61,6 +61,12 @@ import { DEFAULT_TOTALS_BAND_HEIGHT } from './grid-theme';
       color: var(--text-muted);
     }
 
+    .row-inline {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+    }
+
     .height-controls {
       display: flex;
       align-items: center;
@@ -113,5 +119,9 @@ export class SettingsPopup {
 
   protected resetHeight(): void {
     this.settings.setTotalsBandHeight(null);
+  }
+
+  protected onRowHoverInput(event: Event): void {
+    this.settings.setRowHoverEnabled((event.target as HTMLInputElement).checked);
   }
 }

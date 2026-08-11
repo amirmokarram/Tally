@@ -211,6 +211,7 @@ const money = new MoneyPipe();
     '(contextmenu)': 'onContextMenu($event)',
     '[class.dragging]': 'dragging || fillDragging',
     '[class.filling]': 'fillDragging',
+    '[class.no-row-hover]': '!settings.rowHoverEnabled()',
   },
   styles: `
     /* Fills \`main\` exactly (see app.scss) rather than sizing itself off
@@ -467,6 +468,16 @@ const money = new MoneyPipe();
       border-top: none;
       border-top-left-radius: 0;
       border-top-right-radius: 0;
+    }
+
+    /* The Settings popup's "Highlight row on hover" toggle. \`rowHoverColor\`
+       (grid-theme.ts) compiles to this same custom property on the grid's
+       own root, so overriding it here — closer to the row, and with the
+       extra specificity Angular's view encapsulation adds to \`:host\` — wins
+       over AG Grid's own declaration without having to touch the theme
+       object itself, which is a plain object shared by every instance. */
+    :host(.no-row-hover) ::ng-deep .ag-root-wrapper {
+      --ag-row-hover-color: transparent;
     }
 
     /* The editor panel floats over the grid rather than inside a cell: the

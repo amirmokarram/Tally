@@ -30,6 +30,16 @@
     Leave blank to use the default height, {{ defaultHeight }}px.
   </p>
 
+  <div class="row row-inline">
+    <label for="row-hover-enabled">Highlight row on hover</label>
+    <input
+      id="row-hover-enabled"
+      type="checkbox"
+      [checked]="settings.rowHoverEnabled()"
+      (change)="onRowHoverInput($event)"
+    />
+  </div>
+
   <div class="footer">
     <button class="btn primary" type="button" (click)="close()">Done</button>
   </div>
