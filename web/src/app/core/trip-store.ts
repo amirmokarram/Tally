@@ -597,6 +597,11 @@ export class TripStore {
     this.update((trip) => ({ ...trip, sheets: move(trip.sheets, sheetId, delta) }));
   }
 
+  /** As {@link moveSheet}, for a whole multi-selection moved as one block. */
+  moveSheets(sheetIds: ReadonlySet<string>, delta: number): void {
+    this.update((trip) => ({ ...trip, sheets: moveGroup(trip.sheets, sheetIds, delta) }));
+  }
+
   setSheetCurrency(sheetId: string, currency: string): void {
     // Switching back to the trip's base currency drops any pinned rate, the
     // same way the workbook forced C2 = 1 for default-currency sheets.
@@ -794,6 +799,38 @@ function move<T extends { id: string }>(list: T[], id: string, delta: number): T
   const next = [...list];
   const [entry] = next.splice(from, 1);
   next.splice(to, 0, entry);
+  return next;
+}
+
+/**
+ * As {@link move}, for a whole set of ids moved together by one step,
+ * keeping their relative order — a contiguous run of selected entries moves
+ * as a block, stopping at the array's edge or at the first non-selected
+ * entry in its way.
+ *
+ * Only single steps (`delta` of 1 or -1) are meaningful here: unlike
+ * {@link move}, which jumps straight to a clamped target index, a group's
+ * shape can change on every step (entries can merge into one block, or peel
+ * off the edge), so a multi-step move is the repeated application of this,
+ * not a single index computation.
+ */
+function moveGroup<T extends { id: string }>(list: T[], ids: ReadonlySet<string>, delta: number): T[] {
+  if (!ids.size || (delta !== 1 && delta !== -1)) {
+    return list;
+  }
+  const next = [...list];
+  const selected = next.filter((entry) => ids.has(entry.id));
+  // Ascending index order for an up-move so each entry clears the way for
+  // the one behind it; descending for a down-move, symmetrically.
+  const ordered = delta < 0 ? selected : [...selected].reverse();
+  for (const entry of ordered) {
+    const from = next.indexOf(entry);
+    const to = from + delta;
+    if (to < 0 || to >= next.length || ids.has(next[to].id)) {
+      continue;
+    }
+    [next[from], next[to]] = [next[to], next[from]];
+  }
   return next;
 }
 

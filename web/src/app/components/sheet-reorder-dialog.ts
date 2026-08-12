@@ -4,14 +4,23 @@
  * the way `SheetEditor` does, since this dialog lives outside AG Grid and has
  * nothing clipping it.
  *
- * Dragging calls straight into `TripStore.moveSheet`, which already does the
- * splice-to-index work for people and items too — this is just the first UI
- * wired up to it. `cdkDrag` also gives keyboard reordering (Space to lift,
- * arrows to move, Space to drop) for free, which is why this is CDK
- * drag-and-drop rather than hand-rolled up/down buttons.
+ * Reordering has two independent paths:
+ *
+ *  - Drag a row by its handle — `@angular/cdk`'s pointer/touch drag, moving
+ *    one sheet via `TripStore.moveSheet`.
+ *  - Click a row to select it (a plain background highlight, not a focus
+ *    ring — nothing here depends on where keyboard focus happens to be, so
+ *    there's nothing to discover by tabbing around first). Clicking more
+ *    rows adds them to the selection; clicking a selected row removes just
+ *    that one. Up/Down then moves every selected sheet together, via
+ *    `TripStore.moveSheets`, as one block that keeps their relative order.
+ *
+ * The two are kept visually apart on purpose: starting a drag clears any
+ * click-selection first, so the dragged row's preview is never shown with
+ * the click-selected background.
  */
 
-import { ChangeDetectionStrategy, Component, inject, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, output, signal } from '@angular/core';
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 
 import { TripStore } from '../core/trip-store';
@@ -24,6 +33,8 @@ import { ExpenseSheet } from '../models/trip.model';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(document:keydown.escape)': 'close()',
+    '(document:keydown.arrowup)': 'onArrow(-1, $event)',
+    '(document:keydown.arrowdown)': 'onArrow(1, $event)',
   },
   styles: `
     .backdrop {
@@ -75,6 +86,13 @@ import { ExpenseSheet } from '../models/trip.model';
       border-radius: 6px;
       background: var(--surface);
       font-size: 14px;
+      cursor: pointer;
+
+      /* The same tint used for a selected option in currency-picker.ts and
+         splits-panel.ts — a plain fill, not a border or outline. */
+      &.selected {
+        background: var(--navy-100);
+      }
     }
 
     .handle {
@@ -87,11 +105,6 @@ import { ExpenseSheet } from '../models/trip.model';
       color: var(--text-muted);
       cursor: grab;
       touch-action: none;
-
-      &:focus-visible {
-        outline: 2px solid var(--text-invert);
-        outline-offset: 1px;
-      }
     }
 
     .name {
@@ -101,13 +114,18 @@ import { ExpenseSheet } from '../models/trip.model';
       white-space: nowrap;
     }
 
+    /* Always the plain surface, regardless of \`.selected\` — a drag is a
+       different action from a click-selection and shouldn't look like one,
+       even when dragging the row that happened to be selected. */
     .cdk-drag-preview {
       box-sizing: border-box;
       border-radius: 6px;
       box-shadow: var(--shadow);
+      background: var(--surface);
     }
 
     .cdk-drag-placeholder {
+      background: var(--surface);
       opacity: 0.3;
     }
 
@@ -131,16 +149,44 @@ import { ExpenseSheet } from '../models/trip.model';
 export class SheetReorderDialog {
   protected readonly store = inject(TripStore);
 
+  /** The sheets Up/Down currently applies to, picked by clicking their rows. */
+  protected readonly selectedIds = signal<ReadonlySet<string>>(new Set());
+
   readonly closed = output<void>();
 
   protected close(): void {
     this.closed.emit();
   }
 
+  protected isSelected(sheetId: string): boolean {
+    return this.selectedIds().has(sheetId);
+  }
+
+  protected toggleSelect(sheetId: string): void {
+    const next = new Set(this.selectedIds());
+    if (!next.delete(sheetId)) {
+      next.add(sheetId);
+    }
+    this.selectedIds.set(next);
+  }
+
+  /** A drag is never shown as a click-selection, even mid-drag. */
+  protected onDragStarted(): void {
+    this.selectedIds.set(new Set());
+  }
+
   protected drop(event: CdkDragDrop<ExpenseSheet[], ExpenseSheet[], ExpenseSheet>): void {
     const delta = event.currentIndex - event.previousIndex;
     if (delta) {
       this.store.moveSheet(event.item.data.id, delta);
+    }
+  }
+
+  protected onArrow(delta: number, event: Event): void {
+    const ids = this.selectedIds();
+    if (ids.size) {
+      event.preventDefault();
+      this.store.moveSheets(ids, delta);
     }
   }
 }
