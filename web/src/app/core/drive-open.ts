@@ -35,7 +35,7 @@ export interface DriveOpenResult {
  * project. Public by design — an SPA client ID is not a secret — but empty
  * until that project exists (see the plan's Phase 0).
  */
-export const DRIVE_OAUTH_CLIENT_ID = '764522543883-ok79mribtri5o0k4s82psesuv5h99u5e.apps.googleusercontent.com';
+export const DRIVE_OAUTH_CLIENT_ID = '';
 
 /**
  * Narrowest scope that lets the app read a file the user opened it *with*,
