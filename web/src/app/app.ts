@@ -8,7 +8,6 @@ import {
   exportFileName,
   readSplitsFile,
 } from './core/trip-file';
-import { DriveLaunch, DriveOpenError, openFromDrive, parseDriveLaunch } from './core/drive-open';
 import { SavedSplit } from './models/library.model';
 import { SplitsPanel } from './components/splits-panel';
 import { SplitGrid } from './components/split-grid';
@@ -52,53 +51,6 @@ export class App {
 
   protected select(tab: TabId): void {
     this.tab.set(tab);
-  }
-
-  // --- Opened from Google Drive -------------------------------------------
-
-  /** Shown while a Drive launch is authorizing and fetching, before anything else is visible. */
-  protected readonly driveImportPending = signal(false);
-
-  /** Problem opening a file Drive launched the app with, if any. */
-  protected readonly driveImportError = signal<string | null>(null);
-
-  constructor() {
-    const launch = parseDriveLaunch(window.location);
-    if (launch) {
-      void this.openDriveLaunch(launch);
-    }
-  }
-
-  private async openDriveLaunch(launch: DriveLaunch): Promise<void> {
-    this.driveImportPending.set(true);
-    this.driveImportError.set(null);
-
-    try {
-      const { splits, failedCount } = await openFromDrive(launch);
-
-      if (splits.length) {
-        const added = this.store.importSplits(splits);
-        this.select(added.length === 1 ? 'split' : 'splits');
-      }
-
-      if (failedCount > 0) {
-        this.driveImportError.set(
-          splits.length
-            ? `Opened ${splits.length} split${splits.length === 1 ? '' : 's'} from Drive, but ${failedCount} file${failedCount === 1 ? '' : 's'} could not be read.`
-            : 'That file could not be opened from Drive.',
-        );
-      }
-    } catch (error) {
-      this.driveImportError.set(
-        error instanceof DriveOpenError ? error.message : 'That file could not be opened from Drive.',
-      );
-    } finally {
-      this.driveImportPending.set(false);
-    }
-  }
-
-  protected dismissDriveImportError(): void {
-    this.driveImportError.set(null);
   }
 
   // --- Export / import --------------------------------------------------

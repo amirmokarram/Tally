@@ -58,18 +58,3 @@
     }
   }
 </main>
-
-<div class="alerts-overlay">
-  @if (driveImportPending()) {
-    <div class="alert info" role="status">
-      <span>Opening file from Google Drive…</span>
-    </div>
-  } @else if (driveImportError(); as message) {
-    <div class="alert conflict with-actions" role="alert">
-      <span>{{ message }}</span>
-      <span class="alert-actions">
-        <button class="btn" type="button" (click)="dismissDriveImportError()">Dismiss</button>
-      </span>
-    </div>
-  }
-</div>
