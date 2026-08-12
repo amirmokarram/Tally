@@ -1386,4 +1386,125 @@ describe('the ledger grid', () => {
 
     expect(store.sheets()[0].items.length).toBe(before);
   });
+
+  describe('undo and redo', () => {
+    function undoButton(fixture: ComponentFixture<SplitGrid>): HTMLButtonElement {
+      return (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+        '.toolbar-btn[title="Undo (Ctrl+Z)"]',
+      )!;
+    }
+
+    function redoButton(fixture: ComponentFixture<SplitGrid>): HTMLButtonElement {
+      return (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+        '.toolbar-btn[title="Redo (Ctrl+Y)"]',
+      )!;
+    }
+
+    /** A real, bubbling keydown — same rationale as {@link pressKey} above:
+     * calling `onKeyDown` directly would prove nothing about whether Ctrl+Z
+     * actually reaches the host listener from wherever focus happens to be. */
+    function ctrlKey(target: Element, key: string, extra: KeyboardEventInit = {}): void {
+      target.dispatchEvent(
+        new KeyboardEvent('keydown', { key, ctrlKey: true, bubbles: true, cancelable: true, ...extra }),
+      );
+    }
+
+    it('disables both toolbar buttons until there is history to move through', async () => {
+      const { fixture, store } = await grid();
+      expect(undoButton(fixture).disabled).toBe(true);
+      expect(redoButton(fixture).disabled).toBe(true);
+
+      store.addPerson('Wednesday');
+      await settle(fixture);
+
+      expect(undoButton(fixture).disabled).toBe(false);
+      expect(redoButton(fixture).disabled).toBe(true);
+    });
+
+    it('undoes and redoes a store edit from the toolbar buttons', async () => {
+      const { fixture, store } = await grid();
+      const before = store.people().length;
+
+      store.addPerson('Wednesday');
+      await settle(fixture);
+
+      undoButton(fixture).click();
+      await settle(fixture);
+      expect(store.people().length).toBe(before);
+      expect(undoButton(fixture).disabled).toBe(true);
+      expect(redoButton(fixture).disabled).toBe(false);
+
+      redoButton(fixture).click();
+      await settle(fixture);
+      expect(store.people().length).toBe(before + 1);
+    });
+
+    it('undoes with Ctrl+Z when a cell is focused but not being edited', async () => {
+      const { fixture, store, api } = await grid();
+      const before = store.people().length;
+      store.addPerson('Wednesday');
+      await settle(fixture);
+
+      const item = store.sheets()[0].items[0];
+      focusCell(api, `item:${item.id}`);
+      await settle(fixture);
+      const cell = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.ag-cell-focus')!;
+
+      ctrlKey(cell, 'z');
+      await settle(fixture);
+
+      expect(store.people().length).toBe(before);
+    });
+
+    it('redoes with Ctrl+Y', async () => {
+      const { fixture, store, api } = await grid();
+      const before = store.people().length;
+      store.addPerson('Wednesday');
+      store.undo();
+      await settle(fixture);
+      expect(store.people().length).toBe(before);
+
+      const item = store.sheets()[0].items[0];
+      focusCell(api, `item:${item.id}`);
+      await settle(fixture);
+      const cell = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.ag-cell-focus')!;
+
+      ctrlKey(cell, 'y');
+      await settle(fixture);
+      expect(store.people().length).toBe(before + 1);
+    });
+
+    it('redoes with Ctrl+Shift+Z', async () => {
+      const { fixture, store, api } = await grid();
+      const before = store.people().length;
+      store.addPerson('Wednesday');
+      store.undo();
+      await settle(fixture);
+
+      const item = store.sheets()[0].items[0];
+      focusCell(api, `item:${item.id}`);
+      await settle(fixture);
+      const cell = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.ag-cell-focus')!;
+
+      ctrlKey(cell, 'z', { shiftKey: true });
+      await settle(fixture);
+      expect(store.people().length).toBe(before + 1);
+    });
+
+    it('leaves Ctrl+Z to the browser while a name box is being typed into', async () => {
+      const { fixture, store } = await grid();
+      store.addPerson('Wednesday');
+      await settle(fixture);
+      expect(store.canUndo()).toBe(true);
+
+      const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+        '.masthead-cell input.title-input',
+      )!;
+      ctrlKey(input, 'z');
+      await settle(fixture);
+
+      // Still there to undo — the app-level handler never ran.
+      expect(store.canUndo()).toBe(true);
+    });
+  });
 });

@@ -113,6 +113,26 @@ export class TripStore {
   /** Which split this *tab* is showing. Deliberately not shared between tabs. */
   private readonly activeIdState = signal<string>('');
 
+  /**
+   * Undo/redo history for the split being edited. Deliberately in-memory
+   * only — not part of `libraryState`, never written to storage — since it
+   * is session-scoped editing state, not data that travels with the split.
+   * See {@link clearHistory} for when it resets.
+   */
+  private readonly undoStackState = signal<Trip[]>([]);
+  private readonly redoStackState = signal<Trip[]>([]);
+  readonly canUndo = computed(() => this.undoStackState().length > 0);
+  readonly canRedo = computed(() => this.redoStackState().length > 0);
+
+  private static readonly HISTORY_LIMIT = 200;
+
+  /** How long a run of same-field keystrokes (a rename, a charge box) stays one undo step. */
+  private static readonly COALESCE_IDLE_MS = 1000;
+
+  private transactionDepth = 0;
+  private pendingCoalesce: { key: string; before: Trip } | null = null;
+  private coalesceTimer: ReturnType<typeof setTimeout> | null = null;
+
   /** The library, most recently edited first. */
   readonly splits = computed(() => mostRecentFirst(this.libraryState()));
 
@@ -196,6 +216,12 @@ export class TripStore {
     effect(() => this.writeActiveId(this.activeIdState()));
 
     this.listenForOtherTabs();
+
+    this.destroyRef.onDestroy(() => {
+      if (this.coalesceTimer !== null) {
+        clearTimeout(this.coalesceTimer);
+      }
+    });
   }
 
   private readActiveId(): string | null {
@@ -324,6 +350,10 @@ export class TripStore {
     this.lastPersisted = serializeLibrary(splits);
     this.libraryState.set(splits);
     this.pendingRemoteSignal.set(null);
+    // Snapshots taken before this no longer describe a lineage that leads to
+    // the live state — redoing into one could silently clobber the other
+    // tab's edit.
+    this.clearHistory();
 
     // The other tab may have deleted the split this one was showing.
     if (!splits.some((split) => split.id === this.activeIdState())) {
@@ -409,7 +439,7 @@ export class TripStore {
   // --- Trip-level -------------------------------------------------------
 
   setTitle(title: string): void {
-    this.update((trip) => ({ ...trip, title }));
+    this.update((trip) => ({ ...trip, title }), 'trip-title');
   }
 
   setBaseCurrency(code: string): void {
@@ -449,14 +479,17 @@ export class TripStore {
     const split = newSavedSplit(trip, nextId('split'), nextUpdatedAt(this.libraryState()));
     this.lastLocalEditAt = Date.now();
     this.libraryState.update((all) => [...all, split]);
+    this.clearHistory();
     this.activeIdState.set(split.id);
     return split;
   }
 
   openSplit(id: string): void {
-    if (this.libraryState().some((split) => split.id === id)) {
-      this.activeIdState.set(id);
+    if (id === this.activeIdState() || !this.libraryState().some((split) => split.id === id)) {
+      return;
     }
+    this.clearHistory();
+    this.activeIdState.set(id);
   }
 
   /** Copies a split, ids and all — ids only need to be unique within a trip. */
@@ -481,6 +514,7 @@ export class TripStore {
     if (remaining.length === 0) {
       const replacement = newSavedSplit(emptyTrip(), nextId('split'));
       this.libraryState.set([replacement]);
+      this.clearHistory();
       this.activeIdState.set(replacement.id);
       return;
     }
@@ -488,6 +522,7 @@ export class TripStore {
     this.libraryState.set(remaining);
     if (this.activeIdState() === id) {
       // Fall through to whatever was edited most recently.
+      this.clearHistory();
       this.activeIdState.set(mostRecentFirst(remaining)[0].id);
     }
   }
@@ -506,6 +541,7 @@ export class TripStore {
     }
     this.lastLocalEditAt = Date.now();
     this.libraryState.update((all) => [...all, ...added]);
+    this.clearHistory();
     this.activeIdState.set(added[0].id);
     return added;
   }
@@ -529,10 +565,13 @@ export class TripStore {
   }
 
   renamePerson(personId: string, name: string): void {
-    this.update((trip) => ({
-      ...trip,
-      people: trip.people.map((p) => (p.id === personId ? { ...p, name } : p)),
-    }));
+    this.update(
+      (trip) => ({
+        ...trip,
+        people: trip.people.map((p) => (p.id === personId ? { ...p, name } : p)),
+      }),
+      `person-name:${personId}`,
+    );
   }
 
   /** Removes the person along with every share and Paid By reference to them. */
@@ -571,7 +610,7 @@ export class TripStore {
   }
 
   renameSheet(sheetId: string, name: string): void {
-    this.patchSheet(sheetId, () => ({ name }));
+    this.patchSheet(sheetId, () => ({ name }), `sheet-name:${sheetId}`);
   }
 
   /** Removes the sheet and every share belonging to its items. */
@@ -612,7 +651,7 @@ export class TripStore {
   }
 
   setSheetRate(sheetId: string, rate: number | null): void {
-    this.patchSheet(sheetId, () => ({ rateOverride: rate }));
+    this.patchSheet(sheetId, () => ({ rateOverride: rate }), `sheet-rate:${sheetId}`);
   }
 
   setSheetPayers(sheetId: string, personIds: string[]): void {
@@ -628,7 +667,11 @@ export class TripStore {
   }
 
   setCharge(sheetId: string, kind: 'tax' | 'tip' | 'discount', charge: Charge): void {
-    this.patchSheet(sheetId, () => ({ [kind]: charge }) as Partial<ExpenseSheet>);
+    this.patchSheet(
+      sheetId,
+      () => ({ [kind]: charge }) as Partial<ExpenseSheet>,
+      `sheet-charge:${sheetId}:${kind}`,
+    );
   }
 
   // --- Items ------------------------------------------------------------
@@ -734,28 +777,87 @@ export class TripStore {
   /** Rounds to cents using the same rule as the engine, for display helpers. */
   readonly round = round;
 
+  // --- Undo / redo --------------------------------------------------------
+
+  /**
+   * Runs `fn` as a single undo step, whatever number of individual mutator
+   * calls it makes inside. Without this, a bulk action (paste, fill, remove
+   * ticked lines) would need one Ctrl+Z per row touched, since every mutator
+   * call is otherwise its own history entry.
+   *
+   * Nestable: only the outermost call captures the "before" snapshot and
+   * pushes the history entry, so a transaction calling another transaction
+   * still yields one undo step for the whole thing.
+   */
+  transaction(fn: () => void): void {
+    if (this.transactionDepth === 0) {
+      this.flushPendingCoalesce();
+    }
+    const before = this.transactionDepth === 0 ? this.activeSplit().trip : null;
+    this.transactionDepth += 1;
+    try {
+      fn();
+    } finally {
+      this.transactionDepth -= 1;
+      if (this.transactionDepth === 0 && before !== null) {
+        const after = this.activeSplit().trip;
+        if (after !== before) {
+          this.pushHistory(before);
+        }
+      }
+    }
+  }
+
+  undo(): void {
+    this.flushPendingCoalesce();
+    const stack = this.undoStackState();
+    const prev = stack[stack.length - 1];
+    if (prev === undefined) {
+      return;
+    }
+    this.undoStackState.set(stack.slice(0, -1));
+    this.redoStackState.update((redo) => [...redo, this.activeSplit().trip]);
+    this.applyHistoryTrip(prev);
+  }
+
+  redo(): void {
+    this.flushPendingCoalesce();
+    const stack = this.redoStackState();
+    const next = stack[stack.length - 1];
+    if (next === undefined) {
+      return;
+    }
+    this.redoStackState.set(stack.slice(0, -1));
+    this.undoStackState.update((undo) => [...undo, this.activeSplit().trip]);
+    this.applyHistoryTrip(next);
+  }
+
   // --- Internals --------------------------------------------------------
 
   private patchSheet(
     sheetId: string,
     patch: (sheet: ExpenseSheet) => Partial<ExpenseSheet>,
+    coalesceKey?: string,
   ): void {
-    this.update((trip) => ({
-      ...trip,
-      sheets: trip.sheets.map((sheet) => {
-        if (sheet.id !== sheetId) {
-          return sheet;
-        }
-        const changes = patch(sheet);
-        // `undefined` means "leave alone", so drop those keys before merging.
-        for (const key of Object.keys(changes) as (keyof ExpenseSheet)[]) {
-          if (changes[key] === undefined) {
-            delete changes[key];
+    this.update(
+      (trip) => ({
+        ...trip,
+        sheets: trip.sheets.map((sheet) => {
+          if (sheet.id !== sheetId) {
+            return sheet;
           }
-        }
-        return { ...sheet, ...changes };
+          const changes = patch(sheet);
+          // `undefined` means "leave alone", so drop those keys before merging.
+          for (const key of Object.keys(changes) as (keyof ExpenseSheet)[]) {
+            if (changes[key] === undefined) {
+              delete changes[key];
+            }
+          }
+          return { ...sheet, ...changes };
+        }),
       }),
-    }));
+      coalesceKey,
+    );
   }
 
   /**
@@ -768,8 +870,27 @@ export class TripStore {
    * Stamping the edit time is what lets {@link onRemoteChange} tell "the user
    * is working in this tab" from "this tab has been sitting idle", which
    * decides whether another tab's change is adopted or queued as a conflict.
+   *
+   * `coalesceKey` is for mutators driven by `(input)` — fired on every
+   * keystroke rather than once on commit, unlike a grid cell's `valueSetter`.
+   * Consecutive calls with the same key merge into one undo step instead of
+   * one per character; see {@link recordHistory}.
    */
-  private update(fn: (trip: Trip) => Trip): void {
+  private update(fn: (trip: Trip) => Trip, coalesceKey?: string): void {
+    this.recordHistory(coalesceKey);
+    this.commitTrip(fn);
+  }
+
+  /** As {@link update}, for changes that replace the trip wholesale. */
+  private replace(trip: Trip): void {
+    this.pendingRemoteSignal.set(null);
+    // A fresh/sample trip is a new starting point, not something to undo
+    // back past.
+    this.clearHistory();
+    this.commitTrip(() => trip);
+  }
+
+  private commitTrip(fn: (trip: Trip) => Trip): void {
     this.lastLocalEditAt = Date.now();
     const activeId = this.activeSplit().id;
     const at = nextUpdatedAt(this.libraryState());
@@ -780,10 +901,74 @@ export class TripStore {
     );
   }
 
-  /** As {@link update}, for changes that replace the trip wholesale. */
-  private replace(trip: Trip): void {
-    this.pendingRemoteSignal.set(null);
-    this.update(() => trip);
+  /** Applies an undo/redo step without itself pushing a new history entry. */
+  private applyHistoryTrip(trip: Trip): void {
+    this.commitTrip(() => trip);
+  }
+
+  /**
+   * Decides whether this `update()` call needs a new history entry, and if
+   * so captures the trip as it was *before* the mutation about to run.
+   *
+   * Skipped entirely inside a {@link transaction} — the transaction itself
+   * owns the single snapshot for everything it does.
+   */
+  private recordHistory(coalesceKey?: string): void {
+    if (this.transactionDepth > 0) {
+      return;
+    }
+    if (coalesceKey && this.pendingCoalesce?.key === coalesceKey) {
+      // Still the same run of edits to the same field — amend it rather than
+      // pushing a new step, and give it another COALESCE_IDLE_MS to continue.
+      this.resetCoalesceTimer();
+      return;
+    }
+    this.flushPendingCoalesce();
+    const before = this.activeSplit().trip;
+    if (coalesceKey) {
+      this.pendingCoalesce = { key: coalesceKey, before };
+      this.resetCoalesceTimer();
+      this.redoStackState.set([]);
+    } else {
+      this.pushHistory(before);
+    }
+  }
+
+  private pushHistory(before: Trip): void {
+    this.undoStackState.update((stack) => {
+      const next = stack.length >= TripStore.HISTORY_LIMIT ? stack.slice(1) : stack;
+      return [...next, before];
+    });
+    this.redoStackState.set([]);
+  }
+
+  private resetCoalesceTimer(): void {
+    if (this.coalesceTimer !== null) {
+      clearTimeout(this.coalesceTimer);
+    }
+    this.coalesceTimer = setTimeout(() => this.flushPendingCoalesce(), TripStore.COALESCE_IDLE_MS);
+  }
+
+  /** Commits a pending coalesced edit run as its own history entry. */
+  private flushPendingCoalesce(): void {
+    if (this.coalesceTimer !== null) {
+      clearTimeout(this.coalesceTimer);
+      this.coalesceTimer = null;
+    }
+    if (this.pendingCoalesce) {
+      this.pushHistory(this.pendingCoalesce.before);
+      this.pendingCoalesce = null;
+    }
+  }
+
+  private clearHistory(): void {
+    if (this.coalesceTimer !== null) {
+      clearTimeout(this.coalesceTimer);
+      this.coalesceTimer = null;
+    }
+    this.pendingCoalesce = null;
+    this.undoStackState.set([]);
+    this.redoStackState.set([]);
   }
 }
 

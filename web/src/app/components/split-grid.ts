@@ -293,6 +293,12 @@ const money = new MoneyPipe();
         background: var(--navy-050);
         color: var(--navy-800);
       }
+
+      &:disabled {
+        opacity: 0.4;
+        cursor: default;
+        pointer-events: none;
+      }
     }
 
     /* One block, one border, one shadow — the totals band and the grid below
@@ -1717,27 +1723,29 @@ export class SplitGrid {
       source.push(line);
     }
 
-    for (let row = extended.top; row <= extended.bottom; row++) {
-      const node = api.getDisplayedRowAtIndex(row);
-      // Clipped to the lines that exist, the same as a paste: a fill spreads
-      // a sheet's own pattern over its own lines, not into the blank row that
-      // ends the block or a neighbouring sheet's heading.
-      if (node?.data?.kind !== 'item') {
-        continue;
-      }
-      const srcRow = (((row - base.top) % baseHeight) + baseHeight) % baseHeight;
-      for (let col = extended.left; col <= extended.right; col++) {
-        if (row >= base.top && row <= base.bottom && col >= base.left && col <= base.right) {
-          continue; // Already holds this value — it is the source.
+    this.store.transaction(() => {
+      for (let row = extended.top; row <= extended.bottom; row++) {
+        const node = api.getDisplayedRowAtIndex(row);
+        // Clipped to the lines that exist, the same as a paste: a fill spreads
+        // a sheet's own pattern over its own lines, not into the blank row that
+        // ends the block or a neighbouring sheet's heading.
+        if (node?.data?.kind !== 'item') {
+          continue;
         }
-        const srcCol = (((col - base.left) % baseWidth) + baseWidth) % baseWidth;
-        // Written even when blank: a fill repeats the base block exactly, and
-        // an empty source cell is part of that pattern, not a gap in it — the
-        // same reason dragging a blank cell over a filled one clears it in
-        // every spreadsheet this is standing in for.
-        node.setDataValue(columns[col], source[srcRow][srcCol] ?? '');
+        const srcRow = (((row - base.top) % baseHeight) + baseHeight) % baseHeight;
+        for (let col = extended.left; col <= extended.right; col++) {
+          if (row >= base.top && row <= base.bottom && col >= base.left && col <= base.right) {
+            continue; // Already holds this value — it is the source.
+          }
+          const srcCol = (((col - base.left) % baseWidth) + baseWidth) % baseWidth;
+          // Written even when blank: a fill repeats the base block exactly, and
+          // an empty source cell is part of that pattern, not a gap in it — the
+          // same reason dragging a blank cell over a filled one clears it in
+          // every spreadsheet this is standing in for.
+          node.setDataValue(columns[col], source[srcRow][srcCol] ?? '');
+        }
       }
-    }
+    });
   }
 
   /**
@@ -1889,22 +1897,28 @@ export class SplitGrid {
   }
 
   protected removeTicked(): void {
-    for (const line of this.tickedItems()) {
-      this.store.removeItem(line.sheetId, line.itemId);
-    }
+    this.store.transaction(() => {
+      for (const line of this.tickedItems()) {
+        this.store.removeItem(line.sheetId, line.itemId);
+      }
+    });
     this.api?.deselectAll();
   }
 
   protected splitTickedEvenly(): void {
-    for (const line of this.tickedItems()) {
-      this.store.splitItemEvenly(line.itemId);
-    }
+    this.store.transaction(() => {
+      for (const line of this.tickedItems()) {
+        this.store.splitItemEvenly(line.itemId);
+      }
+    });
   }
 
   protected clearTickedShares(): void {
-    for (const line of this.tickedItems()) {
-      this.store.clearItemShares(line.itemId);
-    }
+    this.store.transaction(() => {
+      for (const line of this.tickedItems()) {
+        this.store.clearItemShares(line.itemId);
+      }
+    });
   }
 
   /**
@@ -2018,21 +2032,23 @@ export class SplitGrid {
     const lastRow = isSingleCell(range) ? top + block.length - 1 : bottom;
     const lastCol = isSingleCell(range) ? left + width - 1 : right;
 
-    for (let row = top; row <= lastRow; row++) {
-      const node = api.getDisplayedRowAtIndex(row);
-      // Clipped to the lines that exist: a paste fills a sheet, it does not
-      // grow one. The blank row at the end of a block is left to be typed on.
-      if (node?.data?.kind !== 'item') {
-        continue;
-      }
-      const line = block[(row - top) % block.length];
-      for (let col = left; col <= lastCol && col < columns.length; col++) {
-        const value = line[(col - left) % line.length];
-        if (value !== undefined) {
-          node.setDataValue(columns[col], value);
+    this.store.transaction(() => {
+      for (let row = top; row <= lastRow; row++) {
+        const node = api.getDisplayedRowAtIndex(row);
+        // Clipped to the lines that exist: a paste fills a sheet, it does not
+        // grow one. The blank row at the end of a block is left to be typed on.
+        if (node?.data?.kind !== 'item') {
+          continue;
+        }
+        const line = block[(row - top) % block.length];
+        for (let col = left; col <= lastCol && col < columns.length; col++) {
+          const value = line[(col - left) % line.length];
+          if (value !== undefined) {
+            node.setDataValue(columns[col], value);
+          }
         }
       }
-    }
+    });
   }
 
   /**
@@ -2044,8 +2060,26 @@ export class SplitGrid {
    * `isTyping` guards this the same way it guards {@link onCopy} and
    * {@link onPaste}: with a cell actually being edited, Backspace has its
    * ordinary job of erasing a character and must be left alone.
+   *
+   * Ctrl+Z / Ctrl+Y (and Ctrl+Shift+Z) undo/redo the split's own edit
+   * history. Same `isTyping` guard: with a cell or a name box actually being
+   * edited, Ctrl+Z is left to do the browser's ordinary single-field undo
+   * instead of being intercepted here.
    */
   protected onKeyDown(event: KeyboardEvent): void {
+    if (isUndoKey(event) || isRedoKey(event)) {
+      if (isTyping(event.target)) {
+        return;
+      }
+      event.preventDefault();
+      if (isUndoKey(event)) {
+        this.store.undo();
+      } else {
+        this.store.redo();
+      }
+      return;
+    }
+
     if (event.key !== 'Delete' && event.key !== 'Backspace') {
       return;
     }
@@ -2057,15 +2091,17 @@ export class SplitGrid {
     event.preventDefault();
     const columns = this.selectableColumns();
     const { top, left, bottom, right } = rangeBounds(range);
-    for (let row = top; row <= bottom; row++) {
-      const node = api.getDisplayedRowAtIndex(row);
-      if (node?.data?.kind !== 'item') {
-        continue;
+    this.store.transaction(() => {
+      for (let row = top; row <= bottom; row++) {
+        const node = api.getDisplayedRowAtIndex(row);
+        if (node?.data?.kind !== 'item') {
+          continue;
+        }
+        for (let col = left; col <= right; col++) {
+          node.setDataValue(columns[col], '');
+        }
       }
-      for (let col = left; col <= right; col++) {
-        node.setDataValue(columns[col], '');
-      }
-    }
+    });
   }
 
   protected readonly defaultColDef: ColDef<LedgerRowData> = {
@@ -2442,9 +2478,13 @@ export class SplitGrid {
       if (value === null || value === undefined || String(value).trim() === '') {
         return false;
       }
-      const item = this.store.addItem(data.sheetId);
-      this.lastCreatedItemId = item.id;
-      write(data.sheetId, item.id);
+      // One undo step for the row, not two: adding the item and writing the
+      // field just typed are one gesture from the user's side.
+      this.store.transaction(() => {
+        const item = this.store.addItem(data.sheetId);
+        this.lastCreatedItemId = item.id;
+        write(data.sheetId, item.id);
+      });
       return true;
     }
     return false;
@@ -2481,6 +2521,18 @@ export class SplitGrid {
  */
 function isTyping(target: EventTarget | null): boolean {
   return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+}
+
+function isUndoKey(event: KeyboardEvent): boolean {
+  return (event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'z';
+}
+
+function isRedoKey(event: KeyboardEvent): boolean {
+  const key = event.key.toLowerCase();
+  return (
+    (event.ctrlKey || event.metaKey) &&
+    (key === 'y' || (event.shiftKey && key === 'z'))
+  );
 }
 
 /** A priced row nobody has claimed a share of — the workbook's red cells. */

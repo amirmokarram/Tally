@@ -15,6 +15,45 @@
         (changed)="store.setBaseCurrency($event)"
       />
       <span class="toolbar-divider"></span>
+      <button
+        class="toolbar-btn"
+        type="button"
+        title="Undo (Ctrl+Z)"
+        [disabled]="!store.canUndo()"
+        (click)="store.undo()"
+      >
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false">
+          <path
+            d="M4 7h6a3.5 3.5 0 0 1 0 7H7M4 7l3-3M4 7l3 3"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        Undo
+      </button>
+      <button
+        class="toolbar-btn"
+        type="button"
+        title="Redo (Ctrl+Y)"
+        [disabled]="!store.canRedo()"
+        (click)="store.redo()"
+      >
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false">
+          <path
+            d="M12 7H6a3.5 3.5 0 0 0 0 7h3M12 7l-3-3M12 7l-3 3"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        Redo
+      </button>
+      <span class="toolbar-divider"></span>
       <button class="toolbar-btn" type="button" (click)="reorderOpen.set(true)">
         <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false">
           <path
