@@ -256,6 +256,11 @@ const money = new MoneyPipe();
       border-bottom: none;
       border-top-left-radius: var(--radius);
       border-top-right-radius: var(--radius);
+      overflow: overlay;
+      /* Queries the toolbar's own width, not the viewport's — so the
+         buttons drop their labels exactly when *this* row runs out of
+         room, whatever the reason (a narrow window, a sidebar, zoom). */
+      container-type: inline-size;
     }
 
     .toolbar-group {
@@ -298,6 +303,24 @@ const money = new MoneyPipe();
         opacity: 0.4;
         cursor: default;
         pointer-events: none;
+      }
+    }
+
+    /* Below this, the row stops fitting labels-and-all — Reorder sheets is
+       the longest, so it is what the threshold is tuned against. Icons
+       alone still say what each button does (their own \`title\` carries the
+       rest), and shedding the labels buys back exactly the width that was
+       overflowing rather than wrapping the toolbar onto a second line. The
+       currency picker is deliberately untouched: it is already as compact
+       as it gets (see \`.currency-select\` below), and it is what the trip's
+       numbers are in — not something to hide under pressure. */
+    @container (max-width: 620px) {
+      .toolbar-btn .btn-label {
+        display: none;
+      }
+
+      .toolbar-btn {
+        padding-inline: 8px;
       }
     }
 
