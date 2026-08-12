@@ -250,7 +250,7 @@ const money = new MoneyPipe();
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      padding: 8px 14px;
+      padding: 5px 10px;
       background: var(--surface-alt);
       border: 1px solid var(--border);
       border-bottom: none;
