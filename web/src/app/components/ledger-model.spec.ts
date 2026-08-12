@@ -10,6 +10,7 @@
 import { ExpenseSheet, amountCharge } from '../models/trip.model';
 import { SplitRow } from '../core/split-engine';
 import {
+  LedgerItemRow,
   MIN_BLOCK_ROWS,
   buildLedgerRows,
   ledgerBlockSize,
@@ -55,7 +56,7 @@ describe('the ledger row array', () => {
     // grouping must come from the sheets, not from the order rows arrive in.
     const rows = [row('s2', 'i3'), row('s1', 'i1'), row('s1', 'i2')];
 
-    const ledger = buildLedgerRows(rows, sheets);
+    const ledger = buildLedgerRows(rows, sheets, false);
 
     expect(ledger.map(ledgerRowId)).toEqual([
       'item:i1',
@@ -72,7 +73,7 @@ describe('the ledger row array', () => {
   });
 
   it('gives an empty sheet a row to add its first item on', () => {
-    const ledger = buildLedgerRows([], [sheet('s1', 'Dinner')]);
+    const ledger = buildLedgerRows([], [sheet('s1', 'Dinner')], false);
 
     // Without the first the sheet would be invisible the moment it was created,
     // with no way to put anything on it. The rest is padding: the sheet's name
@@ -86,7 +87,7 @@ describe('the ledger row array', () => {
     const lines = [row('s1', 'i1'), row('s1', 'i2'), row('s1', 'i3')];
 
     // Three lines and the "add" line under them are the four rows already.
-    expect(buildLedgerRows(lines, sheets).map(ledgerRowId)).toEqual([
+    expect(buildLedgerRows(lines, sheets, false).map(ledgerRowId)).toEqual([
       'item:i1',
       'item:i2',
       'item:i3',
@@ -104,11 +105,11 @@ describe('the ledger row array', () => {
   });
 
   it('is empty when there are no sheets — adding one is a button below the grid', () => {
-    expect(buildLedgerRows([], [])).toEqual([]);
+    expect(buildLedgerRows([], [], false)).toEqual([]);
   });
 
   it('tags item rows with the sheet they belong to', () => {
-    const ledger = buildLedgerRows([row('s1', 'i1')], [sheet('s1', 'Dinner')]);
+    const ledger = buildLedgerRows([row('s1', 'i1')], [sheet('s1', 'Dinner')], false);
 
     // This value is what AG Grid spans on: same sheet id on adjacent rows is
     // what draws them as one block. The filler row carries it too — it is
@@ -116,13 +117,35 @@ describe('the ledger row array', () => {
     expect(ledger.map((r) => r.sheetId)).toEqual(['s1', 's1', 's1']);
   });
 
+  it('numbers each sheet’s items from one when continuousRowNumbers is off', () => {
+    const sheets = [sheet('s1', 'Dinner'), sheet('s2', 'Taxi')];
+    const rows = [row('s1', 'i1'), row('s1', 'i2'), row('s2', 'i3')];
+
+    const ledger = buildLedgerRows(rows, sheets, false);
+
+    expect(
+      ledger.filter((r): r is LedgerItemRow => r.kind === 'item').map((r) => r.index),
+    ).toEqual([1, 2, 1]);
+  });
+
+  it('carries numbering across sheets when continuousRowNumbers is on', () => {
+    const sheets = [sheet('s1', 'Dinner'), sheet('s2', 'Taxi')];
+    const rows = [row('s1', 'i1'), row('s1', 'i2'), row('s2', 'i3')];
+
+    const ledger = buildLedgerRows(rows, sheets, true);
+
+    expect(
+      ledger.filter((r): r is LedgerItemRow => r.kind === 'item').map((r) => r.index),
+    ).toEqual([1, 2, 3]);
+  });
+
   it('sizes the filler row to whatever padding the block still needs', () => {
-    const oneItem = buildLedgerRows([row('s1', 'i1')], [sheet('s1', 'Dinner')]);
+    const oneItem = buildLedgerRows([row('s1', 'i1')], [sheet('s1', 'Dinner')], false);
     // One item plus its "add" line is two of the four MIN_BLOCK_ROWS; the
     // filler row stands in for the other two.
     expect(oneItem.at(-1)).toEqual({ kind: 'filler', sheetId: 's1', rows: 2 });
 
-    const noItems = buildLedgerRows([], [sheet('s1', 'Dinner')]);
+    const noItems = buildLedgerRows([], [sheet('s1', 'Dinner')], false);
     // The "add" line is one of the four; the filler row is the rest.
     expect(noItems.at(-1)).toEqual({ kind: 'filler', sheetId: 's1', rows: 3 });
   });

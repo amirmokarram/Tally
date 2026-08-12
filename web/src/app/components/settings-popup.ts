@@ -124,4 +124,8 @@ export class SettingsPopup {
   protected onRowHoverInput(event: Event): void {
     this.settings.setRowHoverEnabled((event.target as HTMLInputElement).checked);
   }
+
+  protected onContinuousRowNumbersInput(event: Event): void {
+    this.settings.setContinuousRowNumbers((event.target as HTMLInputElement).checked);
+  }
 }

@@ -2153,7 +2153,11 @@ export class SplitGrid {
   };
 
   protected readonly rows = computed<LedgerRowData[]>(() =>
-    buildLedgerRows(this.store.split().rows, this.store.sheets()),
+    buildLedgerRows(
+      this.store.split().rows,
+      this.store.sheets(),
+      this.settings.continuousRowNumbers(),
+    ),
   );
 
   /**

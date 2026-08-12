@@ -26,7 +26,7 @@ import { SheetTotals, SplitRow } from '../core/split-engine';
  * column at all — and a control you must scroll past every line of the trip to
  * reach was the worse design anyway.
  */
-/** A line of a sheet, numbered continuously across the whole trip — see {@link buildLedgerRows}. */
+/** A line of a sheet, numbered per the `continuousRowNumbers` display setting — see {@link buildLedgerRows}. */
 export interface LedgerItemRow {
   kind: 'item';
   sheetId: string;
@@ -107,6 +107,10 @@ export type LedgerRowData = LedgerRow;
 export function buildLedgerRows(
   rows: readonly SplitRow[],
   sheets: readonly ExpenseSheet[],
+  // Whether numbering counts up across the whole trip or restarts at one for
+  // every sheet — the `continuousRowNumbers` display setting, passed in
+  // rather than read here since this function stays free of Angular.
+  continuousRowNumbers: boolean,
 ): LedgerRow[] {
   const bySheet = new Map<string, SplitRow[]>();
   for (const row of rows) {
@@ -119,11 +123,14 @@ export function buildLedgerRows(
   }
 
   const out: LedgerRow[] = [];
-  // Numbered from one *across the whole trip*, not restarting each sheet: a
-  // line's number is its place in the trip, not a count local to its check.
+  // Only reset to zero per sheet when numbering is meant to be local to it —
+  // left alone, `index` keeps counting up across sheet boundaries.
   let index = 0;
   for (const sheet of sheets) {
     const items = bySheet.get(sheet.id) ?? [];
+    if (!continuousRowNumbers) {
+      index = 0;
+    }
     for (const row of items) {
       index += 1;
       out.push({ kind: 'item', sheetId: sheet.id, index, row });
@@ -134,7 +141,7 @@ export function buildLedgerRows(
     // Padding, under the row that ends the block: a sheet with no lines is
     // otherwise a block too short to write its own name down. One row taken to
     // whatever height the remainder needs, not one row per unit of it. Sized
-    // off this sheet's own item count, never the running trip-wide `index`.
+    // off this sheet's own item count, never the running `index`.
     const fillerRows = MIN_BLOCK_ROWS - items.length - 1;
     if (fillerRows > 0) {
       out.push({ kind: 'filler', sheetId: sheet.id, rows: fillerRows });

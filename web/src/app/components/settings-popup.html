@@ -40,6 +40,16 @@
     />
   </div>
 
+  <div class="row row-inline">
+    <label for="continuous-row-numbers">Number lines across all sheets</label>
+    <input
+      id="continuous-row-numbers"
+      type="checkbox"
+      [checked]="settings.continuousRowNumbers()"
+      (change)="onContinuousRowNumbersInput($event)"
+    />
+  </div>
+
   <div class="footer">
     <button class="btn primary" type="button" (click)="close()">Done</button>
   </div>

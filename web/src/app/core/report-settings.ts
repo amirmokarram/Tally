@@ -26,6 +26,8 @@ interface SettingsDocument {
   totalsBandHeight: number | null;
   /** Whether hovering a row highlights it. */
   rowHoverEnabled: boolean;
+  /** Whether a line's number counts up across the whole trip rather than resetting per sheet. */
+  continuousRowNumbers: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -47,6 +49,7 @@ function readSettings(storage: Storage | null): SettingsDocument {
     version: SETTINGS_VERSION,
     totalsBandHeight: null,
     rowHoverEnabled: true,
+    continuousRowNumbers: false,
   };
   if (!storage) {
     return fallback;
@@ -62,10 +65,12 @@ function readSettings(storage: Storage | null): SettingsDocument {
     }
     const height = parsed['totalsBandHeight'];
     const rowHoverEnabled = parsed['rowHoverEnabled'];
+    const continuousRowNumbers = parsed['continuousRowNumbers'];
     return {
       version: SETTINGS_VERSION,
       totalsBandHeight: height === null || isValidHeight(height) ? height : null,
       rowHoverEnabled: typeof rowHoverEnabled === 'boolean' ? rowHoverEnabled : true,
+      continuousRowNumbers: typeof continuousRowNumbers === 'boolean' ? continuousRowNumbers : false,
     };
   } catch {
     return fallback;
@@ -97,12 +102,18 @@ export class ReportSettings {
   /** Whether hovering a row highlights it. */
   readonly rowHoverEnabled = this.rowHoverEnabledState.asReadonly();
 
+  private readonly continuousRowNumbersState = signal<boolean>(this.initial.continuousRowNumbers);
+
+  /** Whether a line's number counts up across the whole trip rather than resetting per sheet. */
+  readonly continuousRowNumbers = this.continuousRowNumbersState.asReadonly();
+
   constructor() {
     effect(() => {
       writeSettings(this.storage, {
         version: SETTINGS_VERSION,
         totalsBandHeight: this.totalsBandHeightState(),
         rowHoverEnabled: this.rowHoverEnabledState(),
+        continuousRowNumbers: this.continuousRowNumbersState(),
       });
     });
   }
@@ -113,5 +124,9 @@ export class ReportSettings {
 
   setRowHoverEnabled(enabled: boolean): void {
     this.rowHoverEnabledState.set(enabled);
+  }
+
+  setContinuousRowNumbers(enabled: boolean): void {
+    this.continuousRowNumbersState.set(enabled);
   }
 }
