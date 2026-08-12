@@ -351,7 +351,7 @@ const money = new MoneyPipe();
     .masthead-issue {
       margin: 3px 0 0;
       color: var(--credit);
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 600;
 
       &.warning {
