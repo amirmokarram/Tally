@@ -1,0 +1,32 @@
+<div class="backdrop" (click)="close()"></div>
+<div class="panel" role="dialog" aria-label="Reorder expense sheets">
+  <h2>Reorder sheets</h2>
+  <p class="hint">Drag a sheet by its handle, or focus the handle and use the arrow keys.</p>
+
+  <div
+    class="list"
+    cdkDropList
+    [cdkDropListData]="store.sheets()"
+    (cdkDropListDropped)="drop($event)"
+  >
+    @for (sheet of store.sheets(); track sheet.id) {
+      <div class="row" cdkDrag [cdkDragData]="sheet">
+        <span class="handle" cdkDragHandle tabindex="0" aria-label="Drag to reorder {{ sheet.name || 'Unnamed sheet' }}">
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+            <circle cx="5" cy="3" r="1.2" fill="currentColor" />
+            <circle cx="11" cy="3" r="1.2" fill="currentColor" />
+            <circle cx="5" cy="8" r="1.2" fill="currentColor" />
+            <circle cx="11" cy="8" r="1.2" fill="currentColor" />
+            <circle cx="5" cy="13" r="1.2" fill="currentColor" />
+            <circle cx="11" cy="13" r="1.2" fill="currentColor" />
+          </svg>
+        </span>
+        <span class="name">{{ sheet.name || 'Unnamed sheet' }}</span>
+      </div>
+    }
+  </div>
+
+  <div class="footer">
+    <button class="btn primary" type="button" (click)="close()">Close</button>
+  </div>
+</div>

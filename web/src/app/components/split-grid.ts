@@ -107,6 +107,7 @@ import {
 } from './grid-theme';
 import { AddSheetHeader, SheetCell } from './sheet-cell';
 import { SheetEditor } from './sheet-editor';
+import { SheetReorderDialog } from './sheet-reorder-dialog';
 import { SettingsPopup } from './settings-popup';
 import { AddPersonHeader, PersonHeader } from './person-header';
 import { IndexHeader } from './index-header';
@@ -192,7 +193,7 @@ const money = new MoneyPipe();
 
 @Component({
   selector: 'app-split-grid',
-  imports: [AgGridAngular, SheetEditor, CurrencyPicker, MoneyPipe, SettingsPopup],
+  imports: [AgGridAngular, SheetEditor, SheetReorderDialog, CurrencyPicker, MoneyPipe, SettingsPopup],
   templateUrl: './split-grid.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
@@ -1139,6 +1140,9 @@ export class SplitGrid {
 
   /** Whether the report's own settings popup — see `settings-popup.ts` — is open. */
   protected readonly settingsOpen = signal(false);
+
+  /** Whether the sheet-reorder dialog — see `sheet-reorder-dialog.ts` — is open. */
+  protected readonly reorderOpen = signal(false);
 
   /** The block of cells a copy or a paste applies to, or null. */
   private readonly selection = signal<CellRange | null>(null);
