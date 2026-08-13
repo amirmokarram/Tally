@@ -41,11 +41,14 @@ blank row at the end of a block adds a line, numbered continuously across
 the whole trip.
 
 Two selections, because they answer different questions. **Tick** the box at the
-start of a line to choose *lines* — removing them, giving everyone a share, or
-clearing their shares are all buttons above the grid, acting on everything
-ticked. **Drag** across cells to choose a *block* of values, then
-<kbd>Ctrl/⌘ C</kbd> and <kbd>Ctrl/⌘ V</kbd>; one value pasted over a block fills
-it, which is how a whole column of shares is set at once.
+start of a line to choose *lines* — removing them, giving everyone a share,
+clearing their shares, or copying/cutting/pasting them as whole lines (name,
+amount, every share) are all buttons above the grid, acting on everything
+ticked. Cut does not delete on the spot; it marks the line and waits for a
+Paste to actually move it, Explorer-style. **Drag** across cells to choose a
+*block* of values, then <kbd>Ctrl/⌘ C</kbd> and <kbd>Ctrl/⌘ V</kbd>; one value
+pasted over a block fills it, which is how a whole column of shares is set at
+once.
 
 AG Grid **Community** only — MIT, no licence key. Nothing may import
 `ag-grid-enterprise`, so two of its features are the app's own:
