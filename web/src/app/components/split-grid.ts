@@ -2168,21 +2168,22 @@ export class SplitGrid {
   /**
    * Where a cell sits in the selectable grid, or null if it is not one.
    *
-   * The filler beneath a short block is padding, not a line — nothing to
-   * copy from, paste into, or drag a block across, so a click there can
-   * start or extend nothing. The merged, hatched block of person columns on
-   * an add-item row is the same story: a share means nothing until there is
-   * an item to share, so it is excluded here the same way, not just
-   * repainted differently — {@link onCellMouseDown} falls back to clearing
-   * the selection outright for a `null` ref, which is the point: a click on
-   * either should behave like a click on nothing, not like a click that
-   * happens to land on an empty cell.
+   * The filler beneath a short block is padding, not a line, and the
+   * add-item row — Item and Amount included, not just the merged, hatched
+   * block of person columns beside them — is not one *yet*: nothing on
+   * either is a value to copy from, paste into, drag a block across, or
+   * paint a ring around. A click on either behaves like a click on nothing
+   * — {@link onCellMouseDown} falls back to clearing the selection outright
+   * for a `null` ref — rather than like a click that happens to land on an
+   * empty cell. This is also what keeps a block spanning past the add-item
+   * row into a later sheet (see {@link onCellKeyDown}'s own `skipAddItemRow`)
+   * from painting a ring over it on the way through: {@link isSelected}
+   * reads this for the row in between too, and a `null` ref here is what
+   * makes it say no regardless of whether that row's own index happens to
+   * fall inside the range's rectangle.
    */
   private cellRef(node: IRowNode<LedgerRowData>, colId: string): CellRef | null {
-    if (node.data?.kind === 'filler') {
-      return null;
-    }
-    if (node.data?.kind === 'add-item' && colId.startsWith('person:')) {
+    if (node.data?.kind === 'filler' || node.data?.kind === 'add-item') {
       return null;
     }
     const col = this.selectableColumns().indexOf(colId);

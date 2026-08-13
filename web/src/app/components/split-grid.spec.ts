@@ -1452,18 +1452,33 @@ describe('the ledger grid', () => {
       const harness = await grid();
       const { fixture, api, store } = harness;
       const sheet1 = store.sheets()[0];
+      const secondToLast = sheet1.items.at(-2)!;
       const last = sheet1.items.at(-1)!;
       const sheet2 = store.addSheet('Second sheet');
       const created = store.addItem(sheet2.id, 'Snack', 3);
       await settle(fixture);
 
-      focusCell(api, `item:${last.id}`, 'item');
+      // A real anchor, the way a block actually grows — a bare `focusCell`
+      // moves AG Grid's own focus without ever setting `selection` (nothing
+      // here goes through `onCellKeyDown`), so a Shift+arrow straight off it
+      // would just start a fresh single-cell block at wherever it landed,
+      // proving nothing about a block that already spans several rows.
+      focusCell(api, `item:${secondToLast.id}`, 'item');
+      pressKey(fixture, 'ArrowDown');
+      await settle(fixture);
       pressKey(fixture, 'ArrowDown', { shiftKey: true });
       await settle(fixture);
 
       const focused = api.getFocusedCell();
       expect(focused && api.getDisplayedRowAtIndex(focused.rowIndex)?.id).toBe(
         `item:${created.id}`,
+      );
+      // The block's own rectangle runs straight through the add-item row's
+      // row index on the way from the last line of sheet 1 to the first of
+      // sheet 2 — this is what proves that row never paints as selected
+      // despite falling inside it.
+      expect(selectedCells(fixture).sort()).toEqual(
+        [`item:${last.id}/item`, `item:${created.id}/item`].sort(),
       );
     });
 
