@@ -645,7 +645,8 @@ const money = new MoneyPipe();
     :host ::ng-deep .ledger-filler-row .ag-cell.ag-cell-focus,
     :host ::ng-deep .ledger-add-person-cell.ag-cell-focus,
     :host ::ng-deep .ledger-add-row-people.ag-cell-focus,
-    :host ::ng-deep .ledger-add-row-index.ag-cell-focus {
+    :host ::ng-deep .ledger-add-row-index.ag-cell-focus,
+    :host ::ng-deep .ledger-index.ag-cell-focus {
       border-color: transparent !important;
       outline: none !important;
     }
@@ -1587,26 +1588,36 @@ export class SplitGrid {
 
   /**
    * Bounces focus off cells that hold nothing to read or type: the filler
-   * beneath a short block, the add-person column, and — on an add-item row —
-   * both the line-number cell and the merged block of person columns beside
-   * it, all hatched the same way for the same reason, see {@link columns}'s
-   * `add-person` entry.
+   * beneath a short block, the add-person column, the index column on every
+   * row (a click there ticks the line — see {@link onCellMouseDown} — it is
+   * a button, not a value to read or navigate into), and — on an add-item
+   * row — the merged block of person columns beside it, hatched the same
+   * way for the same reason, see {@link columns}'s `add-person` entry.
    *
    * `suppressNavigable` (on {@link defaultColDef} for the filler rows, on
-   * the `add-person` column itself for every row, on the index and person
-   * columns for an add-item row) already keeps Tab and the arrow keys from
-   * stopping on any of them. A mouse click is the one way in none of them
-   * covers, since AG Grid focuses the cell as part of its own mousedown
-   * handling, before `(cellMouseDown)` — an output, not a hook — gets a
-   * chance to react. Clearing it back out here is a click late, but a click
-   * late is as early as there is.
+   * the `add-person` column itself for every row, on the index column for
+   * every row, and on the person columns for an add-item row) already keeps
+   * Tab and the arrow keys from stopping on any of them. A mouse click is
+   * the one way in none of them covers, since AG Grid focuses the cell as
+   * part of its own mousedown handling, before `(cellMouseDown)` — an
+   * output, not a hook — gets a chance to react. Clearing it back out here
+   * is a click late, but a click late is as early as there is.
+   *
+   * Leaving the index cell as AG Grid's own tracked "focused cell" was worse
+   * than the one-frame flicker this bounces away: AG Grid restores real DOM
+   * focus to whatever cell it still considers focused on every refresh —
+   * including one ticking a line itself triggers, by changing totals
+   * elsewhere on the grid — so the last line ticked kept re-stealing focus
+   * back onto its own number cell (and the focus ring with it) long after
+   * the click that ticked it. Bouncing focus off it here means there is
+   * nothing left for a later refresh to restore.
    */
   protected onCellFocused(event: CellFocusedEvent<LedgerRowData>): void {
     if (event.rowIndex == null) {
       return;
     }
     const colId = typeof event.column === 'string' ? event.column : event.column?.getColId();
-    if (colId === 'add-person') {
+    if (colId === 'add-person' || colId === 'index') {
       this.api?.clearFocusedCell();
       return;
     }
@@ -1615,7 +1626,7 @@ export class SplitGrid {
       this.api?.clearFocusedCell();
       return;
     }
-    if (node?.data?.kind === 'add-item' && (colId === 'index' || colId?.startsWith('person:'))) {
+    if (node?.data?.kind === 'add-item' && colId?.startsWith('person:')) {
       this.api?.clearFocusedCell();
     }
   }
@@ -2326,15 +2337,13 @@ export class SplitGrid {
         cellClassRules: {
           'ledger-index-ticked': (p) => p.node.isSelected() ?? false,
         },
-        // There is no line to number yet, so — like the merged person block
-        // beside it — this is hatched rather than left reading as a tickable
-        // line. `onCellFocused` bounces the click a colDef can't stop; the
-        // `filler` half here just repeats {@link defaultColDef}'s own rule,
-        // which a colDef's own `suppressNavigable` replaces rather than adds
-        // to.
-        suppressNavigable: ((p) =>
-          p.data?.kind === 'add-item' ||
-          p.data?.kind === 'filler') satisfies SuppressNavigableCallback<LedgerRowData>,
+        // A click here ticks the line rather than landing on a value to
+        // read or navigate into (`onCellMouseDown`, `onCellFocused`), so
+        // Tab and the arrow keys skip the column outright on every row, not
+        // just the add-item and filler rows a colDef's own `suppressNavigable`
+        // used to single out — that pair only mattered back when a real
+        // item row's own index cell was still a stopping point.
+        suppressNavigable: true,
         valueGetter: (p: ValueGetterParams<LedgerRowData>) =>
           p.data?.kind === 'item' ? p.data.index : '',
       },
