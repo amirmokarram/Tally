@@ -705,6 +705,16 @@ const money = new MoneyPipe();
       background: color-mix(in srgb, var(--credit-bg) 100%, var(--text) 6%);
     }
 
+    :host ::ng-deep .ag-cell {
+      align-content: center;
+    }
+
+    /* The handle's own default right margin left too much air before the
+       item name next to it. */
+    :host ::ng-deep .ag-drag-handle {
+      margin-right: 5px;
+    }
+
     /* Scaffolding for the eye, not data: it should sit behind everything. */
     :host ::ng-deep .ledger-index {
       justify-content: center;
@@ -736,9 +746,27 @@ const money = new MoneyPipe();
       font-weight: 600;
     }
 
+    /* Not \`--ag-cell-horizontal-padding\`: AG Grid's own theme subtracts a
+       pixel from that variable before it reaches \`padding\` (border
+       compensation), so setting it to 5px renders as 4px. Set directly
+       instead, which wins on specificity over the theme's own rule.
+       Dropped only while the cell is showing its value, not while it holds
+       the editor — same rule \`.ledger-share\` follows below, for the same
+       reason: the input still wants AG Grid's own, roomier padding around
+       it, not this column's tighter resting one. */
+    :host ::ng-deep .ledger-item:not(.ag-cell-inline-editing) {
+      padding-left: 5px;
+      padding-right: 5px;
+    }
+
     :host ::ng-deep .ledger-numeric {
       font-variant-numeric: tabular-nums;
       justify-content: flex-end;
+    }
+
+    :host ::ng-deep .ledger-numeric:not(.ag-cell-inline-editing) {
+      padding-left: 5px;
+      padding-right: 5px;
     }
 
     :host ::ng-deep .ledger-share {
