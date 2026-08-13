@@ -1429,6 +1429,29 @@ describe('the ledger grid', () => {
       );
     });
 
+    it('drops the ring instead of leaving it behind when a plain arrow reaches the add-item row', async () => {
+      const harness = await grid();
+      const { fixture, api, store } = harness;
+      const items = store.sheets()[0].items;
+      const last = items.at(-1)!;
+
+      // A real ring on the last line first — the same as a click would
+      // leave — so there is something for the next arrow key to strand.
+      focusCell(api, `item:${items.at(-2)!.id}`, 'item');
+      pressKey(fixture, 'ArrowDown');
+      await settle(fixture);
+      expect(selectedCells(fixture)).toEqual([`item:${last.id}/item`]);
+
+      pressKey(fixture, 'ArrowDown');
+      await settle(fixture);
+
+      // Focus really did move to the add-item row...
+      const focused = api.getFocusedCell();
+      expect(focused && api.getDisplayedRowAtIndex(focused.rowIndex)?.data?.kind).toBe('add-item');
+      // ...and the last line's ring did not stay behind on it.
+      expect(selectedCells(fixture)).toEqual([]);
+    });
+
     it('skips the add-item row on a Shift+arrow instead of growing the block onto it', async () => {
       const harness = await grid();
       const { fixture, api, store } = harness;

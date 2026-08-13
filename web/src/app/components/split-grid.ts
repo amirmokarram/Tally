@@ -1719,6 +1719,17 @@ export class SplitGrid {
     const node = this.api?.getDisplayedRowAtIndex(focused.rowIndex);
     const ref = node && this.cellRef(node, focused.column.getColId());
     if (!ref) {
+      // A plain arrow onto the add-item row is a real move — the ring has
+      // to leave the row behind it the same way a click on nothing already
+      // clears it in {@link onCellMouseDown}, or the old block is left
+      // stranded on a line that isn't focused anymore, looking selected
+      // right alongside wherever focus actually just landed. Shift instead
+      // leaves it alone: {@link skipAddItemRow} above means this is only
+      // ever reached, under Shift, once there is nowhere further to grow
+      // toward, and stopping there is the point, not a stray cell to clear.
+      if (!native.shiftKey) {
+        this.select(null);
+      }
       return;
     }
     const anchor = (native.shiftKey && this.selection()?.anchor) || ref;
