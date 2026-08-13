@@ -160,6 +160,43 @@
 </section>
 
 <section>
+  <h3>Copying, cutting and pasting whole lines</h3>
+  <p>
+    Tick one or more lines — the same tick used for Everyone / Clear shares / Remove — and the
+    toolbar's <strong>Copy</strong>, <strong>Cut</strong> and <strong>Paste</strong> buttons act
+    on them as whole lines: name, amount and every person's share together, not just the values a
+    cell copy carries.
+  </p>
+  <ul>
+    <li>
+      <strong>Copy</strong> (or Ctrl+C with lines ticked) snapshots the ticked lines and un-ticks
+      them, marking them with a dashed outline instead — a spreadsheet's own "marching ants," for
+      what a Paste will place. Ready to paste as many times as you like; the outline stays until a
+      fresh Copy or Cut replaces it, or <strong>Esc</strong> dismisses it.
+    </li>
+    <li>
+      <strong>Cut</strong> (Ctrl+X) snapshots them too, but does not remove them yet — the way
+      Explorer's own Cut works, not a spreadsheet's. The lines dim, in place, until either
+      <strong>Paste</strong> actually moves them, or <strong>Esc</strong> cancels the cut and
+      brings them back to normal. A cut can only be pasted once — the source lines are removed the
+      moment it lands, so a second Paste has nothing left to place.
+    </li>
+    <li>
+      <strong>Paste</strong> (or Ctrl+V with lines ticked) inserts the lines right after the last
+      ticked line — or, with nothing ticked, after whichever cell is currently selected — or, on a
+      sheet with no lines yet, after clicking its own <strong>+ Add item</strong> row, which has
+      no cell of its own to select. This works across sheets: shares belong to the trip, not to
+      any one sheet, so a person's share carries over even when the lines land somewhere else.
+    </li>
+  </ul>
+  <p class="muted" style="font-size: 13px">
+    Ctrl+C/Ctrl+X/Ctrl+V only act on lines when some are ticked — otherwise they are the cell
+    copy/paste described above. The toolbar's own Paste button is more flexible: it also works
+    off a plain cell selection or an empty sheet's own add-item row, with nothing ticked.
+  </p>
+</section>
+
+<section>
   <h3>Undo and redo</h3>
   <p>
     <strong>Undo</strong> and <strong>Redo</strong>, in the Split tab's toolbar (or Ctrl+Z /

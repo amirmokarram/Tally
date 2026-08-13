@@ -682,6 +682,23 @@ export class TripStore {
     return item;
   }
 
+  /**
+   * As {@link addItem}, but inserted at a position rather than always
+   * appended — what a row-level Paste needs, to land right after the line
+   * it targets instead of at the sheet's end. `atIndex` is clamped to the
+   * sheet's own bounds, so a stale index from before an earlier paste in
+   * the same batch still lands somewhere sensible.
+   */
+  insertItem(sheetId: string, atIndex: number, name = '', amount: number | null = null): ExpenseItem {
+    const item: ExpenseItem = { id: nextId('i'), name, amount };
+    this.patchSheet(sheetId, (sheet) => {
+      const items = [...sheet.items];
+      items.splice(Math.min(Math.max(atIndex, 0), items.length), 0, item);
+      return { items };
+    });
+    return item;
+  }
+
   updateItem(sheetId: string, itemId: string, patch: Partial<Omit<ExpenseItem, 'id'>>): void {
     this.patchSheet(sheetId, (sheet) => ({
       items: sheet.items.map((i) => (i.id === itemId ? { ...i, ...patch } : i)),

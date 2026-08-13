@@ -204,7 +204,14 @@ function menuButton(
   );
 }
 
-function clipboardEvent(type: 'copy' | 'paste', text?: string): ClipboardEvent {
+/** A toolbar button, found by its own `title` — same convention as {@link menuButton}. */
+function toolbarButton(fixture: ComponentFixture<SplitGrid>, title: string): HTMLButtonElement {
+  return (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+    `.toolbar-btn[title="${title}"]`,
+  )!;
+}
+
+function clipboardEvent(type: 'copy' | 'cut' | 'paste', text?: string): ClipboardEvent {
   const clipboardData = new DataTransfer();
   if (text !== undefined) {
     clipboardData.setData('text/plain', text);
@@ -1426,6 +1433,308 @@ describe('the ledger grid', () => {
   });
 
   /**
+   * Whole-line Copy/Cut/Paste, off the same tick used for the context menu's
+   * Everyone / Clear shares / Remove — a different thing from the cell-block
+   * copy/paste above, which only ever carries values, never a whole line.
+   */
+  describe('row copy, cut and paste', () => {
+    const COPY_TITLE = 'Copy ticked lines (Ctrl+C)';
+    const CUT_TITLE = 'Cut ticked lines — dimmed until pasted elsewhere, or Esc to cancel (Ctrl+X)';
+    const PASTE_TITLE = 'Paste lines after the selection (Ctrl+V when lines are ticked)';
+
+    it('disables Copy, Cut and Paste until there is something to act on', async () => {
+      const harness = await grid();
+      const item = harness.store.sheets()[0].items[0];
+
+      expect(toolbarButton(harness.fixture, COPY_TITLE).disabled).toBe(true);
+      expect(toolbarButton(harness.fixture, CUT_TITLE).disabled).toBe(true);
+      expect(toolbarButton(harness.fixture, PASTE_TITLE).disabled).toBe(true);
+
+      tick(harness, [item]);
+      await settle(harness.fixture);
+
+      expect(toolbarButton(harness.fixture, COPY_TITLE).disabled).toBe(false);
+      expect(toolbarButton(harness.fixture, CUT_TITLE).disabled).toBe(false);
+      // Still nothing copied yet.
+      expect(toolbarButton(harness.fixture, PASTE_TITLE).disabled).toBe(true);
+    });
+
+    it('copies ticked lines and pastes a full copy — name, amount and every share — after the last one ticked, as many times as asked', async () => {
+      const harness = await grid();
+      const items = harness.store.sheets()[0].items;
+      const person = harness.store.people()[0];
+      const [beer, pizza] = items;
+
+      tick(harness, [beer, pizza]);
+      await settle(harness.fixture);
+      toolbarButton(harness.fixture, COPY_TITLE).click();
+      await settle(harness.fixture);
+
+      // Copy un-ticks the same way Cut does, so Paste has to fall back to a
+      // plain cell selection for a target.
+      drag(harness, [`item:${pizza.id}`, 'item'], [`item:${pizza.id}`, 'item']);
+      await settle(harness.fixture);
+      toolbarButton(harness.fixture, PASTE_TITLE).click();
+      await settle(harness.fixture);
+
+      const after = harness.store.sheets()[0].items;
+      expect(after.length).toBe(items.length + 2);
+      // Landed right after Pizza — the last of the two lines ticked — not at
+      // the sheet's end.
+      expect(after[2].name).toBe(beer.name);
+      expect(after[2].amount).toBe(beer.amount);
+      expect(after[3].name).toBe(pizza.name);
+      // The originals are untouched — this was a copy, not a cut.
+      expect(harness.store.share(beer.id, person.id)).toEqual({ owe: 1, pay: 0 });
+      expect(harness.store.share(after[2].id, person.id)).toEqual({ owe: 1, pay: 0 });
+
+      // A copy is repeatable — pasting again does not clear the clipboard.
+      expect(toolbarButton(harness.fixture, PASTE_TITLE).disabled).toBe(false);
+      toolbarButton(harness.fixture, PASTE_TITLE).click();
+      await settle(harness.fixture);
+      expect(harness.store.sheets()[0].items.length).toBe(items.length + 4);
+    });
+
+    /**
+     * A Copy un-ticks its source the same way a Cut does, but marks it with
+     * a dashed outline — Excel's own marching ants — rather than the Cut's
+     * dimming, since nothing here is about to be removed.
+     */
+    describe('copying', () => {
+      function isMarked(fixture: ComponentFixture<SplitGrid>, itemId: string): boolean {
+        return !!(fixture.nativeElement as HTMLElement)
+          .querySelector(`.ag-row[row-id="item:${itemId}"] [col-id="index"]`)
+          ?.classList.contains('ledger-copied');
+      }
+
+      it('marks the ticked lines with a dashed outline instead of dimming them, and un-ticks them', async () => {
+        const harness = await grid();
+        const beer = harness.store.sheets()[0].items[0];
+
+        tick(harness, [beer]);
+        await settle(harness.fixture);
+        toolbarButton(harness.fixture, COPY_TITLE).click();
+        await settle(harness.fixture);
+
+        expect(isMarked(harness.fixture, beer.id)).toBe(true);
+        expect(harness.api.getSelectedNodes().length).toBe(0);
+      });
+
+      it('leaves the mark in place after a Paste — a Copy is repeatable — but a fresh Copy or Cut replaces it', async () => {
+        const harness = await grid();
+        const [beer, pizza] = harness.store.sheets()[0].items;
+
+        tick(harness, [beer]);
+        await settle(harness.fixture);
+        toolbarButton(harness.fixture, COPY_TITLE).click();
+        await settle(harness.fixture);
+
+        drag(harness, [`item:${beer.id}`, 'item'], [`item:${beer.id}`, 'item']);
+        await settle(harness.fixture);
+        toolbarButton(harness.fixture, PASTE_TITLE).click();
+        await settle(harness.fixture);
+
+        expect(isMarked(harness.fixture, beer.id)).toBe(true);
+
+        // A fresh Copy elsewhere clears the old mark.
+        tick(harness, [pizza]);
+        await settle(harness.fixture);
+        toolbarButton(harness.fixture, COPY_TITLE).click();
+        await settle(harness.fixture);
+
+        expect(isMarked(harness.fixture, beer.id)).toBe(false);
+        expect(isMarked(harness.fixture, pizza.id)).toBe(true);
+      });
+
+      it('Esc cancels the copy entirely — mark and clipboard both — the same full cancel a pending Cut gets', async () => {
+        const harness = await grid();
+        const beer = harness.store.sheets()[0].items[0];
+
+        tick(harness, [beer]);
+        await settle(harness.fixture);
+        toolbarButton(harness.fixture, COPY_TITLE).click();
+        await settle(harness.fixture);
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await settle(harness.fixture);
+        expect(isMarked(harness.fixture, beer.id)).toBe(false);
+
+        // Nothing left to paste — a stale, "cancelled" copy must not survive
+        // to land on some later, unrelated selection.
+        drag(harness, [`item:${beer.id}`, 'item'], [`item:${beer.id}`, 'item']);
+        await settle(harness.fixture);
+        expect(toolbarButton(harness.fixture, PASTE_TITLE).disabled).toBe(true);
+      });
+    });
+
+    /**
+     * Cut does not delete on the spot — Explorer's own convention, not a
+     * spreadsheet's: the line dims and stays exactly where it is until a
+     * Paste actually moves it, or Escape calls the whole thing off.
+     */
+    describe('cutting', () => {
+      function isDimmed(fixture: ComponentFixture<SplitGrid>, itemId: string): boolean {
+        return !!(fixture.nativeElement as HTMLElement)
+          .querySelector(`.ag-row[row-id="item:${itemId}"] [col-id="index"]`)
+          ?.classList.contains('ledger-cut-pending');
+      }
+
+      it('dims the ticked lines instead of removing them, and un-ticks them', async () => {
+        const harness = await grid();
+        const doomed = harness.store.sheets()[0].items[0];
+        const before = harness.store.sheets()[0].items.length;
+
+        tick(harness, [doomed]);
+        await settle(harness.fixture);
+        toolbarButton(harness.fixture, CUT_TITLE).click();
+        await settle(harness.fixture);
+
+        expect(harness.store.sheets()[0].items.length).toBe(before);
+        expect(harness.store.sheets()[0].items.map((i) => i.id)).toContain(doomed.id);
+        expect(isDimmed(harness.fixture, doomed.id)).toBe(true);
+        expect(harness.api.getSelectedNodes().length).toBe(0);
+      });
+
+      it('removes the dimmed line only once Paste actually moves it — even into a different sheet — and only once', async () => {
+        const harness = await grid();
+        const person = harness.store.people()[0];
+        const doomed = harness.store.sheets()[0].items[0];
+        const doomedShare = harness.store.share(doomed.id, person.id);
+
+        const drinks = harness.store.addSheet('Drinks');
+        const target = harness.store.addItem(drinks.id, 'Water', 2);
+        await settle(harness.fixture);
+
+        tick(harness, [doomed]);
+        await settle(harness.fixture);
+        toolbarButton(harness.fixture, CUT_TITLE).click();
+        await settle(harness.fixture);
+
+        // Nothing ticked any more — Paste has to fall back to the cell
+        // selected on the *other* sheet.
+        drag(harness, [`item:${target.id}`, 'item'], [`item:${target.id}`, 'item']);
+        await settle(harness.fixture);
+        expect(toolbarButton(harness.fixture, PASTE_TITLE).disabled).toBe(false);
+        toolbarButton(harness.fixture, PASTE_TITLE).click();
+        await settle(harness.fixture);
+
+        expect(harness.store.sheets()[0].items.map((i) => i.id)).not.toContain(doomed.id);
+        const drinksItems = harness.store.sheets().find((s) => s.id === drinks.id)!.items;
+        expect(drinksItems[0].id).toBe(target.id);
+        expect(drinksItems[1].name).toBe(doomed.name);
+        expect(drinksItems[1].amount).toBe(doomed.amount);
+        // The share carried over to the new sheet — shares live at trip level.
+        expect(harness.store.share(drinksItems[1].id, person.id)).toEqual(doomedShare);
+
+        // A cut only ever lands once — the source is gone, so there is
+        // nothing left for a second Paste to place.
+        expect(toolbarButton(harness.fixture, PASTE_TITLE).disabled).toBe(true);
+        const countBeforeSecondPaste = harness.store.sheets().reduce((n, s) => n + s.items.length, 0);
+        toolbarButton(harness.fixture, PASTE_TITLE).click();
+        await settle(harness.fixture);
+        expect(
+          harness.store.sheets().reduce((n, s) => n + s.items.length, 0),
+        ).toBe(countBeforeSecondPaste);
+      });
+
+      it('Esc cancels a pending cut, restoring the line and clearing the clipboard', async () => {
+        const harness = await grid();
+        const doomed = harness.store.sheets()[0].items[0];
+
+        tick(harness, [doomed]);
+        await settle(harness.fixture);
+        toolbarButton(harness.fixture, CUT_TITLE).click();
+        await settle(harness.fixture);
+        expect(isDimmed(harness.fixture, doomed.id)).toBe(true);
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await settle(harness.fixture);
+
+        expect(harness.store.sheets()[0].items.map((i) => i.id)).toContain(doomed.id);
+        expect(isDimmed(harness.fixture, doomed.id)).toBe(false);
+        expect(toolbarButton(harness.fixture, PASTE_TITLE).disabled).toBe(true);
+      });
+    });
+
+    it('Ctrl+C copies ticked lines instead of the cell block, and un-ticks them', async () => {
+      const harness = await grid();
+      const [beer] = harness.store.sheets()[0].items;
+
+      tick(harness, [beer]);
+      await settle(harness.fixture);
+
+      // A tick takes priority: nothing lands on the system clipboard.
+      expect(copyFrom(harness.fixture)).toBe('');
+      expect(harness.api.getSelectedNodes().length).toBe(0);
+    });
+
+    it('Ctrl+V pastes the row clipboard instead of the cell block, when lines are ticked', async () => {
+      const harness = await grid();
+      const items = harness.store.sheets()[0].items;
+      const [beer] = items;
+      const before = items.length;
+
+      tick(harness, [beer]);
+      await settle(harness.fixture);
+      toolbarButton(harness.fixture, COPY_TITLE).click();
+      await settle(harness.fixture);
+
+      // Copy un-ticked its source — re-tick to give Ctrl+V a target, the
+      // same way the toolbar's own Paste button needs one.
+      tick(harness, [beer]);
+      await settle(harness.fixture);
+      harness.fixture.nativeElement.dispatchEvent(clipboardEvent('paste'));
+      await settle(harness.fixture);
+
+      expect(harness.store.sheets()[0].items.length).toBe(before + 1);
+    });
+
+    it('Ctrl+X dims the ticked lines instead of cutting the cell block', async () => {
+      const harness = await grid();
+      const [beer] = harness.store.sheets()[0].items;
+      const before = harness.store.sheets()[0].items.length;
+
+      tick(harness, [beer]);
+      await settle(harness.fixture);
+
+      harness.fixture.nativeElement.dispatchEvent(clipboardEvent('cut'));
+      await settle(harness.fixture);
+
+      expect(harness.store.sheets()[0].items.length).toBe(before);
+      expect(harness.store.sheets()[0].items.map((i) => i.id)).toContain(beer.id);
+    });
+
+    it('targets an empty sheet by clicking its own add-item row first, with no line to select a cell on', async () => {
+      const harness = await grid();
+      const beer = harness.store.sheets()[0].items[0];
+
+      tick(harness, [beer]);
+      await settle(harness.fixture);
+      // Copy un-ticks on its own — nothing ticked or selected any more, so
+      // Paste has nowhere to go until the add-item row of the new, empty
+      // sheet says where.
+      toolbarButton(harness.fixture, COPY_TITLE).click();
+      await settle(harness.fixture);
+
+      const empty = harness.store.addSheet('Empty');
+      await settle(harness.fixture);
+
+      expect(toolbarButton(harness.fixture, PASTE_TITLE).disabled).toBe(true);
+
+      selecting(harness.fixture).onCellMouseDown(onCell(harness.api, `add-item:${empty.id}`, 'item'));
+      await settle(harness.fixture);
+      expect(toolbarButton(harness.fixture, PASTE_TITLE).disabled).toBe(false);
+
+      toolbarButton(harness.fixture, PASTE_TITLE).click();
+      await settle(harness.fixture);
+
+      const emptyItems = harness.store.sheets().find((s) => s.id === empty.id)!.items;
+      expect(emptyItems.length).toBe(1);
+      expect(emptyItems[0].name).toBe(beer.name);
+    });
+  });
+
+  /**
    * The selection block used to only move from a mouse — {@link
    * SplitGrid.onCellFocused}'s own bounce-away logic left it behind on
    * whatever cell was last clicked while the arrow keys moved AG Grid's own
@@ -1512,16 +1821,26 @@ describe('the ledger grid', () => {
       const last = sheet.items.at(-1)!;
 
       focusCell(api, `item:${last.id}`, 'item');
+      // A real block first — a bare `focusCell` never sets `selection` on
+      // its own (see the next test's own doc comment) — so there is
+      // something for the Shift+arrow below to actually leave alone.
+      pressKey(fixture, 'ArrowDown');
+      await settle(fixture);
+      pressKey(fixture, 'ArrowUp');
+      await settle(fixture);
       pressKey(fixture, 'ArrowDown', { shiftKey: true });
       await settle(fixture);
 
       // Nothing past the add-item row to grow onto in this sample sheet, so
       // the block stays put — the add-item row itself is never in it.
-      expect(selectedCells(fixture)).toEqual([]);
+      expect(selectedCells(fixture)).toEqual([`item:${last.id}/item`]);
+      // AG Grid's own default navigation moves its focus onto the add-item
+      // row before this handler ever runs; with nowhere further to grow,
+      // that focus is put back onto the block's own head rather than left
+      // stranded on the add-item row, which is what made the row read as
+      // though it had joined the selection.
       const focused = api.getFocusedCell();
-      expect(focused && api.getDisplayedRowAtIndex(focused.rowIndex)?.id).toBe(
-        `add-item:${sheet.id}`,
-      );
+      expect(focused && api.getDisplayedRowAtIndex(focused.rowIndex)?.id).toBe(`item:${last.id}`);
     });
 
     it('carries a Shift+arrow on to the next sheet’s own first line, past its add-item row', async () => {

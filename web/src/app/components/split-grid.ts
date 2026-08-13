@@ -93,7 +93,7 @@ import { TripStore } from '../core/trip-store';
 import { ReportSettings } from '../core/report-settings';
 import { MoneyPipe } from '../core/money.pipe';
 import { buildExportPayload, downloadJson, exportFileName } from '../core/trip-file';
-import { packShare, unpackShare } from '../models/trip.model';
+import { packShare, Share, unpackShare } from '../models/trip.model';
 import { LedgerItemRow, LedgerRowData, buildLedgerRows, ledgerRowId } from './ledger-model';
 import {
   CellRange,
@@ -202,6 +202,17 @@ const ADD_PERSON_COLUMN_WIDTH = 28;
  */
 const money = new MoneyPipe();
 
+/**
+ * A ticked line's data, snapshotted by Copy/Cut so Paste can recreate it —
+ * including in a different sheet, since shares live at trip level and stay
+ * valid wherever the line lands.
+ */
+interface RowClipboardEntry {
+  name: string;
+  amount: number | null;
+  shares: Record<string, Share>;
+}
+
 @Component({
   selector: 'app-split-grid',
   imports: [AgGridAngular, SheetEditor, SheetReorderDialog, CurrencyPicker, MoneyPipe, SettingsPopup],
@@ -211,13 +222,16 @@ const money = new MoneyPipe();
     // The clipboard events are taken on the host rather than on the document:
     // they reach here by bubbling from the focused cell, so a copy aimed at
     // something else on the page is left alone. Delete/Backspace ride the
-    // same bubble for the same reason — see {@link onKeyDown}.
+    // same bubble for the same reason — see {@link onKeyDown}. `(cut)` has no
+    // cell-level meaning of its own — see {@link onCut} — but rides the same
+    // bubble so Ctrl+X on ticked lines works the same way Ctrl+C/Ctrl+V do.
     '(copy)': 'onCopy($event)',
+    '(cut)': 'onCut($event)',
     '(paste)': 'onPaste($event)',
     '(keydown)': 'onKeyDown($event)',
     // A drag can end anywhere, including outside the grid.
     '(document:mouseup)': 'endDrag()',
-    '(document:keydown.escape)': 'closeContextMenu()',
+    '(document:keydown.escape)': 'onEscape()',
     // Not AG Grid's own `(cellContextMenu)` output — see {@link onContextMenu}
     // for why that one arrives too late to prevent anything.
     '(contextmenu)': 'onContextMenu($event)',
@@ -666,6 +680,29 @@ const money = new MoneyPipe();
     :host ::ng-deep .ledger-add-row .ag-cell:not(.ledger-sheet-cell) {
       color: var(--text-muted);
       font-style: italic;
+    }
+
+    /* A line a Cut has marked to go but not yet moved — a light gray bar on
+       the trailing edge of its own line-number cell (see the \`index\`
+       column's own \`cellClassRules\`), so the line still visibly reads as
+       "there" (Paste, elsewhere, is what actually removes it; Esc calls it
+       off) rather than looking like an ordinary one. \`border-inline-style\`
+       is what actually draws it: a color/width with no style renders
+       nothing, and nothing else here can be relied on to have already set
+       one on this cell's inline edges. */
+    :host ::ng-deep .ledger-cut-pending {
+      border-inline-style: solid;
+      border-inline-width: 3px;
+      border-inline-color: transparent lightgray;
+    }
+
+    /* A line a Copy last put on the row clipboard — the same line-number
+       bar as a Cut's own \`.ledger-cut-pending\`, in green instead of gray
+       so the two read as different things at a glance. */
+    :host ::ng-deep .ledger-copied {
+      border-inline-style: solid;
+      border-inline-width: 3px;
+      border-inline-color: transparent lightgreen;
     }
 
     /* The add-item row's own cell while it is collapsed: shorter than every
@@ -1248,6 +1285,15 @@ export class SplitGrid {
   /** The block of cells a copy or a paste applies to, or null. */
   private readonly selection = signal<CellRange | null>(null);
 
+  /**
+   * The sheet whose add-item row was last clicked — {@link pasteAnchor}'s
+   * last resort, for a sheet with no lines yet to select a cell on at all.
+   * Cleared whenever a real cell selection replaces it (see {@link select});
+   * left alone by everything else, since as the lowest-priority fallback a
+   * stale value here only matters when nothing else says where to paste.
+   */
+  private readonly addRowFocus = signal<{ sheetId: string } | null>(null);
+
   /** True between mousedown on a cell and the mouseup that ends the drag. */
   protected dragging = false;
 
@@ -1611,6 +1657,13 @@ export class SplitGrid {
     }
     const ref = this.cellRef(event.node, event.column.getColId());
     if (!ref) {
+      // Nothing to select on an add-item row, but a click there still says
+      // *which sheet* — the only way to point a Paste at one with no lines
+      // yet, since there is no line to select a cell on. See {@link
+      // pasteAnchor}.
+      if (event.node.data?.kind === 'add-item') {
+        this.addRowFocus.set({ sheetId: event.node.data.sheetId });
+      }
       this.select(null);
       return;
     }
@@ -1756,6 +1809,14 @@ export class SplitGrid {
     if (native.shiftKey) {
       focused = this.skipAddItemRow(focused, native.key);
       if (!focused) {
+        // Nowhere further to grow: the block correctly stays put, but AG
+        // Grid's own default navigation already moved its *own* focus onto
+        // the add-item row before this handler ran, and {@link
+        // skipAddItemRow} only corrects that when it finds somewhere to
+        // land — never told, it leaves that focus outline sitting on the
+        // add-item row, reading as though the row had joined the selection
+        // even though the ring itself never grew onto it.
+        this.restoreFocusToSelectionHead();
         return;
       }
     }
@@ -1819,6 +1880,25 @@ export class SplitGrid {
     }
     api.setFocusedCell(rowIndex, cell.column.getColId());
     return { ...cell, rowIndex };
+  }
+
+  /**
+   * Moves AG Grid's own focus back onto wherever {@link selection}'s head
+   * already is — see the call site in {@link onCellKeyDown} for why this is
+   * needed at all: AG Grid's own focus and this component's own block are
+   * two separate things that are supposed to track together, and the one
+   * path that does not keep them in sync is a Shift+arrow that runs out of
+   * lines to grow into.
+   */
+  private restoreFocusToSelectionHead(): void {
+    const head = this.selection()?.head;
+    if (!head) {
+      return;
+    }
+    const colId = this.selectableColumns()[head.col];
+    if (colId) {
+      this.api?.setFocusedCell(head.row, colId);
+    }
   }
 
   /**
@@ -2120,6 +2200,37 @@ export class SplitGrid {
   protected readonly ticked = signal<LedgerItemRow[]>([]);
 
   /**
+   * What Copy or Cut last put on the *row* clipboard — separate from the
+   * system clipboard {@link onCopy}/{@link onPaste} read and write, since a
+   * line carries structured data (a name, an amount, a share per person) a
+   * plain TSV cell block has no room for. In-memory only, the same as
+   * {@link selection} — nothing here is meant to survive a reload or reach
+   * another tab.
+   */
+  private readonly rowClipboard = signal<RowClipboardEntry[]>([]);
+
+  /**
+   * Lines a Cut has marked to go, but not yet removed — rather than
+   * deleting on the spot: a Paste that never happens should not have cost
+   * the line, and Escape ({@link cancelPendingCut}) is what backs out of
+   * it. Drawn on the line's own number, not the whole line — a light gray
+   * bar, via the `index` column's own `cellClassRules` in {@link columns} —
+   * and {@link refreshMarkerCells} is what makes AG Grid actually ask that
+   * rule again after this changes, the same as any other `cellClassRules`
+   * entry needs. Empty means "nothing pending", including for a plain Copy.
+   */
+  private readonly cutPending = signal<{ sheetId: string; itemId: string }[]>([]);
+
+  /**
+   * Lines a Copy last put on the row clipboard — drawn the same way as
+   * {@link cutPending}, a bar on the line's own number, in green instead of
+   * gray so the two read as different things at a glance. Cleared by
+   * {@link clearCopiedMark}: a fresh Copy or Cut, or Escape — never by a
+   * Paste, since a Copy is repeatable and stays valid after landing once.
+   */
+  private readonly copiedRows = signal<{ sheetId: string; itemId: string }[]>([]);
+
+  /**
    * Where the context menu is open, in viewport coordinates — AG Grid's own
    * menu is Enterprise, so a right-click is handled directly instead of
    * through `getContextMenuItems`.
@@ -2169,6 +2280,16 @@ export class SplitGrid {
     this.contextMenuPos.set(null);
   }
 
+  /**
+   * Escape's own job: close the context menu, back out of a pending cut,
+   * and dismiss a Copy's own marching-ants marker.
+   */
+  protected onEscape(): void {
+    this.closeContextMenu();
+    this.cancelPendingCut();
+    this.cancelCopiedMark();
+  }
+
   protected onSelectionChanged(event: SelectionChangedEvent<LedgerRowData>): void {
     const lines: LedgerItemRow[] = [];
     for (const node of event.api.getSelectedNodes()) {
@@ -2208,6 +2329,223 @@ export class SplitGrid {
         this.store.clearItemShares(line.itemId);
       }
     });
+  }
+
+  /**
+   * Snapshots the ticked lines onto the row clipboard and un-ticks them —
+   * the same deselect a Cut does, so the tick reads as "acted on" rather
+   * than sitting there afterward as if nothing had happened. Marked with a
+   * dashed outline ({@link getRowClass}) in their place, Excel's own
+   * marching-ants convention for "this is what a Paste will place" — not
+   * the Cut's own dimming, since nothing here is about to be removed, and
+   * left marked after a Paste rather than cleared by it, since a Copy is
+   * repeatable and there is no single moment it stops applying.
+   */
+  protected copyTickedRows(): void {
+    if (!this.ticked().length) {
+      return;
+    }
+    this.rowClipboard.set(this.snapshotTicked());
+    // A fresh Copy replaces whatever a previous, still-unpasted Cut left
+    // pending — those lines were never actually removed, so all this does
+    // is give them their normal look back.
+    this.clearCutPending();
+    this.clearCopiedMark();
+    const copied = this.tickedItems();
+    this.copiedRows.set(copied);
+    this.api?.deselectAll();
+    this.refreshMarkerCells(copied);
+  }
+
+  /**
+   * Marks the ticked lines to go, the way Explorer's own Cut does: dimmed
+   * ({@link getRowClass}) and still fully there — untouched by Undo/Redo,
+   * since nothing has changed in the trip yet — until a {@link pasteRows}
+   * actually moves them, or {@link cancelPendingCut} (Escape) calls it off.
+   * Un-ticked once marked, since the dimming is now what shows they are
+   * spoken for, not the tick.
+   */
+  protected cutTickedRows(): void {
+    if (!this.ticked().length) {
+      return;
+    }
+    this.clearCutPending();
+    this.clearCopiedMark();
+    this.rowClipboard.set(this.snapshotTicked());
+    const pending = this.tickedItems();
+    this.cutPending.set(pending);
+    this.api?.deselectAll();
+    this.refreshMarkerCells(pending);
+  }
+
+  /**
+   * Backs a pending Cut out — Escape's own job (see {@link onEscape}) —
+   * restoring the dimmed lines and clearing the clipboard along with them:
+   * unlike a plain Copy, a Cut has nothing worth keeping around once it is
+   * called off, since the lines it would have moved are right there,
+   * unchanged. A no-op with nothing pending, so Escape elsewhere keeps doing
+   * only its other job of closing the context menu.
+   */
+  protected cancelPendingCut(): void {
+    const pending = this.cutPending();
+    if (!pending.length) {
+      return;
+    }
+    this.cutPending.set([]);
+    this.rowClipboard.set([]);
+    this.refreshMarkerCells(pending);
+  }
+
+  private clearCutPending(): void {
+    const pending = this.cutPending();
+    if (pending.length) {
+      this.cutPending.set([]);
+      this.refreshMarkerCells(pending);
+    }
+  }
+
+  /**
+   * Backs a Copy out entirely — Escape's own job (see {@link onEscape}),
+   * the same full cancel a pending Cut gets from {@link cancelPendingCut}:
+   * clears the marching-ants mark *and* the clipboard it points to, so a
+   * Paste right after has nothing to place. A no-op with nothing marked, so
+   * Escape elsewhere keeps doing only its other jobs.
+   */
+  protected cancelCopiedMark(): void {
+    const marked = this.copiedRows();
+    if (!marked.length) {
+      return;
+    }
+    this.copiedRows.set([]);
+    this.rowClipboard.set([]);
+    this.refreshMarkerCells(marked);
+  }
+
+  /**
+   * As {@link clearCutPending}: clears just the mark, for a new Copy or Cut
+   * superseding it rather than backing it out — the clipboard is about to
+   * be overwritten by the caller regardless, so there is nothing to save
+   * here the way {@link cancelCopiedMark} has to.
+   */
+  private clearCopiedMark(): void {
+    const marked = this.copiedRows();
+    if (marked.length) {
+      this.copiedRows.set([]);
+      this.refreshMarkerCells(marked);
+    }
+  }
+
+  /**
+   * Forces the line-number column's own `cellClassRules` — the Cut and
+   * Copy markers, see {@link columns} — to be asked again for exactly
+   * these lines. `refreshCells` is what re-runs a `cellClassRules` entry;
+   * see {@link cutPending}'s own doc comment for why it has to be asked at
+   * all.
+   */
+  private refreshMarkerCells(lines: readonly { itemId: string }[]): void {
+    const api = this.api;
+    if (!api) {
+      return;
+    }
+    const nodes = lines
+      .map((line) => api.getRowNode(`item:${line.itemId}`))
+      .filter((node): node is IRowNode<LedgerRowData> => !!node);
+    if (nodes.length) {
+      api.refreshCells({ rowNodes: nodes, columns: ['index'], force: true });
+    }
+  }
+
+  /**
+   * Inserts the row clipboard's lines, in order, right after {@link
+   * pasteAnchor} — into whichever sheet that anchor is in, which may not be
+   * the sheet they were copied from: shares live at trip level (see {@link
+   * RowClipboardEntry}), so a person's share carries over even across a
+   * sheet boundary.
+   *
+   * A Cut's own source lines are removed in the same {@link
+   * TripStore.transaction transaction} as the insert, so the whole move is
+   * one undo step — and the clipboard is emptied afterward, since a Cut only
+   * ever lands once (see {@link cutPending}). A plain Copy leaves the
+   * clipboard alone, the way a spreadsheet's own repeatable paste does.
+   */
+  protected pasteRows(): void {
+    const clip = this.rowClipboard();
+    const anchor = this.pasteAnchor();
+    if (!clip.length || !anchor) {
+      return;
+    }
+    const pending = this.cutPending();
+    this.store.transaction(() => {
+      let at = anchor.index + 1;
+      for (const entry of clip) {
+        const item = this.store.insertItem(anchor.sheetId, at, entry.name, entry.amount);
+        for (const [personId, share] of Object.entries(entry.shares)) {
+          this.store.setShare(item.id, personId, share);
+        }
+        at += 1;
+      }
+      for (const line of pending) {
+        this.store.removeItem(line.sheetId, line.itemId);
+      }
+    });
+    if (pending.length) {
+      this.rowClipboard.set([]);
+      this.cutPending.set([]);
+    }
+  }
+
+  /** Whether {@link pasteRows} has both something to paste and somewhere to put it. */
+  protected canPasteRows(): boolean {
+    return this.rowClipboard().length > 0 && this.pasteAnchor() !== null;
+  }
+
+  /**
+   * The ticked lines' data, read once before any of them is written to — the
+   * same reasoning as {@link tickedItems}, extended to the whole line rather
+   * than just its id.
+   */
+  private snapshotTicked(): RowClipboardEntry[] {
+    const shares = this.store.trip().shares;
+    return this.ticked().map((line) => ({
+      name: line.row.item.name,
+      amount: line.row.item.amount,
+      shares: { ...shares[line.row.item.id] },
+    }));
+  }
+
+  /**
+   * Where a row paste lands: right after the last ticked line if any are
+   * ticked; otherwise the line under the current cell selection's own
+   * bottom row; otherwise — the only way to target a sheet with no lines
+   * at all, which has no line to select a cell on — the sheet whose
+   * add-item row was last clicked (see {@link addRowFocus}), landing at its
+   * end. Null when none of the three resolves to a real sheet, which leaves
+   * {@link pasteRows} nothing to do.
+   */
+  private pasteAnchor(): { sheetId: string; index: number } | null {
+    const ticked = this.ticked();
+    if (ticked.length) {
+      const last = ticked[ticked.length - 1];
+      return this.itemAnchor(last.sheetId, last.row.item.id);
+    }
+    const range = this.selection();
+    const node = this.api && range && this.api.getDisplayedRowAtIndex(rangeBounds(range).bottom);
+    if (node?.data?.kind === 'item') {
+      return this.itemAnchor(node.data.sheetId, node.data.row.item.id);
+    }
+    const addRow = this.addRowFocus();
+    if (!addRow) {
+      return null;
+    }
+    const items = this.store.sheets().find((sheet) => sheet.id === addRow.sheetId)?.items ?? [];
+    return { sheetId: addRow.sheetId, index: items.length - 1 };
+  }
+
+  /** A line's live position within its own sheet's items — not its ledger display index, which may number continuously across sheets. */
+  private itemAnchor(sheetId: string, itemId: string): { sheetId: string; index: number } | null {
+    const items = this.store.sheets().find((sheet) => sheet.id === sheetId)?.items ?? [];
+    const index = items.findIndex((item) => item.id === itemId);
+    return index < 0 ? null : { sheetId, index };
   }
 
   /**
@@ -2256,6 +2594,9 @@ export class SplitGrid {
    */
   private select(range: CellRange | null): void {
     this.selection.set(range);
+    if (range) {
+      this.addRowFocus.set(null);
+    }
     this.api?.refreshCells({ columns: this.selectableColumns(), force: true });
   }
 
@@ -2271,9 +2612,20 @@ export class SplitGrid {
    * what was there.
    */
   protected onCopy(event: ClipboardEvent): void {
+    if (isTyping(event.target)) {
+      return;
+    }
+    // Ticked lines take priority over a cell block: the two selections can
+    // coexist (ticking a line does not clear a cell range, or vice versa),
+    // and a line is the coarser, more deliberate choice of the two.
+    if (this.ticked().length) {
+      this.copyTickedRows();
+      event.preventDefault();
+      return;
+    }
     const api = this.api;
     const range = this.selection();
-    if (!api || !range || isTyping(event.target)) {
+    if (!api || !range) {
       return;
     }
     const columns = this.selectableColumns();
@@ -2295,6 +2647,20 @@ export class SplitGrid {
   }
 
   /**
+   * Cut has no cell-level meaning of its own — a plain cell block already has
+   * Delete for "clear the values", and there is nothing beyond that for Cut
+   * to add — so this only ever acts on ticked lines, the same as {@link
+   * onCopy}'s own priority branch.
+   */
+  protected onCut(event: ClipboardEvent): void {
+    if (isTyping(event.target) || !this.ticked().length) {
+      return;
+    }
+    event.preventDefault();
+    this.cutTickedRows();
+  }
+
+  /**
    * Writes the clipboard into the selected block.
    *
    * Every cell goes through the column's own `valueSetter`, so a paste is held
@@ -2303,10 +2669,22 @@ export class SplitGrid {
    * written to.
    */
   protected onPaste(event: ClipboardEvent): void {
+    if (isTyping(event.target)) {
+      return;
+    }
+    // As {@link onCopy}: ticked lines take priority. Gated on a tick, not
+    // merely on {@link rowClipboard} holding something, so a stale row
+    // clipboard from an earlier copy never hijacks an ordinary cell paste —
+    // the tick is what says "I mean lines" for this keystroke.
+    if (this.ticked().length) {
+      event.preventDefault();
+      this.pasteRows();
+      return;
+    }
     const api = this.api;
     const range = this.selection();
     const text = event.clipboardData?.getData('text/plain');
-    if (!api || !range || !text || isTyping(event.target)) {
+    if (!api || !range || !text) {
       return;
     }
     event.preventDefault();
@@ -2531,6 +2909,9 @@ export class SplitGrid {
               : 'ledger-index',
         cellClassRules: {
           'ledger-index-ticked': (p) => p.node.isSelected() ?? false,
+          'ledger-cut-pending': (p) =>
+            p.data?.kind === 'item' && this.isCutPending(p.data.row.item.id),
+          'ledger-copied': (p) => p.data?.kind === 'item' && this.isCopied(p.data.row.item.id),
         },
         // A click here ticks the line rather than landing on a value to
         // read or navigate into (`onCellMouseDown`, `onCellFocused`), so
@@ -2764,6 +3145,22 @@ export class SplitGrid {
         return '';
     }
   };
+
+  /**
+   * Matched by item id alone, not sheet — ids only need to be unique within
+   * a trip (see `trip-store.ts`'s `nextId`), and that is already enough
+   * here. Same for {@link isCopied}, below. Both back the line-number
+   * column's own \`cellClassRules\` — see {@link columns} — not {@link
+   * getRowClass}: the marker belongs on the line's own number, not the
+   * whole line.
+   */
+  private isCutPending(itemId: string): boolean {
+    return this.cutPending().some((line) => line.itemId === itemId);
+  }
+
+  private isCopied(itemId: string): boolean {
+    return this.copiedRows().some((line) => line.itemId === itemId);
+  }
 
   // Keeps a dragged line inside its own sheet's block: the "add" and filler
   // rows below it aren't valid targets either, so the furthest a line can
