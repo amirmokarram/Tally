@@ -62,12 +62,16 @@ import {
   GridApi,
   GridReadyEvent,
   IRowNode,
+  IsRowValidDropPositionCallback,
   _KeyboardNavigationModule,
   ModuleRegistry,
   NumberEditorModule,
   RenderApiModule,
   RowApiModule,
   RowClassParams,
+  RowDragCallback,
+  RowDragEndEvent,
+  RowDragModule,
   RowHeightParams,
   RowSelectionModule,
   RowSelectionOptions,
@@ -150,6 +154,10 @@ ModuleRegistry.registerModules([
   // AG Grid's own naming for a module carved out of what used to be part of
   // the free bundle — it ships from `ag-grid-community`, not `-enterprise`.
   _ColumnMoveModule,
+  // Dragging a line by its number to reorder it within its sheet — see
+  // {@link SplitGrid.onRowDragEnd}. Community, unlike AG Grid's own row
+  // grouping, which is why the sheet blocks above are hand-rolled instead.
+  RowDragModule,
   // `suppressNavigable` (keeps Tab/arrow keys off the filler beneath a short
   // block) and `api.clearFocusedCell()` (bounces a mouse click off the same
   // cells — see {@link SplitGrid.onCellFocused}). Leading underscore is AG
@@ -1444,6 +1452,35 @@ export class SplitGrid {
     }
   }
 
+  /**
+   * Persists a line drag the same way {@link onColumnMoved} persists a
+   * person's: `rowDragManaged` has already reordered the grid's own row
+   * model by the time this fires, so the new position is read back off the
+   * grid and diffed against the sheet's still-unchanged stored order.
+   * `isRowValidDropPosition` keeps every drop inside the dragged line's own
+   * sheet, so the two ids being compared are always the same list.
+   */
+  protected onRowDragEnd(event: RowDragEndEvent<LedgerRowData>): void {
+    const dragged = event.node.data;
+    if (dragged?.kind !== 'item') {
+      return;
+    }
+    const sheetId = dragged.sheetId;
+    const itemId = dragged.row.item.id;
+    const order: string[] = [];
+    event.api.forEachNode((node) => {
+      if (node.data?.kind === 'item' && node.data.sheetId === sheetId) {
+        order.push(node.data.row.item.id);
+      }
+    });
+    const items = this.store.sheets().find((sheet) => sheet.id === sheetId)?.items ?? [];
+    const from = items.findIndex((item) => item.id === itemId);
+    const to = order.indexOf(itemId);
+    if (from >= 0 && to >= 0 && from !== to) {
+      this.store.moveItem(sheetId, itemId, to - from);
+    }
+  }
+
   // --- Selecting a block of cells, and the clipboard ---------------------
   //
   // Both are Enterprise in AG Grid, so both are done here. The rectangle lives
@@ -2278,7 +2315,17 @@ export class SplitGrid {
         headerName: 'Item',
         flex: 1,
         minWidth: 150,
+        cellClass: 'ledger-item',
         editable: (p) => p.data?.kind === 'item' || p.data?.kind === 'add-item',
+        // The name doubles as the drag handle — the number column beside it
+        // is only 30px, too narrow for the handle icon to sit next to the
+        // number without crowding it out. See {@link SplitGrid.onRowDragEnd}
+        // for where the drop lands.
+        rowDrag: ((p) => p.data?.kind === 'item') satisfies RowDragCallback<LedgerRowData>,
+        rowDragText: (p) => {
+          const data = p.rowNode?.data as LedgerRowData | undefined;
+          return data?.kind === 'item' ? data.row.item.name || 'Untitled item' : p.defaultTextValue;
+        },
         // Tab and Enter get their own behaviour on this row — see
         // {@link commitAddItemRow} for why AG Grid's own default handling has
         // to be suppressed here rather than reacted to afterwards. Amount's
@@ -2485,6 +2532,14 @@ export class SplitGrid {
         return '';
     }
   };
+
+  // Keeps a dragged line inside its own sheet's block: the "add" and filler
+  // rows below it aren't valid targets either, so the furthest a line can
+  // travel is just above or below another line of the same sheet.
+  protected readonly isRowValidDropPosition = ((params) =>
+    params.overNode?.data?.kind === 'item' &&
+    params.overNode.data.sheetId ===
+      params.source.data?.sheetId) satisfies IsRowValidDropPositionCallback<LedgerRowData>;
 
   /**
    * Writes a field of an item, creating the item first when the edit landed on

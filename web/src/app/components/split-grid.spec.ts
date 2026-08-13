@@ -90,6 +90,36 @@ function drag(harness: Harness, from: [string, string], to: [string, string]): v
 }
 
 /**
+ * `onRowDragEnd` and `isRowValidDropPosition`, which are `protected` so the
+ * template can reach them.
+ */
+interface RowDragHost {
+  onRowDragEnd(event: unknown): void;
+  isRowValidDropPosition(params: unknown): boolean;
+}
+
+function rowDragHost(fixture: ComponentFixture<SplitGrid>): RowDragHost {
+  return fixture.componentInstance as unknown as RowDragHost;
+}
+
+/**
+ * Stands in for the event AG Grid hands `onRowDragEnd`: real row nodes (so
+ * `.data` is genuine), but `forEachNode` reports them in `orderedRowIds`
+ * rather than the api's own order — standing in for what `rowDragManaged`
+ * would have already done to the grid's own row model by the time this
+ * fires. See {@link SplitGrid.onRowDragEnd}.
+ */
+function rowDragEnd(api: GridApi, draggedRowId: string, orderedRowIds: readonly string[]): unknown {
+  return {
+    node: api.getRowNode(draggedRowId),
+    api: {
+      forEachNode: (cb: (node: unknown) => void) =>
+        orderedRowIds.forEach((id) => cb(api.getRowNode(id))),
+    },
+  };
+}
+
+/**
  * Drags the fill handle from the cell at a selection's own corner out to
  * another cell, and lets go — the handle's own hit-test is real pixel
  * geometry with nothing to unit-test, so `startFill` is called directly, the
@@ -704,6 +734,62 @@ describe('the ledger grid', () => {
 
       expect(api.getSelectedNodes().length).toBe(0);
       expect(header().getAttribute('aria-label')).toBe('Tick every line');
+    });
+  });
+
+  describe('reordering lines', () => {
+    it('moves a dragged line to wherever it was dropped within its own sheet', async () => {
+      const { fixture, api, store } = await grid();
+      const ids = store.sheets()[0].items.map((item) => item.id);
+      // Beer, Pizza, Burger, Steak, Coke — drag Steak to the front.
+      const dropped = [ids[3], ids[0], ids[1], ids[2], ids[4]];
+
+      rowDragHost(fixture).onRowDragEnd(
+        rowDragEnd(
+          api,
+          `item:${ids[3]}`,
+          dropped.map((id) => `item:${id}`),
+        ),
+      );
+      await settle(fixture);
+
+      expect(store.sheets()[0].items.map((item) => item.id)).toEqual(dropped);
+    });
+
+    it('leaves no undo step when a line is dropped back where it started', async () => {
+      const { fixture, api, store } = await grid();
+      const ids = store.sheets()[0].items.map((item) => item.id);
+
+      rowDragHost(fixture).onRowDragEnd(
+        rowDragEnd(
+          api,
+          `item:${ids[0]}`,
+          ids.map((id) => `item:${id}`),
+        ),
+      );
+      await settle(fixture);
+
+      expect(store.sheets()[0].items.map((item) => item.id)).toEqual(ids);
+      const undoBtn = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+        '.toolbar-btn[title="Undo (Ctrl+Z)"]',
+      )!;
+      expect(undoBtn.disabled).toBe(true);
+    });
+
+    it('only allows a drop onto another line in the same sheet', async () => {
+      const { fixture, api, store } = await grid();
+      const firstSheet = store.sheets()[0];
+      const secondSheet = store.addSheet('Taxi');
+      store.addItem(secondSheet.id, 'Ride', 20);
+      await settle(fixture);
+
+      const host = rowDragHost(fixture);
+      const source = api.getRowNode(`item:${firstSheet.items[0].id}`);
+      const valid = (overNode: unknown) => host.isRowValidDropPosition({ source, overNode });
+
+      expect(valid(api.getRowNode(`item:${firstSheet.items[1].id}`))).toBe(true);
+      expect(valid(api.getRowNode(`item:${store.sheets()[1].items[0].id}`))).toBe(false);
+      expect(valid(api.getRowNode(`add-item:${firstSheet.id}`))).toBe(false);
     });
   });
 
