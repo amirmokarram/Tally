@@ -651,23 +651,6 @@ const money = new MoneyPipe();
       outline: none !important;
     }
 
-    /* AG Grid draws its own focus ring as a border, not an outline, in this
-       theme — a 1px navy border, the same rule as the editing cell's own
-       above, gated the same way on real DOM focus (focus-within, not just
-       the ag-cell-focus class — see the ledger-index rule above for why
-       that gate matters: without it, a cell's own normal border would stay
-       transparent long after focus itself had moved on). Item, Amount and
-       every person column already draw this app's own ring instead — the
-       ledger-selected rule's inset box-shadow — the moment a cell is
-       focused, since a plain click both focuses and selects it; AG Grid's
-       own ring on top of that is the same doubled border the editing cell
-       had, just for the plain, non-editing case. Cells can still be focused
-       and keyboard-navigated — Ctrl+Z/Y, Delete and Copy/Paste all depend
-       on that — only the ring itself is dropped. */
-    :host ::ng-deep .ag-cell-focus:focus-within {
-      border-color: transparent !important;
-    }
-
     /* The index column is 30 pixels wide, and AG Grid's own padding either
        side leaves the hatch short of the column's real edges. */
     :host ::ng-deep .ledger-add-row-index {
