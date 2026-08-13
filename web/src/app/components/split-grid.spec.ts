@@ -876,6 +876,89 @@ describe('the ledger grid', () => {
   });
 
   /**
+   * Rendering is normally AG Grid's own problem (see the top of this file) —
+   * but a selected cell's own ring (`.ledger-selected`), the fill handle's
+   * own corner square, and AG Grid's native editing chrome (on both the cell
+   * *and*, independently, the input inside it) have all in turn stacked into
+   * a doubled or rounded border the moment a selected line is double-clicked
+   * into its editor. Real assertions on real computed styles, in a real
+   * browser (Karma's Chrome launcher, not jsdom) — the only way anything
+   * here actually proves what is drawn rather than what the DOM merely says.
+   */
+  describe('editing a selected cell', () => {
+    function editingCell(fixture: ComponentFixture<SplitGrid>): HTMLElement {
+      return (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
+        '.ag-cell-inline-editing',
+      )!;
+    }
+
+    /** Selects, then edits, the way a real double-click does both at once. */
+    async function selectAndEdit(harness: Harness, rowId: string, colId: string): Promise<void> {
+      drag(harness, [rowId, colId], [rowId, colId]);
+      await settle(harness.fixture);
+      harness.api.startEditingCell({
+        rowIndex: harness.api.getRowNode(rowId)!.rowIndex!,
+        colKey: colId,
+      });
+      await settle(harness.fixture);
+    }
+
+    for (const [colId, label] of [
+      ['item', 'Item'],
+      ['amount', 'Amount'],
+    ] as const) {
+      it(`draws a single flat, square border around a selected, editing ${label} cell`, async () => {
+        const harness = await grid();
+        const rowId = `item:${harness.store.sheets()[0].items[0].id}`;
+
+        await selectAndEdit(harness, rowId, colId);
+
+        const cell = editingCell(harness.fixture);
+        const cellStyle = getComputedStyle(cell);
+        // The cell's own edit border is the one ring this should draw —
+        // square, flat, and not doubled by the selection ring underneath it.
+        expect(cellStyle.borderRadius).toBe('0px');
+        expect(cellStyle.boxShadow).toBe('none');
+
+        const input = cell.querySelector('input')!;
+        const inputStyle = getComputedStyle(input);
+        // AG Grid gives the input this same rounded, glowing chrome a second
+        // time, independently of the cell's own — left alone, flattening
+        // only the cell leaves a rounded input floating inside a square one.
+        expect(inputStyle.border).toBe('0px none rgb(22, 35, 58)');
+        expect(inputStyle.borderRadius).toBe('0px');
+        expect(inputStyle.boxShadow).toBe('none');
+      });
+    }
+
+    it('draws no fill-handle square on a cell that is being edited', async () => {
+      const harness = await grid();
+      const rowId = `item:${harness.store.sheets()[0].items[0].id}`;
+
+      await selectAndEdit(harness, rowId, 'item');
+
+      const cell = editingCell(harness.fixture);
+      expect(cell.classList.contains('ledger-fill-handle')).toBe(true);
+      expect(getComputedStyle(cell, '::after').content).toBe('none');
+    });
+
+    it('still draws the selection ring and fill-handle square once editing ends', async () => {
+      const harness = await grid();
+      const rowId = `item:${harness.store.sheets()[0].items[0].id}`;
+
+      await selectAndEdit(harness, rowId, 'item');
+      harness.api.stopEditing();
+      await settle(harness.fixture);
+
+      const cell = (harness.fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
+        '.ledger-item.ledger-selected',
+      )!;
+      expect(getComputedStyle(cell).boxShadow).toContain('inset');
+      expect(getComputedStyle(cell, '::after').content).not.toBe('none');
+    });
+  });
+
+  /**
    * The sheet's own settings, in its cell. Everything here used to need the
    * panel; the panel is still the long form, but naming a sheet and charging it
    * are now boxes in the block heading, like a person's name in their header.

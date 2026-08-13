@@ -799,8 +799,13 @@ const money = new MoneyPipe();
     }
 
     /* The selected block. An inset ring rather than a fill, so the paid and
-       unassigned colours underneath still read through it. */
-    :host ::ng-deep .ledger-selected {
+       unassigned colours underneath still read through it. Dropped once the
+       cell is showing its editor: AG Grid draws its own border around an
+       editing cell, and the editor's own input carries a focus ring of its
+       own too — both already the same navy-700 this ring uses, so left on
+       top of them it reads as one thick, doubled border rather than the
+       thin single one this is everywhere else. */
+    :host ::ng-deep .ledger-selected:not(.ag-cell-inline-editing) {
       box-shadow: inset 0 0 0 1px var(--navy-700);
     }
 
@@ -813,7 +818,10 @@ const money = new MoneyPipe();
       position: relative;
     }
 
-    :host ::ng-deep .ledger-fill-handle::after {
+    /* Not drawn on an editing cell: there is nothing to drag-fill while the
+       cell holds a text editor rather than a value, so the square left over
+       from before the double-click just reads as one more stray border. */
+    :host ::ng-deep .ledger-fill-handle:not(.ag-cell-inline-editing)::after {
       content: '';
       position: absolute;
       right: -1px;
@@ -823,6 +831,30 @@ const money = new MoneyPipe();
       background: var(--navy-700);
       border: 1px solid var(--surface);
       cursor: crosshair;
+    }
+
+    /* AG Grid's own editing-cell chrome — rounded corners plus a drop
+       shadow — is the only rounded, shadowed thing anywhere in this grid;
+       every other border here is square, flat and 1px. Flattened to match:
+       the cell's own border is cue enough that it holds an editor without
+       AG Grid's own default styling standing out against the rest of the
+       sheet. \`!important\` for the same reason as the other overrides
+       above — AG Grid's own rule matches the same class. */
+    :host ::ng-deep .ag-cell-inline-editing {
+      border-radius: 0 !important;
+      box-shadow: none !important;
+    }
+
+    /* The input AG Grid drops inside an editing cell carries this same
+       rounded-corner-plus-glow chrome a second time, independently of the
+       cell's own — flattening the cell above left a rounded, glowing input
+       sitting inside an otherwise square cell, which reads worse than the
+       doubled border it replaced. The cell's own flat 1px border above is
+       cue enough that it holds an editor; the input needs none of its own. */
+    :host ::ng-deep .ag-cell-inline-editing input {
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
     }
 
     /* AG Grid's own scrollbar element, not the browser's native one on the
