@@ -85,11 +85,16 @@ function pressKey(
 }
 
 /** Stands in for the cell event AG Grid hands the two mouse handlers. */
-function onCell(api: GridApi, rowId: string, colId: string, shiftKey = false): unknown {
+function onCell(
+  api: GridApi,
+  rowId: string,
+  colId: string,
+  modifiers: { shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean } = {},
+): unknown {
   return {
     node: api.getRowNode(rowId),
     column: { getColId: () => colId },
-    event: new MouseEvent('mousedown', { shiftKey }),
+    event: new MouseEvent('mousedown', modifiers),
   };
 }
 
@@ -705,10 +710,14 @@ describe('the ledger grid', () => {
       expect(api.getSelectedNodes().length).toBe(0);
     });
 
-    it('ticks a line from its own line number, and drops the tick the same way', async () => {
+    /** Row ids as `getSelectedNodes` would return them, in no particular order. */
+    function selectedIds(api: GridApi): string[] {
+      return api.getSelectedNodes().map((n) => n.id!).sort();
+    }
+
+    it('ticks a line from its own line number, replacing whatever was ticked before', async () => {
       const { fixture, api, store } = await grid();
-      const sheet = store.sheets()[0];
-      const items = sheet.items;
+      const items = store.sheets()[0].items;
       const sel = selecting(fixture);
 
       sel.onCellMouseDown(onCell(api, `item:${items[0].id}`, 'index'));
@@ -717,15 +726,59 @@ describe('the ledger grid', () => {
         jasmine.objectContaining({ kind: 'item' }),
       ]);
 
+      // A plain click on a different line's number moves the tick there
+      // instead of adding to it — the usual row-picker convention, not the
+      // checkbox-column toggle it replaced.
       sel.onCellMouseDown(onCell(api, `item:${items[1].id}`, 'index'));
       await settle(fixture);
-      expect(api.getSelectedNodes().length).toBe(2);
+      expect(selectedIds(api)).toEqual([`item:${items[1].id}`]);
 
-      // Clicking a ticked line's own number drops it again, the same way the
-      // box it replaced would have.
+      // Clicking the same line's number again is still a plain click: it
+      // stays ticked rather than toggling off.
+      sel.onCellMouseDown(onCell(api, `item:${items[1].id}`, 'index'));
+      await settle(fixture);
+      expect(selectedIds(api)).toEqual([`item:${items[1].id}`]);
+    });
+
+    it('adds or drops a single line with Ctrl/Cmd+click, leaving the rest of the tick alone', async () => {
+      const { fixture, api, store } = await grid();
+      const items = store.sheets()[0].items;
+      const sel = selecting(fixture);
+
       sel.onCellMouseDown(onCell(api, `item:${items[0].id}`, 'index'));
       await settle(fixture);
-      expect(api.getSelectedNodes().length).toBe(1);
+
+      sel.onCellMouseDown(onCell(api, `item:${items[2].id}`, 'index', { ctrlKey: true }));
+      await settle(fixture);
+      expect(selectedIds(api)).toEqual([`item:${items[0].id}`, `item:${items[2].id}`].sort());
+
+      // Ctrl/Cmd+click on an already-ticked line drops just that one.
+      sel.onCellMouseDown(onCell(api, `item:${items[0].id}`, 'index', { metaKey: true }));
+      await settle(fixture);
+      expect(selectedIds(api)).toEqual([`item:${items[2].id}`]);
+    });
+
+    it('ticks every line between two line numbers with Shift+click', async () => {
+      const { fixture, api, store } = await grid();
+      const items = store.sheets()[0].items;
+      const sel = selecting(fixture);
+
+      // The anchor a Shift+click extends from is the last plain (or
+      // Ctrl/Cmd) click — not touched by the Shift+click itself.
+      sel.onCellMouseDown(onCell(api, `item:${items[0].id}`, 'index'));
+      await settle(fixture);
+
+      sel.onCellMouseDown(onCell(api, `item:${items[3].id}`, 'index', { shiftKey: true }));
+      await settle(fixture);
+      expect(selectedIds(api)).toEqual(
+        [0, 1, 2, 3].map((i) => `item:${items[i].id}`).sort(),
+      );
+
+      // A second Shift+click from the same anchor can shrink the range
+      // instead of re-anchoring to where the first one landed.
+      sel.onCellMouseDown(onCell(api, `item:${items[1].id}`, 'index', { shiftKey: true }));
+      await settle(fixture);
+      expect(selectedIds(api)).toEqual([0, 1].map((i) => `item:${items[i].id}`).sort());
     });
 
     it('ticks every line from the line number header, and drops them all the same way', async () => {
