@@ -65,12 +65,23 @@ function focusCell(api: GridApi, rowId: string, colId = 'item'): void {
  * what a keystroke in the editor actually produces, so it is the only way to
  * exercise the suppression itself.
  */
-function pressKey(fixture: ComponentFixture<SplitGrid>, key: 'Tab' | 'Enter'): void {
+function pressKey(
+  fixture: ComponentFixture<SplitGrid>,
+  key: 'Tab' | 'Enter' | 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight',
+  options?: { shiftKey?: boolean },
+): void {
   const root = fixture.nativeElement as HTMLElement;
   const target =
     root.querySelector<HTMLElement>('.ag-cell-inline-editing input') ??
     root.querySelector<HTMLElement>('.ag-cell-focus')!;
-  target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+  target.dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key,
+      shiftKey: options?.shiftKey ?? false,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
 }
 
 /** Stands in for the cell event AG Grid hands the two mouse handlers. */
@@ -1358,6 +1369,121 @@ describe('the ledger grid', () => {
 
       expect(harness.store.sheets()[0].items.length).toBe(before);
       expect(harness.store.sheets()[0].items.at(-1)!.name).toBe('Last line');
+    });
+  });
+
+  /**
+   * The selection block used to only move from a mouse — {@link
+   * SplitGrid.onCellFocused}'s own bounce-away logic left it behind on
+   * whatever cell was last clicked while the arrow keys moved AG Grid's own
+   * focus on without it, so the ring stayed put and a later copy/paste read
+   * the wrong cell. Excel's own arrow keys restart the block at wherever
+   * focus lands, and Shift holds the anchor and drags just the far corner —
+   * {@link SplitGrid.onCellKeyDown} is what makes the two match, off the real
+   * `(cellKeyDown)` output rather than `(cellFocused)`: `navigateTo`, AG
+   * Grid's own arrow-key handler, does not thread the keyboard event onto
+   * `cellFocused` the way a click or a Tab does, so there is nothing there to
+   * tell a keyboard-driven move apart from a mouse one that already set the
+   * selection itself.
+   */
+  describe('arrow-key selection', () => {
+    it('never lets a keyboard-driven focus move reach the header row', async () => {
+      const harness = await grid();
+      const { fixture, api, store } = harness;
+      const item = store.sheets()[0].items[0];
+
+      focusCell(api, `item:${item.id}`, 'item');
+      pressKey(fixture, 'ArrowUp');
+      await settle(fixture);
+
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('.ag-header-cell-focus'),
+      ).toBeNull();
+    });
+
+    it('stops at Item rather than reaching the Sheet column on the left', async () => {
+      const harness = await grid();
+      const { fixture, api, store } = harness;
+      const item = store.sheets()[0].items[0];
+
+      focusCell(api, `item:${item.id}`, 'item');
+      pressKey(fixture, 'ArrowLeft');
+      await settle(fixture);
+
+      expect(api.getFocusedCell()?.column.getColId()).toBe('item');
+    });
+
+    it('stops at the sheet’s last real line rather than reaching the add-item row below', async () => {
+      const harness = await grid();
+      const { fixture, api, store } = harness;
+      const items = store.sheets()[0].items;
+      const last = items.at(-1)!;
+
+      focusCell(api, `item:${last.id}`, 'item');
+      pressKey(fixture, 'ArrowDown');
+      await settle(fixture);
+
+      const focused = api.getFocusedCell();
+      expect(focused && api.getDisplayedRowAtIndex(focused.rowIndex)?.id).toBe(`item:${last.id}`);
+    });
+
+    it('follows a plain arrow key to the cell it lands on', async () => {
+      const harness = await grid();
+      const { fixture, api, store } = harness;
+      const items = store.sheets()[0].items;
+
+      focusCell(api, `item:${items[0].id}`, 'item');
+      pressKey(fixture, 'ArrowDown');
+      await settle(fixture);
+
+      expect(selectedCells(fixture)).toEqual([`item:${items[1].id}/item`]);
+    });
+
+    it('moves across columns on a plain Left/Right arrow', async () => {
+      const harness = await grid();
+      const { fixture, api, store } = harness;
+      const item = store.sheets()[0].items[0];
+
+      focusCell(api, `item:${item.id}`, 'item');
+      pressKey(fixture, 'ArrowRight');
+      await settle(fixture);
+
+      expect(selectedCells(fixture)).toEqual([`item:${item.id}/amount`]);
+    });
+
+    it('extends the block on a Shift+arrow instead of moving it', async () => {
+      const harness = await grid();
+      const { fixture, api, store } = harness;
+      const items = store.sheets()[0].items;
+
+      focusCell(api, `item:${items[0].id}`, 'item');
+      pressKey(fixture, 'ArrowDown');
+      await settle(fixture);
+
+      pressKey(fixture, 'ArrowDown', { shiftKey: true });
+      await settle(fixture);
+
+      // The anchor from the plain arrow above stays put — Shift only grows
+      // the block down to the new row, it does not restart it there.
+      expect(selectedCells(fixture).sort()).toEqual(
+        [`item:${items[1].id}/item`, `item:${items[2].id}/item`].sort(),
+      );
+    });
+
+    it('drops back to a single cell on the next plain arrow after Shift extended it', async () => {
+      const harness = await grid();
+      const { fixture, api, store } = harness;
+      const items = store.sheets()[0].items;
+
+      focusCell(api, `item:${items[0].id}`, 'item');
+      pressKey(fixture, 'ArrowDown');
+      pressKey(fixture, 'ArrowDown', { shiftKey: true });
+      await settle(fixture);
+
+      pressKey(fixture, 'ArrowDown');
+      await settle(fixture);
+
+      expect(selectedCells(fixture)).toEqual([`item:${items[3].id}/item`]);
     });
   });
 
