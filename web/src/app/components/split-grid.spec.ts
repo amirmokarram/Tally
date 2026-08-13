@@ -931,6 +931,25 @@ describe('the ledger grid', () => {
       });
     }
 
+    it('draws only its own selection ring, not AG Grid’s own focus border too, on a plain focused cell', async () => {
+      const harness = await grid();
+      const rowId = `item:${harness.store.sheets()[0].items[0].id}`;
+
+      // A single click both selects (this app's own ring) and focuses (AG
+      // Grid's own) the same cell — the drag helper does the first, real
+      // DOM focus (not just AG Grid's internal bookkeeping) the second.
+      drag(harness, [rowId, 'item'], [rowId, 'item']);
+      focusCell(harness.api, rowId, 'item');
+      await settle(harness.fixture);
+
+      const cell = (harness.fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
+        '.ledger-item',
+      )!;
+      const cellStyle = getComputedStyle(cell);
+      expect(cellStyle.borderColor).toBe('rgba(0, 0, 0, 0)');
+      expect(cellStyle.boxShadow).toContain('inset');
+    });
+
     it('draws no fill-handle square on a cell that is being edited', async () => {
       const harness = await grid();
       const rowId = `item:${harness.store.sheets()[0].items[0].id}`;
