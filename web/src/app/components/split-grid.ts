@@ -1262,6 +1262,15 @@ export class SplitGrid {
   /** Where the fill handle is being dragged to, while {@link fillDragging}. */
   private readonly fillPreview = signal<CellRef | null>(null);
 
+  /**
+   * The line a Shift+click on the line number column extends a range from —
+   * the last line ticked by a plain or Ctrl/Cmd click there. Not touched by
+   * a Shift+click itself, so a second one from the same starting point can
+   * still grow or shrink the range instead of re-anchoring to wherever the
+   * first Shift+click landed.
+   */
+  private rowSelectionAnchor: IRowNode<LedgerRowData> | null = null;
+
   private api: GridApi | null = null;
 
   /**
@@ -1580,10 +1589,23 @@ export class SplitGrid {
     // The line number column holds no pasteable value, so a click there ticks
     // the line instead of starting a cell block — the same job the removed
     // checkbox column used to do, just moved onto a column that already has
-    // its own reason to be clicked.
+    // its own reason to be clicked. Plain, Shift, and Ctrl/Cmd clicks follow
+    // the usual row-picker convention (Explorer, Gmail, spreadsheets): plain
+    // replaces the tick with just this line, Shift extends it as a range from
+    // {@link rowSelectionAnchor}, and Ctrl/Cmd toggles this one line without
+    // touching the rest.
     if (event.column.getColId() === 'index') {
       if (event.node.data?.kind === 'item') {
-        event.node.setSelected(!event.node.isSelected());
+        const native = event.event as MouseEvent | null;
+        if (native?.shiftKey && this.rowSelectionAnchor?.data?.kind === 'item') {
+          this.selectRowRange(this.rowSelectionAnchor, event.node);
+        } else if (native?.ctrlKey || native?.metaKey) {
+          event.node.setSelected(!event.node.isSelected());
+          this.rowSelectionAnchor = event.node;
+        } else {
+          event.node.setSelected(true, true);
+          this.rowSelectionAnchor = event.node;
+        }
       }
       return;
     }
@@ -1601,6 +1623,27 @@ export class SplitGrid {
     const anchor = ((event.event as MouseEvent | null)?.shiftKey && this.selection()?.anchor) || ref;
     this.select({ anchor, head: ref });
     this.dragging = true;
+  }
+
+  /**
+   * Ticks every line between `anchor` and `target`, inclusive, replacing
+   * whatever was ticked before — the range a Shift+click on the line number
+   * column selects. Rows in between that are not lines (the add-item row,
+   * a sheet heading) are skipped rather than breaking the range.
+   */
+  private selectRowRange(anchor: IRowNode<LedgerRowData>, target: IRowNode<LedgerRowData>): void {
+    if (anchor.rowIndex == null || target.rowIndex == null) {
+      return;
+    }
+    const [start, end] =
+      anchor.rowIndex <= target.rowIndex ? [anchor.rowIndex, target.rowIndex] : [target.rowIndex, anchor.rowIndex];
+    this.api?.deselectAll();
+    for (let i = start; i <= end; i++) {
+      const node = this.api?.getDisplayedRowAtIndex(i);
+      if (node?.data?.kind === 'item') {
+        node.setSelected(true);
+      }
+    }
   }
 
   protected onCellMouseOver(event: CellMouseOverEvent<LedgerRowData>): void {
