@@ -45,6 +45,7 @@ import {
   CellEditingStoppedEvent,
   CellFocusedEvent,
   CellKeyDownEvent,
+  CellPosition,
   CellSpanModule,
   CellStyleModule,
   ClientSideRowModelApiModule,
@@ -1687,6 +1688,16 @@ export class SplitGrid {
    * `getFocusedCell` already reflects wherever the press landed, filler
    * rows and the index/add-person columns already skipped by
    * `suppressNavigable`, with no need to re-walk the grid to find it.
+   *
+   * The add-item row is deliberately left navigable (Item/Amount only —
+   * see {@link columns}) so a plain arrow key can still land on it the way
+   * clicking it always could: it is where a new line starts. Held Shift is
+   * the one case that has to skip it anyway, through {@link
+   * skipAddItemRow} — a block being dragged out for a copy or a fill has
+   * nothing to reach for on a row with no line on it yet, so growing the
+   * block onto it would just be a cell a paste would silently do nothing
+   * with. `suppressNavigable` cannot make that distinction itself, since it
+   * is asked before AG Grid knows whether the key held Shift.
    */
   protected onCellKeyDown(
     event: CellKeyDownEvent<LedgerRowData> | FullWidthCellKeyDownEvent<LedgerRowData>,
@@ -1695,9 +1706,15 @@ export class SplitGrid {
     if (!native || !SplitGrid.ARROW_KEYS.has(native.key)) {
       return;
     }
-    const focused = this.api?.getFocusedCell();
+    let focused = this.api?.getFocusedCell();
     if (!focused) {
       return;
+    }
+    if (native.shiftKey) {
+      focused = this.skipAddItemRow(focused, native.key);
+      if (!focused) {
+        return;
+      }
     }
     const node = this.api?.getDisplayedRowAtIndex(focused.rowIndex);
     const ref = node && this.cellRef(node, focused.column.getColId());
@@ -1706,6 +1723,48 @@ export class SplitGrid {
     }
     const anchor = (native.shiftKey && this.selection()?.anchor) || ref;
     this.select({ anchor, head: ref });
+  }
+
+  /**
+   * Carries a Shift-held focus on past the add-item row, in whichever
+   * direction it was already heading, to the next real line — or, if the
+   * row it landed on is not that row at all, hands the position straight
+   * back unchanged.
+   *
+   * Only Up and Down ever need to move again: the add-item row is a whole
+   * row, so Left and Right only ever reach it by already sitting on it, not
+   * by arriving there fresh, and this is only asked to react to a fresh
+   * arrival (see {@link onCellKeyDown}). Moves AG Grid's own focus along
+   * with the return value, through `setFocusedCell` — the block this feeds
+   * is not the only thing reading "where the cursor is": leaving the two
+   * disagreeing would strand a later Tab or Enter on a row this already
+   * decided has nothing on it.
+   *
+   * Returns null at the edge of the grid, the same as running out of rows
+   * for a plain arrow key would — nothing further to land on, so the block
+   * simply stops growing rather than jumping somewhere unrelated.
+   */
+  private skipAddItemRow(cell: CellPosition, key: string): CellPosition | null {
+    const api = this.api;
+    const node = api?.getDisplayedRowAtIndex(cell.rowIndex);
+    if (!api || node?.data?.kind !== 'add-item') {
+      return cell;
+    }
+    const step = key === 'ArrowDown' ? 1 : key === 'ArrowUp' ? -1 : 0;
+    if (step === 0) {
+      return cell;
+    }
+    let rowIndex = cell.rowIndex + step;
+    let next = api.getDisplayedRowAtIndex(rowIndex);
+    while (next && next.data?.kind !== 'item') {
+      rowIndex += step;
+      next = api.getDisplayedRowAtIndex(rowIndex);
+    }
+    if (!next) {
+      return null;
+    }
+    api.setFocusedCell(rowIndex, cell.column.getColId());
+    return { ...cell, rowIndex };
   }
 
   /**
@@ -2435,14 +2494,6 @@ export class SplitGrid {
         minWidth: 150,
         cellClass: 'ledger-item',
         editable: (p) => p.data?.kind === 'item' || p.data?.kind === 'add-item',
-        // Tab and the arrow keys reach only a real line's own Item/Amount —
-        // typing a new one is still a plain mouse click away (AG Grid
-        // focuses whatever the pointer landed on before this ever gets a
-        // say), but keyboard navigation skips the add-item row the same way
-        // it already skips the filler beneath a short block, rather than
-        // wandering onto a row with nothing yet to read.
-        suppressNavigable: ((p) =>
-          p.data?.kind !== 'item') satisfies SuppressNavigableCallback<LedgerRowData>,
         // The name doubles as the drag handle — the number column beside it
         // is only 30px, too narrow for the handle icon to sit next to the
         // number without crowding it out. See {@link SplitGrid.onRowDragEnd}
@@ -2500,9 +2551,6 @@ export class SplitGrid {
         // below, set it independently.
         headerClass: 'ledger-amount-header',
         editable: (p) => p.data?.kind === 'item' || p.data?.kind === 'add-item',
-        // Same reasoning as Item's own `suppressNavigable`, just above.
-        suppressNavigable: ((p) =>
-          p.data?.kind !== 'item') satisfies SuppressNavigableCallback<LedgerRowData>,
         // The other half of the Item column's own `suppressKeyboardEvent` —
         // see {@link commitAddItemRow}. A new item can start from either
         // field, so committing an amount here goes through the same

@@ -1413,18 +1413,58 @@ describe('the ledger grid', () => {
       expect(api.getFocusedCell()?.column.getColId()).toBe('item');
     });
 
-    it('stops at the sheet’s last real line rather than reaching the add-item row below', async () => {
+    it('reaches the add-item row on a plain arrow, the same as a click always could', async () => {
       const harness = await grid();
       const { fixture, api, store } = harness;
-      const items = store.sheets()[0].items;
-      const last = items.at(-1)!;
+      const sheet = store.sheets()[0];
+      const last = sheet.items.at(-1)!;
 
       focusCell(api, `item:${last.id}`, 'item');
       pressKey(fixture, 'ArrowDown');
       await settle(fixture);
 
       const focused = api.getFocusedCell();
-      expect(focused && api.getDisplayedRowAtIndex(focused.rowIndex)?.id).toBe(`item:${last.id}`);
+      expect(focused && api.getDisplayedRowAtIndex(focused.rowIndex)?.id).toBe(
+        `add-item:${sheet.id}`,
+      );
+    });
+
+    it('skips the add-item row on a Shift+arrow instead of growing the block onto it', async () => {
+      const harness = await grid();
+      const { fixture, api, store } = harness;
+      const sheet = store.sheets()[0];
+      const last = sheet.items.at(-1)!;
+
+      focusCell(api, `item:${last.id}`, 'item');
+      pressKey(fixture, 'ArrowDown', { shiftKey: true });
+      await settle(fixture);
+
+      // Nothing past the add-item row to grow onto in this sample sheet, so
+      // the block stays put — the add-item row itself is never in it.
+      expect(selectedCells(fixture)).toEqual([]);
+      const focused = api.getFocusedCell();
+      expect(focused && api.getDisplayedRowAtIndex(focused.rowIndex)?.id).toBe(
+        `add-item:${sheet.id}`,
+      );
+    });
+
+    it('carries a Shift+arrow on to the next sheet’s own first line, past its add-item row', async () => {
+      const harness = await grid();
+      const { fixture, api, store } = harness;
+      const sheet1 = store.sheets()[0];
+      const last = sheet1.items.at(-1)!;
+      const sheet2 = store.addSheet('Second sheet');
+      const created = store.addItem(sheet2.id, 'Snack', 3);
+      await settle(fixture);
+
+      focusCell(api, `item:${last.id}`, 'item');
+      pressKey(fixture, 'ArrowDown', { shiftKey: true });
+      await settle(fixture);
+
+      const focused = api.getFocusedCell();
+      expect(focused && api.getDisplayedRowAtIndex(focused.rowIndex)?.id).toBe(
+        `item:${created.id}`,
+      );
     });
 
     it('follows a plain arrow key to the cell it lands on', async () => {
