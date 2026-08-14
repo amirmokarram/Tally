@@ -24,6 +24,26 @@
       <div class="toolbar-cluster cluster-1">
         <span class="toolbar-divider" #cluster></span>
         <button
+          class="toolbar-btn"
+          type="button"
+          title="Add a sheet or a person"
+          (click)="toggleAddMenu($event)"
+        >
+          <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false">
+            <path
+              d="M8 3.25v9.5M3.25 8h9.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+          </svg>
+          <span class="btn-label">Add</span>
+          <svg class="toolbar-caret" viewBox="0 0 10 6" width="8" height="5" aria-hidden="true" focusable="false">
+            <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+        <button
           class="toolbar-btn danger"
           type="button"
           title="Delete ticked lines"
@@ -332,6 +352,20 @@
   />
 }
 
+<!-- The Add toolbar button's own dropdown — anchored under whichever button
+     opened it, see `toggleAddMenu`, on the host. -->
+@if (addMenuAnchor(); as pos) {
+  <div class="toolbar-menu-backdrop" (click)="closeAddMenu()"></div>
+  <div class="toolbar-menu" [style.left.px]="pos.x" [style.top.px]="pos.y">
+    <button class="btn ghost" type="button" title="Add expense sheet" (click)="addSheet(); closeAddMenu()">
+      Add Sheet
+    </button>
+    <button class="btn ghost" type="button" title="Add person" (click)="addPerson(); closeAddMenu()">
+      Add Person
+    </button>
+  </div>
+}
+
 <!-- The Shares toolbar button's own dropdown — anchored under whichever
      button opened it, see `toggleShareMenu`, on the host. -->
 @if (shareMenuAnchor(); as pos) {
@@ -366,6 +400,26 @@
   <div class="toolbar-menu-backdrop" (click)="closeOverflowMenu()"></div>
   <div class="toolbar-menu overflow-menu" [style.right.px]="pos.right" [style.top.px]="pos.top">
     @if (overflowedClusters().has(1)) {
+      <button
+        class="btn ghost"
+        type="button"
+        title="Add a sheet or a person"
+        (click)="closeOverflowMenu(); toggleAddMenu($event)"
+      >
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false">
+          <path
+            d="M8 3.25v9.5M3.25 8h9.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+          />
+        </svg>
+        Add
+        <svg class="menu-submenu-caret" viewBox="0 0 10 6" width="8" height="5" aria-hidden="true" focusable="false">
+          <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
       <button
         class="btn ghost"
         type="button"

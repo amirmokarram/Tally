@@ -233,11 +233,11 @@ interface RowClipboardEntry {
     // A drag can end anywhere, including outside the grid.
     '(document:mouseup)': 'endDrag()',
     '(document:keydown.escape)': 'onEscape()',
-    // Both menus snapshot a fixed-position anchor (and the overflow menu
-    // also snapshots which groups are collapsed) when they open — a resize
-    // would leave either stale rather than tracking the button that moved,
-    // so it closes them instead of trying to re-anchor.
-    '(window:resize)': 'closeShareMenu(); closeOverflowMenu()',
+    // All three menus snapshot a fixed-position anchor (and the overflow
+    // menu also snapshots which groups are collapsed) when they open — a
+    // resize would leave any of them stale rather than tracking the button
+    // that moved, so it closes them instead of trying to re-anchor.
+    '(window:resize)': 'closeAddMenu(); closeShareMenu(); closeOverflowMenu()',
     '[class.dragging]': 'dragging || fillDragging',
     '[class.filling]': 'fillDragging',
     '[class.no-row-hover]': '!settings.rowHoverEnabled()',
@@ -383,11 +383,13 @@ interface RowClipboardEntry {
        This one was 620px for a long time before Delete and Shares joined
        the row (see \`.toolbar-cluster\`, below) without it being re-measured
        against them — the same gap the breakpoints below already had to be
-       fixed for, just five groups' worth wider: up to 251px of the labeled
-       row could overflow, scrolled invisibly out of view behind the
-       (invisible) escape-hatch scrollbar, before label-shedding ever got a
-       chance to reclaim the space. */
-    @container (max-width: 940px) {
+       fixed for, just wider: up to 251px of the labeled row could overflow,
+       scrolled invisibly out of view behind the (invisible) escape-hatch
+       scrollbar, before label-shedding ever got a chance to reclaim the
+       space. Re-measure this (and every breakpoint below) whenever a button
+       is added to or removed from the row — it moved again, to 1020px,
+       when Add joined \`.cluster-1\`. */
+    @container (max-width: 1020px) {
       .toolbar-btn .btn-label {
         display: none;
       }
@@ -414,25 +416,28 @@ interface RowClipboardEntry {
        own flex row exactly as if the wrapper were not there. Four
        breakpoints, one per group, widest first — group 4 (Reorder
        Sheets/Export) goes first since it was placed last and least central,
-       group 1 (Delete/Shares) goes last since it was placed first. Each
+       group 1 (Add/Delete/Shares) goes last since it was placed first. Each
        collapses its own group into \`.toolbar-more\`'s menu instead of
        clipping or wrapping, on top of whatever narrower breakpoints already
        collapsed. Currency and Settings are deliberately untouched, the same
-       reasoning as the 620px breakpoint above: not something to hide under
+       reasoning as the 1020px breakpoint above: not something to hide under
        pressure.
 
        The numbers themselves are measured, not derived: each is the
        narrowest width at which everything down to that group still
        rendered without the row overflowing, in the icon-only state the
-       620px breakpoint already put it in, plus a margin for
+       1020px breakpoint already put it in, plus a margin for
        \`.toolbar-more\` itself, which is not on the page to measure until
        the first of these already applies. Cutting a breakpoint too close
        leaves a gap where the row genuinely overflows before it fires — a
-       real bug this once had at a single, cruder 480px cutoff: content
-       quietly scrolled out of view behind the (invisible) escape-hatch
-       scrollbar, one button at a time as the window narrowed, rather than
-       moving into the menu. */
-    @container (max-width: 540px) {
+       real bug this had twice already, at a cruder single 480px cutoff and
+       then again for the labeled row itself when Delete and Shares first
+       joined it without this number being re-measured: content quietly
+       scrolled out of view behind the (invisible) escape-hatch scrollbar,
+       one button (or one whole labeled row) at a time as the window
+       narrowed, rather than moving into the menu. Re-measure these whenever
+       a button is added to or removed from the row. */
+    @container (max-width: 600px) {
       .cluster-4 {
         display: none;
       }
@@ -442,19 +447,19 @@ interface RowClipboardEntry {
       }
     }
 
-    @container (max-width: 460px) {
+    @container (max-width: 535px) {
       .cluster-3 {
         display: none;
       }
     }
 
-    @container (max-width: 380px) {
+    @container (max-width: 405px) {
       .cluster-2 {
         display: none;
       }
     }
 
-    @container (max-width: 300px) {
+    @container (max-width: 310px) {
       .cluster-1 {
         display: none;
       }
@@ -2357,6 +2362,27 @@ export class SplitGrid {
   private readonly copiedRows = signal<{ sheetId: string; itemId: string }[]>([]);
 
   /**
+   * Where the Add dropdown (Add Sheet / Add Person) is open, in viewport
+   * coordinates — anchored under the toolbar button that opened it, the
+   * same pattern as {@link shareMenuAnchor} just below.
+   */
+  protected readonly addMenuAnchor = signal<{ x: number; y: number } | null>(null);
+
+  /** Opens the Add dropdown under the button that was clicked, or closes it if already open. */
+  protected toggleAddMenu(event: MouseEvent): void {
+    if (this.addMenuAnchor()) {
+      this.closeAddMenu();
+      return;
+    }
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.addMenuAnchor.set({ x: rect.left, y: rect.bottom + 4 });
+  }
+
+  protected closeAddMenu(): void {
+    this.addMenuAnchor.set(null);
+  }
+
+  /**
    * Where the Shares dropdown (Everyone / Clear shares) is open, in viewport
    * coordinates — anchored under the toolbar button that opened it, the same
    * way the old right-click menu was anchored under the pointer, before it
@@ -2428,10 +2454,12 @@ export class SplitGrid {
   }
 
   /**
-   * Escape's own job: close the Shares dropdown and the overflow menu, back
-   * out of a pending cut, and dismiss a Copy's own marching-ants marker.
+   * Escape's own job: close the Add and Shares dropdowns and the overflow
+   * menu, back out of a pending cut, and dismiss a Copy's own marching-ants
+   * marker.
    */
   protected onEscape(): void {
+    this.closeAddMenu();
     this.closeShareMenu();
     this.closeOverflowMenu();
     this.cancelPendingCut();
