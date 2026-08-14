@@ -311,6 +311,7 @@ interface RowClipboardEntry {
       color: var(--text-muted);
       font-size: 13px;
       font-weight: 600;
+      white-space: nowrap;
 
       svg {
         flex: none;
