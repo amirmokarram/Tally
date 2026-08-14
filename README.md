@@ -66,8 +66,8 @@ AG Grid **Community** only — MIT, no licence key. Nothing may import
   own currency, its own tax / tip / discount, and its **items**.
 - For each item, each person gets a **share**: how much they owe, and how much
   they already paid — both as ratios relative to the others on that row.
-  `1 1 1` splits evenly, `1 3 4` splits an 8-slice pizza, `1.2` means "owes one
-  share, paid two".
+  `1 1 1` splits evenly, `1 3 4` splits an 8-slice pizza, `2|1` means "owes two
+  shares, paid one" (a side that's 0 is left out: an owe-only share is just `1`).
 - Payment is recorded either **per sheet** (someone's card covered the whole
   check) or **per item** (everyone brought something different). Not both on the
   same sheet.

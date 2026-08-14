@@ -60,9 +60,15 @@ computing eighths. A blank cell means "did not benefit".
 
 The spreadsheet packed both numbers into a single cell as the decimal
 `owe.pay` — `1.2` reads "owes 1 share, paid 2". The integer part is `owe`, the
-first decimal digit is `pay`. The app keeps this notation because it is compact
-and users know it, but stores the two numbers separately (`packShare` /
-`unpackShare`).
+first decimal digit is `pay`. The app still stores the two numbers separately
+(`packShare` / `unpackShare`), the same split the decimal always encoded, but
+shows and types the cell as `owe|pay` instead: a side that is 0 is left out
+rather than spelled out (an owe-only share reads `1`, not `1|0`), and a `0.1`
+that could be misread as a fraction becomes an unambiguous `|1`. The `owe.pay`
+decimal is still accepted when typed or pasted, so muscle memory from the
+original spreadsheet carries over — but the cell's own editor now masks entry
+as `_|_` and fills in `owe|pay` as you type, so nobody has to type the `|`
+themselves. See `share-cell-editor.ts` and `parseShare` in `split-grid.ts`.
 
 ---
 
