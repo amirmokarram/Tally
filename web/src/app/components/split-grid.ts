@@ -98,7 +98,8 @@ import {
 import { TripStore } from '../core/trip-store';
 import { ReportSettings } from '../core/report-settings';
 import { MoneyPipe } from '../core/money.pipe';
-import { buildExportPayload, downloadJson, exportFileName } from '../core/trip-file';
+import { buildExportPayload, downloadJson, exportFileName, slugifyTitle } from '../core/trip-file';
+import { capturePng, saveImageFile } from '../core/report-export';
 import { packShare, Share, unpackShare } from '../models/trip.model';
 import { LedgerItemRow, LedgerRowData, buildLedgerRows, ledgerRowId } from './ledger-model';
 import {
@@ -244,10 +245,12 @@ interface RowClipboardEntry {
     // menu also snapshots which groups are collapsed) when they open — a
     // resize would leave any of them stale rather than tracking the button
     // that moved, so it closes them instead of trying to re-anchor.
-    '(window:resize)': 'closeAddMenu(); closeShareMenu(); closeOverflowMenu()',
+    '(window:resize)':
+      'closeAddMenu(); closeShareMenu(); closeExportMenu(); closeOverflowMenu()',
     '[class.dragging]': 'dragging || fillDragging',
     '[class.filling]': 'fillDragging',
     '[class.no-row-hover]': '!settings.rowHoverEnabled()',
+    '[class.exporting-png]': 'capturing()',
   },
   styles: `
     /* Fills \`main\` exactly (see app.scss) rather than sizing itself off
@@ -443,7 +446,17 @@ interface RowClipboardEntry {
        scrolled out of view behind the (invisible) escape-hatch scrollbar,
        one button (or one whole labeled row) at a time as the window
        narrowed, rather than moving into the menu. Re-measure these whenever
-       a button is added to or removed from the row. */
+       a button is added to or removed from the row.
+
+       Left unchanged, deliberately, when Save as PNG merged into Export's
+       own dropdown (group 4 is back down to two buttons): a narrower row
+       only ever needs *less* room than these numbers already give it, so
+       collapsing here is now a touch earlier than strictly necessary rather
+       than genuinely too late — confirmed by measuring the row at each of
+       the four breakpoints below with the merge in place: it fits with
+       room to spare every time, never the reverse. Safe to leave loose;
+       tightening them would need the same real re-measurement as widening
+       always has, not a guess at how much the row shrank. */
     @container (max-width: 600px) {
       .cluster-4 {
         display: none;
@@ -670,6 +683,48 @@ interface RowClipboardEntry {
        object itself, which is a plain object shared by every instance. */
     :host(.no-row-hover) ::ng-deep .ag-root-wrapper {
       --ag-row-hover-color: transparent;
+    }
+
+    /* The report, flattened for a PNG capture — see \`savePng\`. The toolbar
+       goes, and \`.report\`/\`.grid\` trade their normal viewport-clamped
+       sizing (\`height: 100%\`/\`flex: 1\`, both meant for a page that scrolls
+       internally) for their natural content size, since the whole point of
+       the capture is a full, unclipped image. \`.totals-band\`'s own
+       \`overflow-x: hidden\` — there so a wide trip's band clips the same way
+       the grid's body does, in step with \`onBodyScroll\` — is lifted for the
+       same reason: nothing left to stay in step with once the grid itself
+       has nothing to scroll. The row-drag handle, the add-sheet/add-person
+       "+" buttons and the sheet cell's own "⋯" (opens the sheet editor
+       popup — nothing to open in a still image) are pure decoration with no
+       effect on any row or column size, so a plain hide is all they need —
+       unlike the add-item rows themselves, which are filtered out of the row
+       data instead (see {@link printRows}) rather than hidden here, since
+       hiding their DOM would leave a gap rather than closing the block up,
+       and unlike the sheet cell's own *height*, which the "⋯" button sits
+       inside of but does not affect — see \`sheet-cell.ts\`'s \`isCapturing\`. */
+    :host(.exporting-png) .report-toolbar {
+      display: none;
+    }
+
+    :host(.exporting-png) .report {
+      height: auto;
+    }
+
+    :host(.exporting-png) .grid {
+      flex: none;
+      height: auto;
+      width: max-content;
+    }
+
+    :host(.exporting-png) .totals-band {
+      overflow-x: visible;
+    }
+
+    :host(.exporting-png) ::ng-deep .ag-drag-handle,
+    :host(.exporting-png) ::ng-deep app-add-sheet-header,
+    :host(.exporting-png) ::ng-deep app-add-person-header,
+    :host(.exporting-png) ::ng-deep app-sheet-cell button.more {
+      display: none;
     }
 
     /* The editor panel floats over the grid rather than inside a cell: the
@@ -1646,6 +1701,57 @@ export class SplitGrid {
     }
   }
 
+  /**
+   * The `.report` div — totals band plus grid, nothing else — captured by
+   * {@link savePng}. Toolbar, popups and the alerts overlay all sit outside
+   * it, so nothing about this ref needs to change to keep them out of frame.
+   */
+  private readonly reportRoot = viewChild<ElementRef<HTMLElement>>('reportRoot');
+
+  /**
+   * Puts the report into its flattened, print-ready shape — see the
+   * `:host(.exporting-png)` styles below, and {@link printRows} — for as long
+   * as a PNG capture is in flight. `savePng` is the only place this is
+   * written; every capturing-aware binding elsewhere just reads it.
+   */
+  protected readonly capturing = signal(false);
+
+  /**
+   * Saves the report as a PNG, named after the split.
+   *
+   * `capturing` flips the grid into its print layout — no scroll, no
+   * virtualised columns, no add-item rows (`printRows`) — and the report's
+   * own CSS out of its viewport-clamped size and into its natural one; two
+   * macrotasks give Angular and AG Grid time to actually apply that before
+   * the DOM is rasterized. A macrotask (`setTimeout`), not an animation
+   * frame: the same reasoning as `settle()` in `split-grid.spec.ts` — a
+   * `requestAnimationFrame` only fires once the tab is actually compositing,
+   * which a backgrounded or occluded one may delay far longer than this
+   * needs to wait for. The `finally` is what guarantees the grid always
+   * reverts to its normal, editable layout even if the capture or the save
+   * itself throws — a stuck-in-print-mode grid would be a far worse failure
+   * than a missing PNG.
+   */
+  protected async savePng(): Promise<void> {
+    if (this.capturing()) {
+      return;
+    }
+    const node = this.reportRoot()?.nativeElement;
+    if (!node) {
+      return;
+    }
+
+    this.capturing.set(true);
+    try {
+      await new Promise((resolve) => setTimeout(resolve));
+      await new Promise((resolve) => setTimeout(resolve));
+      const blob = await capturePng(node);
+      await saveImageFile(blob, `${slugifyTitle(this.store.title())}.png`);
+    } finally {
+      this.capturing.set(false);
+    }
+  }
+
   /** Adds a sheet with its default name and charges — no popup. */
   protected addSheet(): void {
     this.store.addSheet();
@@ -2426,6 +2532,32 @@ export class SplitGrid {
   }
 
   /**
+   * Where the Export dropdown (Save as JSON / Save as PNG) is open, in
+   * viewport coordinates — anchored under the toolbar button that opened it,
+   * the same pattern as {@link addMenuAnchor} and {@link shareMenuAnchor}.
+   * The two save formats share one toolbar slot rather than each keeping
+   * their own button: both are "export the split," and the toolbar is
+   * measured space (see the container-query breakpoints below) that a
+   * second one-off button would cost permanently for something reached for
+   * only occasionally.
+   */
+  protected readonly exportMenuAnchor = signal<{ x: number; y: number } | null>(null);
+
+  /** Opens the Export dropdown under the button that was clicked, or closes it if already open. */
+  protected toggleExportMenu(event: MouseEvent): void {
+    if (this.exportMenuAnchor()) {
+      this.closeExportMenu();
+      return;
+    }
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.exportMenuAnchor.set({ x: rect.left, y: rect.bottom + 4 });
+  }
+
+  protected closeExportMenu(): void {
+    this.exportMenuAnchor.set(null);
+  }
+
+  /**
    * Where the overflow menu is open, right-aligned under the "More actions"
    * button: unlike {@link shareMenuAnchor}, that button sits at the
    * toolbar's own right edge, so a menu grown from its *left* edge risks
@@ -2475,13 +2607,14 @@ export class SplitGrid {
   }
 
   /**
-   * Escape's own job: close the Add and Shares dropdowns and the overflow
-   * menu, back out of a pending cut, and dismiss a Copy's own marching-ants
-   * marker.
+   * Escape's own job: close the Add, Shares and Export dropdowns and the
+   * overflow menu, back out of a pending cut, and dismiss a Copy's own
+   * marching-ants marker.
    */
   protected onEscape(): void {
     this.closeAddMenu();
     this.closeShareMenu();
+    this.closeExportMenu();
     this.closeOverflowMenu();
     this.cancelPendingCut();
     this.cancelCopiedMark();
@@ -3003,6 +3136,18 @@ export class SplitGrid {
   );
 
   /**
+   * {@link rows}, minus every sheet's own add-item row — what {@link savePng}
+   * swaps in as the grid's `rowData` for as long as {@link capturing} is
+   * true. Filtered rather than hidden with CSS: an add-item row is sized and
+   * spanned as part of its sheet's block (see `sheet-cell.ts`'s height
+   * `effect()`), so hiding its DOM would leave a blank gap rather than a
+   * closed-up one — AG Grid positions rows by absolute offset, not CSS flow.
+   */
+  protected readonly printRows = computed<LedgerRowData[]>(() =>
+    this.rows().filter((row) => row.kind !== 'add-item'),
+  );
+
+  /**
    * The totals band is plain HTML, not a grid row, so its columns have to be
    * told to match the real ones by hand rather than inheriting them. Every
    * width here is copied from {@link columns} — Sheet's 70, the line number's
@@ -3083,6 +3228,7 @@ export class SplitGrid {
           // the block is `LEDGER_ROW_HEIGHT` — see `sheet-cell.ts`'s height
           // `effect()`.
           isAddRowEditing: (sheetId: string) => this.editingAddRowId() === `add-item:${sheetId}`,
+          isCapturing: () => this.capturing(),
         },
       },
       {

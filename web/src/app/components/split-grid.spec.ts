@@ -118,6 +118,17 @@ function rowDragHost(fixture: ComponentFixture<SplitGrid>): RowDragHost {
   return fixture.componentInstance as unknown as RowDragHost;
 }
 
+/** `rows`, `printRows` and `capturing`, which are `protected` so the template can reach them. */
+interface PrintCapture {
+  rows(): { kind: string }[];
+  printRows(): { kind: string }[];
+  capturing: { (): boolean; set(value: boolean): void };
+}
+
+function printCapture(fixture: ComponentFixture<SplitGrid>): PrintCapture {
+  return fixture.componentInstance as unknown as PrintCapture;
+}
+
 /**
  * Stands in for the event AG Grid hands `onRowDragEnd`: real row nodes (so
  * `.data` is genuine), but `forEachNode` reports them in `orderedRowIds`
@@ -313,12 +324,6 @@ describe('the ledger grid', () => {
    * rather than a masthead row of their own.
    */
   describe('the split header', () => {
-    function exportButton(fixture: ComponentFixture<SplitGrid>): HTMLButtonElement {
-      return (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
-        '.toolbar-btn[title="Download this split as a JSON file"]',
-      )!;
-    }
-
     it('renames the split as the title is typed', async () => {
       const { fixture, store } = await grid();
       const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
@@ -340,14 +345,78 @@ describe('the ledger grid', () => {
 
       expect(store.baseCurrency()).not.toBe(before);
     });
+  });
+
+  /**
+   * Save as JSON and Save as PNG share one "Export" toolbar slot, opened as a
+   * dropdown — the same pattern as the Add and Shares buttons elsewhere in
+   * this toolbar. The PNG capture itself (rasterizing real DOM through
+   * `html-to-image`, then either a native save picker or a download) is left
+   * untested here — worth nothing beyond "does a third-party library still
+   * work," and slow and flaky to boot in a headless browser.
+   */
+  describe('the export menu', () => {
+    function exportButton(fixture: ComponentFixture<SplitGrid>): HTMLButtonElement {
+      return (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+        '.toolbar-btn[title="Export this split as a JSON file or a PNG image"]',
+      )!;
+    }
+
+    function menuItem(fixture: ComponentFixture<SplitGrid>, title: string): HTMLButtonElement {
+      return (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+        `.toolbar-menu .btn[title="${title}"]`,
+      )!;
+    }
+
+    it('opens under the Export button, with Save as JSON and Save as PNG inside', async () => {
+      const { fixture } = await grid();
+
+      expect(menuItem(fixture, 'Download this split as a JSON file')).toBeNull();
+
+      exportButton(fixture).click();
+      await settle(fixture);
+
+      expect(menuItem(fixture, 'Download this split as a JSON file')).not.toBeNull();
+      expect(menuItem(fixture, 'Save the report as a PNG image')).not.toBeNull();
+    });
 
     it('exports the active split as a JSON download', async () => {
       const { fixture } = await grid();
       const clicked = spyOn(HTMLAnchorElement.prototype, 'click');
 
       exportButton(fixture).click();
+      await settle(fixture);
+      menuItem(fixture, 'Download this split as a JSON file').click();
 
       expect(clicked).toHaveBeenCalled();
+    });
+
+    it('leaves every add-item row out of the print-ready rows', async () => {
+      const { fixture, store } = await grid();
+      const capture = printCapture(fixture);
+
+      expect(capture.rows().some((r) => r.kind === 'add-item')).toBe(true);
+      expect(capture.printRows().some((r) => r.kind === 'add-item')).toBe(false);
+      // Nothing else about the rows changes — one add-item row per sheet is
+      // the only difference between the two.
+      expect(capture.printRows().length).toBe(capture.rows().length - store.sheets().length);
+    });
+
+    it('disables Save as PNG for as long as a capture is in flight', async () => {
+      const { fixture } = await grid();
+      const capture = printCapture(fixture);
+
+      exportButton(fixture).click();
+      await settle(fixture);
+      expect(menuItem(fixture, 'Save the report as a PNG image').disabled).toBe(false);
+
+      capture.capturing.set(true);
+      await settle(fixture);
+      expect(menuItem(fixture, 'Save the report as a PNG image').disabled).toBe(true);
+
+      capture.capturing.set(false);
+      await settle(fixture);
+      expect(menuItem(fixture, 'Save the report as a PNG image').disabled).toBe(false);
     });
   });
 

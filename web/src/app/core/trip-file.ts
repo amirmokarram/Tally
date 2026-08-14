@@ -38,20 +38,14 @@ export function buildExportPayload(splits: readonly SavedSplit[]): string {
 }
 
 /**
- * A filename derived from the split's title, or from the count when a whole
- * library is being exported.
- *
- * Only characters that break filesystems are stripped, so a title in any script
- * survives; a title that reduces to nothing falls back to `split`.
+ * A title, filesystem-safe: only characters that break filesystems are
+ * stripped, so a title in any script survives; a title that reduces to
+ * nothing falls back to `split`. Shared by every filename this app hands the
+ * browser — the JSON export below, and the PNG report capture
+ * (`report-export.ts`).
  */
-export function exportFileName(splits: readonly SavedSplit[], now = new Date()): string {
-  const date = now.toISOString().slice(0, 10);
-
-  if (splits.length !== 1) {
-    return `splits-${splits.length}-${date}.json`;
-  }
-
-  const slug = splits[0].trip.title
+export function slugifyTitle(title: string): string {
+  const slug = title
     .trim()
     .replace(ILLEGAL_IN_FILENAME, '')
     .replace(CONTROL_CODES, '')
@@ -61,7 +55,21 @@ export function exportFileName(splits: readonly SavedSplit[], now = new Date()):
     .replace(/^[.\-]+/, '')
     .replace(/[.\-]+$/, '');
 
-  return `${slug || 'split'}-${date}.json`;
+  return slug || 'split';
+}
+
+/**
+ * A filename derived from the split's title, or from the count when a whole
+ * library is being exported.
+ */
+export function exportFileName(splits: readonly SavedSplit[], now = new Date()): string {
+  const date = now.toISOString().slice(0, 10);
+
+  if (splits.length !== 1) {
+    return `splits-${splits.length}-${date}.json`;
+  }
+
+  return `${slugifyTitle(splits[0].trip.title)}-${date}.json`;
 }
 
 /** Parses a chosen file, throwing {@link TripFileError} with a readable reason. */
@@ -91,7 +99,16 @@ export async function readSplitsFile(file: File): Promise<SavedSplit[]> {
  * without a DOM.
  */
 export function downloadJson(fileName: string, contents: string): void {
-  const blob = new Blob([contents], { type: EXPORT_MIME_TYPE });
+  downloadBlob(fileName, new Blob([contents], { type: EXPORT_MIME_TYPE }));
+}
+
+/**
+ * Hands any blob to the browser as a download via a throwaway anchor click —
+ * every browser's baseline, used as-is where there's no native save dialog to
+ * reach for (`report-export.ts`'s `saveImageFile` falls back to this) and to
+ * implement {@link downloadJson} above.
+ */
+export function downloadBlob(fileName: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

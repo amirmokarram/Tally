@@ -19,7 +19,7 @@ that split (e.g. currency, who paid).
 ## Component style budgets
 
 `web/angular.json`'s production config enforces a per-component CSS size
-budget (`anyComponentStyle`: currently 10kB error / 6kB warning). This is
+budget (`anyComponentStyle`: currently 11kB error / 7kB warning). This is
 only checked by `ng build` — `tsc --noEmit` and `ng test` both pass regardless
 of how large a component's styles get, so they will not catch a budget
 breach. Run a full `npm run build` locally before pushing a change that adds

@@ -6,6 +6,7 @@ import {
   buildExportPayload,
   exportFileName,
   readSplitsFile,
+  slugifyTitle,
 } from './trip-file';
 import { APP_MARKER, SCHEMA_VERSION } from './library-storage';
 
@@ -80,6 +81,21 @@ describe('trip file — export', () => {
         splitOf(buildSampleTrip('restaurant'), 'b'),
       ];
       expect(exportFileName(many, on)).toBe('splits-2-2026-08-03.json');
+    });
+  });
+
+  /**
+   * The primitive `exportFileName` above is built on, and reused as-is by
+   * the PNG report capture (`report-export.ts`) to name its own file — no
+   * date suffix or extension of its own, since those are each caller's own.
+   */
+  describe('slugifyTitle', () => {
+    it('is the bare slug, undated and without an extension', () => {
+      expect(slugifyTitle('Trip to New England')).toBe('Trip-to-New-England');
+    });
+
+    it('falls back to "split" for a title that reduces to nothing', () => {
+      expect(slugifyTitle('   ...   ')).toBe('split');
     });
   });
 });

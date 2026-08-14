@@ -50,6 +50,14 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
    * assuming every row in it is {@link LEDGER_ROW_HEIGHT}.
    */
   isAddRowEditing(sheetId: string): boolean;
+  /**
+   * Whether the grid is mid-PNG-capture (`SplitGrid.capturing`) — the add-item
+   * row this cell's own height otherwise budgets for isn't rendered at all
+   * during one (see `printRows`, `split-grid.ts`), so the height `effect()`
+   * below needs to know to leave that row's height out of the sum entirely
+   * rather than assuming it is still there, collapsed or otherwise.
+   */
+  isCapturing(): boolean;
 }
 
 @Component({
@@ -276,15 +284,18 @@ export class SheetCell implements ICellRendererAngularComp {
         return;
       }
       // Every row in the block is `LEDGER_ROW_HEIGHT` *except* the block's
-      // own add-item row, which is short until it's being edited
-      // (`getRowHeight` in `split-grid.ts`) — reading `isAddRowEditing`
-      // here, rather than just multiplying by `rows`, is what keeps this
-      // cell's height in step with that row's real one. `isAddRowEditing`
-      // reads a signal on the grid itself, so this effect reruns on its own
-      // when that changes — no extra refresh needed.
-      const addRowHeight = this.params?.isAddRowEditing(sheet.id)
-        ? LEDGER_ROW_HEIGHT
-        : LEDGER_ADD_ROW_HEIGHT;
+      // own add-item row — which isn't rendered at all during a PNG capture
+      // (`isCapturing`, `printRows` in `split-grid.ts`), and otherwise is
+      // short until it's being edited (`getRowHeight` in `split-grid.ts`).
+      // Reading these here, rather than just multiplying by `rows`, is what
+      // keeps this cell's height in step with that row's real one — both
+      // read a signal on the grid itself, so this effect reruns on its own
+      // when either changes, no extra refresh needed.
+      const addRowHeight = this.params?.isCapturing()
+        ? 0
+        : this.params?.isAddRowEditing(sheet.id)
+          ? LEDGER_ROW_HEIGHT
+          : LEDGER_ADD_ROW_HEIGHT;
       cell.style.height = `${(rows - 1) * LEDGER_ROW_HEIGHT + addRowHeight - 1}px`;
     });
   }

@@ -31,6 +31,7 @@
     "@angular/router": "^20.3.0",
     "ag-grid-angular": "^36.0.2",
     "ag-grid-community": "^36.0.2",
+    "html-to-image": "^1.11.13",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.15.0"
