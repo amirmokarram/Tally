@@ -1,6 +1,8 @@
 import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
 
 import { App } from './app';
+import { routes } from './app.routes';
 import { TripStore } from './core/trip-store';
 import {
   APP_MARKER,
@@ -23,27 +25,36 @@ function configure(storage: Storage | null) {
     providers: [
       { provide: TRIP_STORAGE, useValue: storage },
       { provide: SESSION_STORAGE, useValue: null },
+      provideRouter(routes),
     ],
   });
 }
 
+/** Creates the app and drives the router to `url`, as a real navigation would. */
+async function createAndNavigate(url = '/') {
+  const fixture = TestBed.createComponent(App);
+  await TestBed.inject(Router).navigateByUrl(url);
+  fixture.detectChanges();
+  return fixture;
+}
+
 describe('App', () => {
-  it('creates the app', () => {
+  it('creates the app', async () => {
     configure(null);
-    expect(TestBed.createComponent(App).componentInstance).toBeTruthy();
+    const fixture = await createAndNavigate();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('opens on the help tab so a first-time user is not staring at an empty grid', () => {
+  it('opens on the help tab so a first-time user is not staring at an empty grid', async () => {
     configure(null);
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
+    const fixture = await createAndNavigate();
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('app-help-panel')).toBeTruthy();
   });
 });
 
 describe('App — resuming a saved split', () => {
-  it('restores the library and opens on the split grid', () => {
+  it('restores the library and opens on the split grid', async () => {
     const storage = new FakeStorage();
     storage.setItem(
       STORAGE_KEY,
@@ -56,19 +67,17 @@ describe('App — resuming a saved split', () => {
     );
 
     configure(storage);
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
+    const fixture = await createAndNavigate();
     const compiled = fixture.nativeElement as HTMLElement;
 
     expect(TestBed.inject(TripStore).restoredFromStorage).toBe(true);
     expect(compiled.querySelector('app-split-grid')).toBeTruthy();
   });
 
-  it('writes every edit straight back to storage', () => {
+  it('writes every edit straight back to storage', async () => {
     const storage = new FakeStorage();
     configure(storage);
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
+    const fixture = await createAndNavigate();
 
     const store = TestBed.inject(TripStore);
     store.setTitle('Weekend in Lisbon');
@@ -81,13 +90,12 @@ describe('App — resuming a saved split', () => {
     expect(saved.splits[0].trip.people[0].name).toBe('Ana');
   });
 
-  it('ignores a saved library it cannot read and starts clean', () => {
+  it('ignores a saved library it cannot read and starts clean', async () => {
     const storage = new FakeStorage();
     storage.setItem(STORAGE_KEY, '{"version":2,"splits":"corrupt"}');
 
     configure(storage);
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
+    const fixture = await createAndNavigate();
 
     const store = TestBed.inject(TripStore);
     expect(store.restoredFromStorage).toBe(false);
@@ -95,7 +103,7 @@ describe('App — resuming a saved split', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('app-help-panel')).toBeTruthy();
   });
 
-  it('lists every saved split on the Splits tab', () => {
+  it('lists every saved split on the Splits tab', async () => {
     const storage = new FakeStorage();
     storage.setItem(
       STORAGE_KEY,
@@ -110,10 +118,7 @@ describe('App — resuming a saved split', () => {
     );
 
     configure(storage);
-    const fixture = TestBed.createComponent(App);
-    const component = fixture.componentInstance as unknown as { tab: { set(v: string): void } };
-    component.tab.set('splits');
-    fixture.detectChanges();
+    const fixture = await createAndNavigate('/splits');
 
     const titles = [
       ...(fixture.nativeElement as HTMLElement).querySelectorAll('app-splits-panel .title'),
@@ -131,25 +136,24 @@ describe('App — resuming a saved split', () => {
  * the tab bar itself is folded away at any width any more.
  */
 describe('App — the Split tab’s error badge', () => {
-  function start() {
+  async function start() {
     configure(null);
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
+    const fixture = await createAndNavigate();
     const query = <T extends HTMLElement>(selector: string) =>
       (fixture.nativeElement as HTMLElement).querySelector<T>(selector);
     return { fixture, query };
   }
 
-  it('shows the count of open problems', () => {
-    const { query } = start();
+  it('shows the count of open problems', async () => {
+    const { query } = await start();
 
     // A split with nobody on it is an error, and the tab has to say so.
     expect(TestBed.inject(TripStore).issues().some((i) => i.severity === 'error')).toBe(true);
     expect(query('.tabs .badge')!.textContent!.trim()).toBe('1');
   });
 
-  it('drops the badge once there is nothing wrong', () => {
-    const { fixture, query } = start();
+  it('drops the badge once there is nothing wrong', async () => {
+    const { fixture, query } = await start();
 
     TestBed.inject(TripStore).addPerson('Sarah');
     fixture.detectChanges();

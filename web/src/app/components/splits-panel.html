@@ -4,16 +4,16 @@
 </p>
 
 <div class="toolbar">
-  <button class="btn primary" type="button" (click)="store.createSplit(); opened.emit('')">
+  <button class="btn primary" type="button" (click)="createSplit()">
     New split
   </button>
-  <button class="btn" type="button" (click)="importRequested.emit()">Import from file…</button>
+  <button class="btn" type="button" (click)="importExport.triggerImport()">Import from file…</button>
   <button
     class="btn"
     type="button"
     [disabled]="total() < 2"
     title="Download every saved split as one file"
-    (click)="exportAllRequested.emit()"
+    (click)="importExport.exportAll()"
   >
     Export all
   </button>
@@ -106,7 +106,7 @@
             class="btn ghost"
             type="button"
             title="Download this split as a JSON file"
-            (click)="exportRequested.emit(row.split)"
+            (click)="importExport.exportSplits([row.split])"
           >
             Export
           </button>
@@ -180,18 +180,18 @@
 }
 
 <div class="alerts-overlay">
-  @if (importError(); as message) {
+  @if (importExport.importError(); as message) {
     <div class="alert conflict with-actions" role="alert">
       <span>{{ message }}</span>
       <span class="alert-actions">
-        <button class="btn" type="button" (click)="importErrorDismissed.emit()">Dismiss</button>
+        <button class="btn" type="button" (click)="importExport.dismissImportError()">Dismiss</button>
       </span>
     </div>
-  } @else if (importNotice(); as message) {
+  } @else if (importExport.importNotice(); as message) {
     <div class="alert info with-actions" role="status">
       <span>{{ message }}</span>
       <span class="alert-actions">
-        <button class="btn" type="button" (click)="importNoticeDismissed.emit()">Dismiss</button>
+        <button class="btn" type="button" (click)="importExport.dismissImportNotice()">Dismiss</button>
       </span>
     </div>
   }

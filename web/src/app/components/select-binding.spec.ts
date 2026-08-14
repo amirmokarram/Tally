@@ -15,8 +15,10 @@
  */
 
 import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
 
 import { App } from '../app';
+import { routes } from '../app.routes';
 import { TripStore } from '../core/trip-store';
 import { SESSION_STORAGE, TRIP_STORAGE } from '../core/library-storage';
 import { FakeStorage } from '../core/library-storage.spec';
@@ -27,6 +29,7 @@ function configure() {
     providers: [
       { provide: TRIP_STORAGE, useValue: new FakeStorage() },
       { provide: SESSION_STORAGE, useValue: new FakeStorage() },
+      provideRouter(routes),
     ],
   });
 }
@@ -34,15 +37,14 @@ function configure() {
 describe('select bindings', () => {
   afterEach(() => TestBed.resetTestingModule());
 
-  it('shows the sort order the list is actually using', () => {
+  it('shows the sort order the list is actually using', async () => {
     configure();
     const fixture = TestBed.createComponent(App);
     const store = TestBed.inject(TripStore);
-    const component = fixture.componentInstance as unknown as { tab: { set(v: string): void } };
 
     // The sort control only appears once there is more than one split.
     store.createSplit();
-    component.tab.set('splits');
+    await TestBed.inject(Router).navigateByUrl('/splits');
     fixture.detectChanges();
 
     const select = (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>(

@@ -1,14 +1,8 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  input,
-  output,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 
 import { TripStore } from '../core/trip-store';
+import { ImportExport } from '../core/import-export';
 import { MoneyPipe } from '../core/money.pipe';
 import { computeSheetTotals, computeSplit, round } from '../core/split-engine';
 import { assignTransactionGroups, buildTransfers } from '../core/settlement';
@@ -324,23 +318,8 @@ interface SplitRow {
 })
 export class SplitsPanel {
   protected readonly store = inject(TripStore);
-
-  /** Asked for by the list; the shell owns file dialogs and tab switching. */
-  readonly opened = output<string>();
-  readonly exportRequested = output<SavedSplit>();
-  readonly importRequested = output<void>();
-  readonly exportAllRequested = output<void>();
-
-  /**
-   * Import is the only action on this page that can fail, so its result is
-   * shown here rather than in a shell-wide banner — the shell still owns the
-   * file dialog and the read itself (`app.ts`), since that has nothing to do
-   * with this list.
-   */
-  readonly importError = input<string | null>(null);
-  readonly importNotice = input<string | null>(null);
-  readonly importErrorDismissed = output<void>();
-  readonly importNoticeDismissed = output<void>();
+  protected readonly importExport = inject(ImportExport);
+  private readonly router = inject(Router);
 
   /** What the user has typed into the search box. */
   protected readonly query = signal('');
@@ -430,15 +409,20 @@ export class SplitsPanel {
     writeSortOrder(this.storage, order);
   }
 
+  protected createSplit(): void {
+    this.store.createSplit();
+    void this.router.navigateByUrl('/split');
+  }
+
   protected open(id: string): void {
     this.store.openSplit(id);
-    this.opened.emit(id);
+    void this.router.navigateByUrl('/split');
   }
 
   protected duplicate(id: string): void {
     const copy = this.store.duplicateSplit(id);
     if (copy) {
-      this.opened.emit(copy.id);
+      void this.router.navigateByUrl('/split');
     }
   }
 

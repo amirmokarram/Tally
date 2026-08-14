@@ -30,12 +30,15 @@
 }
 
 .tab {
+  display: inline-block;
   padding: 9px 16px;
   border: none;
   background: transparent;
   color: rgb(255 255 255 / 72%);
   font-size: 14px;
   font-weight: 550;
+  text-decoration: none;
+  cursor: pointer;
 
   &:hover {
     background: rgb(255 255 255 / 10%);

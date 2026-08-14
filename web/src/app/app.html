@@ -1,60 +1,18 @@
 <header class="topbar">
   <div class="topbar-inner">
-    <!--
-      The split's own name, currency, total and export used to live here,
-      shown on every tab — the name, currency and export now sit above the
-      grid on the Split tab, the only one that needs them, and the total was
-      dropped for being redundant with the grid's own. This input is what is
-      left: the splits panel reaches for it by template reference and clicks
-      it, so it has to live somewhere in this template regardless of which
-      tab is open.
-    -->
-    <input
-      #importInput
-      class="visually-hidden"
-      type="file"
-      accept="application/json,.json"
-      aria-label="Import splits from a JSON file"
-      (change)="importFile($event)"
-    />
-
     <nav class="tabs" id="topbar-menu">
-      @for (t of tabs; track t.id) {
-        <button
-          class="tab"
-          type="button"
-          [class.active]="tab() === t.id"
-          (click)="select(t.id)"
-        >
+      @for (t of tabs; track t.path) {
+        <a class="tab" [routerLink]="t.path" routerLinkActive="active">
           {{ t.label }}
-          @if (t.id === 'split' && errorCount()) {
+          @if (t.path === '/split' && errorCount()) {
             <span class="badge">{{ errorCount() }}</span>
           }
-        </button>
+        </a>
       }
     </nav>
   </div>
 </header>
 
 <main>
-  @switch (tab()) {
-    @case ('splits') {
-      <app-splits-panel
-        [importError]="importError()"
-        [importNotice]="importNotice()"
-        (importErrorDismissed)="dismissImportError()"
-        (importNoticeDismissed)="dismissImportNotice()"
-        (opened)="select('split')"
-        (exportRequested)="exportSplits([$event])"
-        (exportAllRequested)="exportAll()"
-        (importRequested)="importInput.click()"
-      />
-    }
-    @case ('split') {
-      <app-split-grid />
-    }
-    @case ('help') {
-      <app-help-panel />
-    }
-  }
+  <router-outlet />
 </main>
