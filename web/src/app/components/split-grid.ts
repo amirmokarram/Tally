@@ -278,7 +278,20 @@ interface RowClipboardEntry {
       border-bottom: none;
       border-top-left-radius: var(--radius);
       border-top-right-radius: var(--radius);
-      overflow: overlay;
+      /* A scroll escape hatch for widths narrower than the icon-only
+         collapse below can fit — rare, but the bar itself stays invisible
+         (still scrollable by touch or trackpad) rather than showing a
+         scrollbar in what reads as a row of buttons, not a scrolling
+         region. */
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
+
       /* Queries the toolbar's own width, not the viewport's — so the
          buttons drop their labels exactly when *this* row runs out of
          room, whatever the reason (a narrow window, a sidebar, zoom). */
