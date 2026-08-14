@@ -61,6 +61,7 @@ import {
   ColDef,
   ColSpanParams,
   ColumnApiModule,
+  ColumnAutoSizeModule,
   ColumnMovedEvent,
   ColumnResizedEvent,
   _ColumnMoveModule,
@@ -154,6 +155,11 @@ ModuleRegistry.registerModules([
   ColumnApiModule,
   RowApiModule,
   CellApiModule,
+  // `api.autoSizeColumns(['item'])` — shrinks the Item column to its actual
+  // content for a PNG capture, in place of the `flex: 1` that otherwise lets
+  // it stretch to fill whatever's left of the browser window; see
+  // {@link SplitGrid.savePng}.
+  ColumnAutoSizeModule,
   // `api.ensureColumnVisible` — a person added from the toolbar is a column off
   // the right-hand edge until the grid is scrolled to it.
   ScrollApiModule,
@@ -1778,21 +1784,60 @@ export class SplitGrid {
   }
 
   /**
+   * Shrinks Item to its actual content, for a PNG capture.
+   *
+   * Item's own `flex: 1, minWidth: 150` (see `columns`, below) is built for
+   * the live report, where it should fill whatever space a person's own
+   * browser window leaves over — exactly what makes it wrong for a still
+   * image, where that leftover space is just dead air around the text and
+   * extra pixels in the file for no reason. `autoSizeColumns` measures every
+   * row now in the DOM (the grid must already be in its print layout — see
+   * `savePng`) and sizes Item to the widest of them instead.
+   *
+   * `refreshItemColumnWidth` is what carries the new width to `totalsColumns`
+   * (the totals band's own `grid-template-columns`), which reads that signal
+   * for Item's width rather than the grid directly — without it, the band
+   * stays at Item's old, flexed-out width, wider than the now-shrunk grid
+   * underneath it, and `.report`'s own `max-content` (`:host(.exporting-png)`,
+   * below) picks the band's stale width over the grid's real one.
+   */
+  private shrinkItemColumnToContent(): void {
+    this.api?.autoSizeColumns(['item']);
+    this.refreshItemColumnWidth();
+  }
+
+  /**
+   * Undoes {@link shrinkItemColumnToContent}. `autoSizeColumns` pins Item to
+   * a fixed pixel width, the same way a manual drag on its own border would —
+   * overriding its own `flex: 1` until told otherwise. Re-applying the
+   * grid's real definitions (unchanged by any of this — `columns` never
+   * reads `capturing`) is what hands it back, and refreshing the totals
+   * band's own copy of the width is what hands *it* back too.
+   */
+  private restoreItemColumn(): void {
+    this.api?.setGridOption('columnDefs', this.columns());
+    this.refreshItemColumnWidth();
+  }
+
+  /**
    * Saves the report as a PNG, named after the split.
    *
    * `capturing` flips the grid into its print layout — no scroll, no
    * virtualised columns, no add-item rows (`printRows`) — and the report's
-   * own CSS out of its viewport-clamped size and into its natural one; two
-   * macrotasks give Angular and AG Grid time to actually apply that before
-   * the DOM is rasterized. A macrotask (`setTimeout`), not an animation
-   * frame: the same reasoning as `settle()` in `split-grid.spec.ts` — a
-   * `requestAnimationFrame` only fires once the tab is actually compositing,
-   * which a backgrounded or occluded one may delay far longer than this
-   * needs to wait for. The inner `finally` is what guarantees the grid
-   * always reverts to its normal, editable layout even if the capture itself
-   * throws — a stuck-in-print-mode grid would be a far worse failure than a
-   * missing PNG — and, on the happy path, is what lets that revert happen
-   * before the save step below rather than after it.
+   * own CSS out of its viewport-clamped size and into its natural one. Four
+   * macrotasks, one per step below that changes something the *next* step
+   * depends on, give Angular and AG Grid time to actually apply each before
+   * moving on: the row/layout bindings before every row is in the DOM to
+   * measure, the Item auto-size before its new width is summed, and that sum
+   * before the grid is actually resized to it. A macrotask (`setTimeout`),
+   * not an animation frame: the same reasoning as `settle()` in
+   * `split-grid.spec.ts` — a `requestAnimationFrame` only fires once the tab
+   * is actually compositing, which a backgrounded or occluded one may delay
+   * far longer than this needs to wait for. The inner `finally` is what
+   * guarantees the grid always reverts to its normal, editable layout even
+   * if the capture itself throws — a stuck-in-print-mode grid would be a far
+   * worse failure than a missing PNG — and, on the happy path, is what lets
+   * that revert happen before the save step below rather than after it.
    */
   protected async savePng(): Promise<void> {
     if (this.exportingPng()) {
@@ -1805,18 +1850,32 @@ export class SplitGrid {
 
     this.exportingPng.set(true);
     try {
-      // Column widths are static regardless of domLayout, so this can be
-      // read before switching into print mode rather than after.
-      this.captureGridWidth.set(this.totalColumnWidth());
       this.capturing.set(true);
       let blob: Blob;
       try {
+        // Every row has to actually be in the DOM before `autoSizeColumns`
+        // below can measure the Item column's real content — the two ticks
+        // are what let the `printRows`/`domLayout: 'print'` bindings above
+        // reach AG Grid and get there.
         await new Promise((resolve) => setTimeout(resolve));
         await new Promise((resolve) => setTimeout(resolve));
+
+        this.shrinkItemColumnToContent();
+        // Lets that resize actually reach the DOM before the total below is
+        // read off it, and before the capture reads pixels.
+        await new Promise((resolve) => setTimeout(resolve));
+
+        // Read after the resize above, not before: `totalColumnWidth` sums
+        // every column's *current* actual width, and Item's only just
+        // changed.
+        this.captureGridWidth.set(this.totalColumnWidth());
+        await new Promise((resolve) => setTimeout(resolve));
+
         blob = await capturePng(node);
       } finally {
         this.capturing.set(false);
         this.captureGridWidth.set(null);
+        this.restoreItemColumn();
       }
       await saveImageFile(blob, `${slugifyTitle(this.store.title())}.png`);
     } finally {

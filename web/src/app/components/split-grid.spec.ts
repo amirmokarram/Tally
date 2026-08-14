@@ -119,9 +119,10 @@ function rowDragHost(fixture: ComponentFixture<SplitGrid>): RowDragHost {
 }
 
 /**
- * `rows`, `printRows`, `capturing`, `exportingPng`, `captureGridWidth` and
- * `totalColumnWidth`, which are `protected`/`private` so the template (or,
- * for `totalColumnWidth`, only `savePng` itself) can reach them.
+ * `rows`, `printRows`, `capturing`, `exportingPng`, `captureGridWidth`,
+ * `totalColumnWidth`, `shrinkItemColumnToContent` and `restoreItemColumn`,
+ * which are `protected`/`private` so the template (or, for the last four,
+ * only `savePng` itself) can reach them.
  */
 interface PrintCapture {
   rows(): { kind: string }[];
@@ -129,7 +130,10 @@ interface PrintCapture {
   capturing: { (): boolean; set(value: boolean): void };
   exportingPng: { (): boolean; set(value: boolean): void };
   captureGridWidth: { (): number | null; set(value: number | null): void };
+  itemColumnWidth(): number | null;
   totalColumnWidth(): number | null;
+  shrinkItemColumnToContent(): void;
+  restoreItemColumn(): void;
 }
 
 function printCapture(fixture: ComponentFixture<SplitGrid>): PrintCapture {
@@ -436,6 +440,43 @@ describe('the ledger grid', () => {
       // trip is actually wider than a normal viewport would show at once.
       expect(expectedWidth).toBeGreaterThan(1000);
       expect(capture.totalColumnWidth()).toBe(expectedWidth);
+    });
+
+    /**
+     * Regression coverage for a second bug found on top of the first: Item's
+     * own `flex: 1` stretches it to fill whatever the browser window leaves
+     * over, which a PNG capture inherited as dead space around the text —
+     * and worse, the totals band (which reads Item's width from its own
+     * `itemColumnWidth` signal, not the grid directly) kept the *old*,
+     * flexed-out width even after the grid's own column shrank, leaving the
+     * band wider than the grid underneath it.
+     */
+    describe('shrinking Item to its content for a capture', () => {
+      it('keeps the totals band in step with the grid\'s own shrunk width', async () => {
+        const { fixture, api } = await grid();
+        const capture = printCapture(fixture);
+
+        capture.shrinkItemColumnToContent();
+
+        const shrunkWidth = api.getColumn('item')!.getActualWidth();
+        expect(capture.itemColumnWidth()).toBe(shrunkWidth);
+      });
+
+      it('restores Item\'s own flex sizing afterwards, not just its old width', async () => {
+        const { fixture, api } = await grid();
+        const capture = printCapture(fixture);
+
+        capture.shrinkItemColumnToContent();
+        capture.restoreItemColumn();
+
+        // A colDef flex of 1 is what lets Item fill the window again on its
+        // own the next time anything resizes — a literal width matching the
+        // old number would happen to look the same right now, but would
+        // leave the column stuck at that number forever after, the same
+        // failure `autoSizeColumns` itself causes and this is meant to undo.
+        expect(api.getColumn('item')!.getColDef().flex).toBe(1);
+        expect(capture.itemColumnWidth()).toBe(api.getColumn('item')!.getActualWidth());
+      });
     });
 
     it('disables Save as PNG for the whole export, capture and save alike', async () => {
