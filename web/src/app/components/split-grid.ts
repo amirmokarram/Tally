@@ -701,15 +701,38 @@ interface RowClipboardEntry {
        data instead (see {@link printRows}) rather than hidden here, since
        hiding their DOM would leave a gap rather than closing the block up,
        and unlike the sheet cell's own *height*, which the "⋯" button sits
-       inside of but does not affect — see \`sheet-cell.ts\`'s \`isCapturing\`. */
+       inside of but does not affect — see \`sheet-cell.ts\`'s \`isCapturing\`.
+
+       \`.report\` itself needs \`width: max-content\` too, not just \`.grid\`
+       (below) — html-to-image sizes the captured canvas off {@link
+       reportRoot}'s own \`getBoundingClientRect()\`, and \`.report\` is still
+       an ordinary in-flow block filling whatever width \`:host\` has left over
+       from the page around it. A wide trip's grid growing past that edge was
+       genuinely dropped from the PNG, not just visually clipped on screen —
+       \`overflow: visible\` (as on \`.totals-band\` above) only stops a *box*
+       from clipping content past its own edge; it does nothing for a
+       still-too-narrow *ancestor* the capture is actually measuring. */
     :host(.exporting-png) .report-toolbar {
       display: none;
     }
 
     :host(.exporting-png) .report {
       height: auto;
+      width: max-content;
     }
 
+    /* \`width\` here is a fallback only — \`captureGridWidth\`'s inline
+       \`[style.width.px]\` binding (\`split-grid.html\`) is what actually wins in
+       practice, and is why \`.report\`'s own \`max-content\` above resolves
+       correctly at all. Left to AG Grid's own markup, \`max-content\` on this
+       element cannot see past it: \`.ag-root-wrapper\` and everything inside it
+       are \`width: 100%\` of *this* element, so without an explicit number of
+       our own, \`max-content\` has nothing but a 100%-of-itself child to size
+       itself against and collapses to the smallest thing that satisfies
+       that — which is not the grid's real content width. \`captureGridWidth\`
+       sidesteps the whole ambiguity by reading AG Grid's own column widths
+       directly, the same reasoning {@link itemColumnWidth} already follows
+       for the totals band. */
     :host(.exporting-png) .grid {
       flex: none;
       height: auto;
@@ -1732,6 +1755,29 @@ export class SplitGrid {
   protected readonly exportingPng = signal(false);
 
   /**
+   * The grid's own total column width while {@link capturing} — read
+   * straight from AG Grid's column API (`getActualWidth()` summed across
+   * every column) rather than left for the `.grid` element to work out for
+   * itself. Left to intrinsic sizing (`width: max-content`, in the
+   * `:host(.exporting-png)` styles below), a wide trip's grid stayed clipped
+   * to its normal, viewport-scrolled width instead of growing to fit every
+   * column: `.ag-root-wrapper` and everything AG Grid renders inside `.grid`
+   * is `width: 100%` of it, so with nothing but a 100%-of-itself child to
+   * measure, `max-content` has no real content width to resolve against.
+   * Reading the number straight from the grid, the same reasoning {@link
+   * itemColumnWidth} already follows for the totals band, sidesteps that
+   * ambiguity entirely — see the `[style.width.px]` binding on `<ag-grid-angular>`
+   * in `split-grid.html`.
+   */
+  protected readonly captureGridWidth = signal<number | null>(null);
+
+  /** The sum of every column's real width, or `null` before the grid has any. */
+  private totalColumnWidth(): number | null {
+    const columns = this.api?.getColumns() ?? [];
+    return columns.length ? columns.reduce((sum, column) => sum + column.getActualWidth(), 0) : null;
+  }
+
+  /**
    * Saves the report as a PNG, named after the split.
    *
    * `capturing` flips the grid into its print layout — no scroll, no
@@ -1759,6 +1805,9 @@ export class SplitGrid {
 
     this.exportingPng.set(true);
     try {
+      // Column widths are static regardless of domLayout, so this can be
+      // read before switching into print mode rather than after.
+      this.captureGridWidth.set(this.totalColumnWidth());
       this.capturing.set(true);
       let blob: Blob;
       try {
@@ -1767,6 +1816,7 @@ export class SplitGrid {
         blob = await capturePng(node);
       } finally {
         this.capturing.set(false);
+        this.captureGridWidth.set(null);
       }
       await saveImageFile(blob, `${slugifyTitle(this.store.title())}.png`);
     } finally {

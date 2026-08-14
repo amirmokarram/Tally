@@ -119,14 +119,17 @@ function rowDragHost(fixture: ComponentFixture<SplitGrid>): RowDragHost {
 }
 
 /**
- * `rows`, `printRows`, `capturing` and `exportingPng`, which are `protected`
- * so the template can reach them.
+ * `rows`, `printRows`, `capturing`, `exportingPng`, `captureGridWidth` and
+ * `totalColumnWidth`, which are `protected`/`private` so the template (or,
+ * for `totalColumnWidth`, only `savePng` itself) can reach them.
  */
 interface PrintCapture {
   rows(): { kind: string }[];
   printRows(): { kind: string }[];
   capturing: { (): boolean; set(value: boolean): void };
   exportingPng: { (): boolean; set(value: boolean): void };
+  captureGridWidth: { (): number | null; set(value: number | null): void };
+  totalColumnWidth(): number | null;
 }
 
 function printCapture(fixture: ComponentFixture<SplitGrid>): PrintCapture {
@@ -404,6 +407,35 @@ describe('the ledger grid', () => {
       // Nothing else about the rows changes — one add-item row per sheet is
       // the only difference between the two.
       expect(capture.printRows().length).toBe(capture.rows().length - store.sheets().length);
+    });
+
+    /**
+     * Regression coverage for a real bug: a wide trip's grid used to stay
+     * clipped to its normal, scrolled width in the captured PNG, dropping
+     * every column past the edge of the screen at the moment Save as PNG was
+     * clicked. `totalColumnWidth` (what `savePng` reads into
+     * `captureGridWidth`, bound as the grid's own inline width while
+     * capturing — see `split-grid.html`) is what fixes it: read straight
+     * from the grid's own columns rather than left for CSS to work out for
+     * itself, which is what silently failed in the first place.
+     */
+    it('sums every column\'s real width for the capture, not just the ones on screen', async () => {
+      const { fixture, store, api } = await grid();
+      const capture = printCapture(fixture);
+
+      for (let i = 0; i < 15; i++) {
+        store.addPerson(`Extra ${i}`);
+      }
+      await settle(fixture);
+
+      const expectedWidth = (api.getColumns() ?? []).reduce(
+        (sum, column) => sum + column.getActualWidth(),
+        0,
+      );
+      // Sanity check on the fixture itself: this only proves the fix if the
+      // trip is actually wider than a normal viewport would show at once.
+      expect(expectedWidth).toBeGreaterThan(1000);
+      expect(capture.totalColumnWidth()).toBe(expectedWidth);
     });
 
     it('disables Save as PNG for the whole export, capture and save alike', async () => {

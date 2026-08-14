@@ -316,6 +316,7 @@
     [columnDefs]="columns()"
     [domLayout]="capturing() ? 'print' : 'normal'"
     [suppressColumnVirtualisation]="capturing()"
+    [style.width.px]="capturing() ? captureGridWidth() : null"
     (gridReady)="onGridReady($event)"
     (modelUpdated)="onModelUpdated()"
     (bodyScroll)="onBodyScroll($event)"
