@@ -298,7 +298,12 @@
         {{ balance.balance | money: store.baseSymbol() }}
       </div>
     }
-    <div class="cell"></div>
+    @if (!capturing()) {
+      <!-- The add-person column's own trailing track, plus the grid's
+           scrollbar spacer beside it — see `totalsColumns`. Neither track
+           exists while capturing, so this has nowhere left to sit. -->
+      <div class="cell"></div>
+    }
   </div>
 
   <!-- `enterNavigatesVerticallyAfterEdit` below: AG Grid's own default
@@ -313,7 +318,7 @@
     class="grid"
     [theme]="theme"
     [rowData]="capturing() ? printRows() : rows()"
-    [columnDefs]="columns()"
+    [columnDefs]="capturing() ? printColumns() : columns()"
     [domLayout]="capturing() ? 'print' : 'normal'"
     [suppressColumnVirtualisation]="capturing()"
     [style.width.px]="capturing() ? captureGridWidth() : null"

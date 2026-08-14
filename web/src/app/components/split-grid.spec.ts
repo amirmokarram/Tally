@@ -119,21 +119,24 @@ function rowDragHost(fixture: ComponentFixture<SplitGrid>): RowDragHost {
 }
 
 /**
- * `rows`, `printRows`, `capturing`, `exportingPng`, `captureGridWidth`,
- * `totalColumnWidth`, `shrinkItemColumnToContent` and `restoreItemColumn`,
- * which are `protected`/`private` so the template (or, for the last four,
- * only `savePng` itself) can reach them.
+ * `rows`, `printRows`, `columns`, `printColumns`, `capturing`,
+ * `exportingPng`, `captureGridWidth`, `totalColumnWidth`,
+ * `shrinkItemColumnToContent` and `restoreItemColumn`, which are
+ * `protected`/`private` so the template (or, for the last four, only
+ * `savePng` itself) can reach them.
  */
 interface PrintCapture {
   rows(): { kind: string }[];
   printRows(): { kind: string }[];
+  columns(): { colId?: string }[];
+  printColumns(): { colId?: string }[];
   capturing: { (): boolean; set(value: boolean): void };
   exportingPng: { (): boolean; set(value: boolean): void };
   captureGridWidth: { (): number | null; set(value: number | null): void };
   itemColumnWidth(): number | null;
   totalColumnWidth(): number | null;
   shrinkItemColumnToContent(): void;
-  restoreItemColumn(): void;
+  restoreItemColumn(): Promise<void>;
 }
 
 function printCapture(fixture: ComponentFixture<SplitGrid>): PrintCapture {
@@ -413,6 +416,17 @@ describe('the ledger grid', () => {
       expect(capture.printRows().length).toBe(capture.rows().length - store.sheets().length);
     });
 
+    it('leaves the add-person column out of the print-ready columns', async () => {
+      const { fixture } = await grid();
+      const capture = printCapture(fixture);
+
+      expect(capture.columns().some((c) => c.colId === 'add-person')).toBe(true);
+      expect(capture.printColumns().some((c) => c.colId === 'add-person')).toBe(false);
+      // Nothing else about the columns changes — add-person is the only one
+      // missing.
+      expect(capture.printColumns().length).toBe(capture.columns().length - 1);
+    });
+
     /**
      * Regression coverage for a real bug: a wide trip's grid used to stay
      * clipped to its normal, scrolled width in the captured PNG, dropping
@@ -466,9 +480,32 @@ describe('the ledger grid', () => {
         const { fixture, api } = await grid();
         const capture = printCapture(fixture);
 
+        // The real sequence savePng() follows: capturing is what switches
+        // [columnDefs] over to printColumns() (split-grid.html) in the first
+        // place, and restoreItemColumn only has something to restore *from*
+        // once that switch has actually happened.
+        capture.capturing.set(true);
+        await settle(fixture);
         capture.shrinkItemColumnToContent();
-        capture.restoreItemColumn();
+        await settle(fixture);
+        const shrunkWidth = api.getColumn('item')!.getActualWidth();
 
+        // `settle` before `restoreItemColumn`, not after: TestBed doesn't
+        // auto-run change detection the way a live tab does, so it takes an
+        // explicit `detectChanges()` — what `settle` gives it — to actually
+        // flush `capturing`'s new value into the grid's own `[columnDefs]`
+        // binding here, where a real app could lean on `restoreItemColumn`'s
+        // own ticks doing that on their own.
+        capture.capturing.set(false);
+        await settle(fixture);
+        await capture.restoreItemColumn();
+
+        // Not pinned to the exact pre-shrink width: AG Grid's own flex
+        // recompute is what decides that number, not this test, and is
+        // free to land it a pixel or two differently between runs. What
+        // matters is that it actually moved off the shrunk, fixed-width
+        // number `autoSizeColumns` left it at.
+        expect(api.getColumn('item')!.getActualWidth()).not.toBe(shrunkWidth);
         // A colDef flex of 1 is what lets Item fill the window again on its
         // own the next time anything resizes — a literal width matching the
         // old number would happen to look the same right now, but would
@@ -476,6 +513,33 @@ describe('the ledger grid', () => {
         // failure `autoSizeColumns` itself causes and this is meant to undo.
         expect(api.getColumn('item')!.getColDef().flex).toBe(1);
         expect(capture.itemColumnWidth()).toBe(api.getColumn('item')!.getActualWidth());
+      });
+
+      /**
+       * Regression coverage for a real bug found while fixing this: an
+       * earlier version of `restoreItemColumn` re-applied `columnDefs`
+       * itself, imperatively, on top of the grid's own `[columnDefs]`
+       * binding (capturing-aware since `printColumns` was added) doing the
+       * same restore reactively — AG Grid processing that same restore
+       * twice in close succession left a second, orphaned add-person header
+       * behind rather than cleanly replacing the first.
+       */
+      it('leaves exactly one add-person header behind after a full capture cycle', async () => {
+        const { fixture } = await grid();
+        const capture = printCapture(fixture);
+
+        capture.capturing.set(true);
+        await settle(fixture);
+        capture.shrinkItemColumnToContent();
+        await settle(fixture);
+        capture.capturing.set(false);
+        await capture.restoreItemColumn();
+        await settle(fixture);
+
+        const headers = (fixture.nativeElement as HTMLElement).querySelectorAll(
+          'button[aria-label="Add person"]',
+        );
+        expect(headers.length).toBe(1);
       });
     });
 

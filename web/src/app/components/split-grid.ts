@@ -699,15 +699,21 @@ interface RowClipboardEntry {
        \`overflow-x: hidden\` — there so a wide trip's band clips the same way
        the grid's body does, in step with \`onBodyScroll\` — is lifted for the
        same reason: nothing left to stay in step with once the grid itself
-       has nothing to scroll. The row-drag handle, the add-sheet/add-person
-       "+" buttons and the sheet cell's own "⋯" (opens the sheet editor
-       popup — nothing to open in a still image) are pure decoration with no
-       effect on any row or column size, so a plain hide is all they need —
-       unlike the add-item rows themselves, which are filtered out of the row
-       data instead (see {@link printRows}) rather than hidden here, since
-       hiding their DOM would leave a gap rather than closing the block up,
-       and unlike the sheet cell's own *height*, which the "⋯" button sits
+       has nothing to scroll. The row-drag handle and the sheet cell's own
+       "⋯" (opens the sheet editor popup — nothing to open in a still image)
+       are pure decoration with no effect on any row or column size, so a
+       plain hide is all either needs — unlike the add-item rows and the
+       whole add-person column, which are filtered out of the row/column
+       data instead (see {@link printRows}, {@link printColumns}) rather
+       than hidden here, since hiding their DOM would leave a gap (the
+       add-item row) or a blank navy sliver nobody's data ever occupied (the
+       add-person column) rather than actually closing up the space, and
+       unlike the sheet cell's own *height*, which the "⋯" button sits
        inside of but does not affect — see \`sheet-cell.ts\`'s \`isCapturing\`.
+       The Sheet column's own add-sheet "+" is the remaining exception among
+       the header icons: that column holds real data (the sheet names) and
+       stays, so only its button needs hiding, the same as the sheet cell's
+       own "⋯".
 
        \`.report\` itself needs \`width: max-content\` too, not just \`.grid\`
        (below) — html-to-image sizes the captured canvas off {@link
@@ -751,7 +757,6 @@ interface RowClipboardEntry {
 
     :host(.exporting-png) ::ng-deep .ag-drag-handle,
     :host(.exporting-png) ::ng-deep app-add-sheet-header,
-    :host(.exporting-png) ::ng-deep app-add-person-header,
     :host(.exporting-png) ::ng-deep app-sheet-cell button.more {
       display: none;
     }
@@ -1809,13 +1814,29 @@ export class SplitGrid {
   /**
    * Undoes {@link shrinkItemColumnToContent}. `autoSizeColumns` pins Item to
    * a fixed pixel width, the same way a manual drag on its own border would —
-   * overriding its own `flex: 1` until told otherwise. Re-applying the
-   * grid's real definitions (unchanged by any of this — `columns` never
-   * reads `capturing`) is what hands it back, and refreshing the totals
-   * band's own copy of the width is what hands *it* back too.
+   * overriding its own `flex: 1` until told otherwise, and unaffected by
+   * anything `autoSizeColumns` did to AG Grid's own internal state, so
+   * simply reverting {@link capturing} is what hands it back: the grid's
+   * `[columnDefs]` binding is capturing-aware too (`printColumns()`/
+   * `columns()`, in `split-grid.html`), and once `capturing` is false again
+   * that binding is back to the grid's real definitions on its own.
+   *
+   * Two ticks, not one, are what let that binding actually reach AG Grid
+   * before `refreshItemColumnWidth` reads anything off the result: `capturing`
+   * changing is the signal write itself, one tick is Angular noticing and
+   * pushing the new `columnDefs` into `ag-grid-angular`, and the second is
+   * AG Grid actually applying them — confirmed the hard way, when one tick
+   * alone left `refreshItemColumnWidth` reading Item's width a whole
+   * change-detection cycle too early, back when it *did* still hold the
+   * shrunk number. This also used to push the same definitions again
+   * itself, imperatively, which seemed harmless (the same array, headed to
+   * the same place either way) but let AG Grid process the same restore
+   * twice in close succession, which is what actually left a duplicate
+   * add-person header behind, not the restore itself.
    */
-  private restoreItemColumn(): void {
-    this.api?.setGridOption('columnDefs', this.columns());
+  private async restoreItemColumn(): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve));
+    await new Promise((resolve) => setTimeout(resolve));
     this.refreshItemColumnWidth();
   }
 
@@ -1823,15 +1844,17 @@ export class SplitGrid {
    * Saves the report as a PNG, named after the split.
    *
    * `capturing` flips the grid into its print layout — no scroll, no
-   * virtualised columns, no add-item rows (`printRows`) — and the report's
-   * own CSS out of its viewport-clamped size and into its natural one. Four
-   * macrotasks, one per step below that changes something the *next* step
-   * depends on, give Angular and AG Grid time to actually apply each before
-   * moving on: the row/layout bindings before every row is in the DOM to
-   * measure, the Item auto-size before its new width is summed, and that sum
-   * before the grid is actually resized to it. A macrotask (`setTimeout`),
-   * not an animation frame: the same reasoning as `settle()` in
-   * `split-grid.spec.ts` — a `requestAnimationFrame` only fires once the tab
+   * virtualised columns, no add-item rows (`printRows`), no add-person
+   * column (`printColumns`) — and the report's own CSS out of its
+   * viewport-clamped size and into its natural one. Four macrotasks, one per
+   * step below that changes something the *next* step depends on, give
+   * Angular and AG Grid time to actually apply each before moving on: the
+   * row/column/layout bindings before every row is in the DOM to measure,
+   * the Item auto-size before its new width is summed, and that sum before
+   * the grid is actually resized to it — {@link restoreItemColumn} needs two
+   * more of its own afterwards, for the same reason, to undo it. A macrotask
+   * (`setTimeout`), not an animation frame: the same reasoning as `settle()`
+   * in `split-grid.spec.ts` — a `requestAnimationFrame` only fires once the tab
    * is actually compositing, which a backgrounded or occluded one may delay
    * far longer than this needs to wait for. The inner `finally` is what
    * guarantees the grid always reverts to its normal, editable layout even
@@ -1875,7 +1898,7 @@ export class SplitGrid {
       } finally {
         this.capturing.set(false);
         this.captureGridWidth.set(null);
-        this.restoreItemColumn();
+        await this.restoreItemColumn();
       }
       await saveImageFile(blob, `${slugifyTitle(this.store.title())}.png`);
     } finally {
@@ -3295,6 +3318,16 @@ export class SplitGrid {
    * changes when their column is dragged to reorder, so only Item needs
    * watching at runtime — see its own doc comment for why even one flexible
    * column can't be re-derived from a `minmax()` guess of the same width.
+   *
+   * Both trailing tracks are dropped while {@link capturing}: the add-person
+   * column itself is gone from the grid then (see {@link printColumns}), and
+   * the scrollbar spacer has nothing left to reserve room for — a capture
+   * has no scrollbar of its own to line up with. Left in, either would
+   * widen the band past the now-narrower grid, and `.report`'s own
+   * `max-content` (`:host(.exporting-png)`, below) would pick the band's
+   * wider, wrong number over the grid's real one — the same failure mode
+   * {@link shrinkItemColumnToContent}'s own doc comment already covers for
+   * Item.
    */
   protected readonly totalsColumns = computed(() => {
     // Not `repeat(N, 40px)`: with nobody in the split yet, N is 0, and
@@ -3310,8 +3343,7 @@ export class SplitGrid {
       itemTrack,
       '100px',
       peopleTracks,
-      `${ADD_PERSON_COLUMN_WIDTH}px`,
-      `${GRID_SCROLLBAR_WIDTH}px`,
+      ...(this.capturing() ? [] : [`${ADD_PERSON_COLUMN_WIDTH}px`, `${GRID_SCROLLBAR_WIDTH}px`]),
     ]
       .filter(Boolean)
       .join(' ');
@@ -3608,6 +3640,26 @@ export class SplitGrid {
 
     return columns;
   });
+
+  /**
+   * {@link columns}, minus the trailing add-person column — what {@link
+   * savePng} swaps in as the grid's `columnDefs` for as long as {@link
+   * capturing} is true, the same reasoning as {@link printRows} for the
+   * add-item row. Unlike the add-sheet/add-person "+" buttons' own icons
+   * (`app-add-sheet-header`, hidden with plain CSS in the
+   * `:host(.exporting-png)` styles below — the Sheet column itself stays,
+   * so only its button needs hiding), the add-person column holds nothing
+   * *but* its own button: dropping the whole column from the capture, not
+   * just the icon inside it, is what keeps a PNG from ending in a blank
+   * navy sliver nobody's balance or name ever occupied. `totalsColumns` and
+   * `totalColumnWidth`/`captureGridWidth` both follow it automatically —
+   * the former reads {@link capturing} directly to drop its own matching
+   * track, the latter two just sum whatever `columnDefs` the grid actually
+   * has at the time.
+   */
+  protected readonly printColumns = computed<ColDef<LedgerRowData>[]>(() =>
+    this.columns().filter((column) => column.colId !== 'add-person'),
+  );
 
   protected readonly getRowId = (params: GetRowIdParams<LedgerRowData>): string =>
     ledgerRowId(params.data);
