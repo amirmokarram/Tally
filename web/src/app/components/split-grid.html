@@ -16,6 +16,42 @@
       />
       <span class="toolbar-divider"></span>
       <button
+        class="toolbar-btn danger"
+        type="button"
+        title="Delete ticked lines"
+        [disabled]="!ticked().length"
+        (click)="removeTicked()"
+      >
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false">
+          <path
+            d="M3 4.5h10M6.5 4.5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1.5M4.5 4.5l.6 8.4a1 1 0 0 0 1 .9h3.8a1 1 0 0 0 1-.9l.6-8.4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <span class="btn-label">Delete</span>
+      </button>
+      <button
+        class="toolbar-btn"
+        type="button"
+        title="Set shares for ticked lines"
+        [disabled]="!ticked().length"
+        (click)="toggleShareMenu($event)"
+      >
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false">
+          <circle cx="8" cy="8" r="5.75" fill="none" stroke="currentColor" stroke-width="1.5" />
+          <path d="M8 2.25V8h5.75" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span class="btn-label">Shares</span>
+        <svg class="toolbar-caret" viewBox="0 0 10 6" width="8" height="5" aria-hidden="true" focusable="false">
+          <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+      <span class="toolbar-divider"></span>
+      <button
         class="toolbar-btn"
         type="button"
         title="Undo (Ctrl+Z)"
@@ -269,24 +305,16 @@
   />
 }
 
-<!-- What used to be a toolbar of three buttons, shown once lines were
-     ticked. AG Grid's own context menu is Enterprise, so a right-click opens
-     this one instead — see `onContextMenu`, on the host. -->
-@if (contextMenuPos(); as pos) {
-  <div
-    class="context-menu-backdrop"
-    (click)="closeContextMenu()"
-    (contextmenu)="$event.preventDefault(); closeContextMenu()"
-  ></div>
-  <div class="context-menu" [style.left.px]="pos.x" [style.top.px]="pos.y">
-    <span class="context-menu-count">
-      {{ ticked().length === 1 ? '1 line ticked' : ticked().length + ' lines ticked' }}
-    </span>
+<!-- The Shares toolbar button's own dropdown — anchored under whichever
+     button opened it, see `toggleShareMenu`, on the host. -->
+@if (shareMenuAnchor(); as pos) {
+  <div class="toolbar-menu-backdrop" (click)="closeShareMenu()"></div>
+  <div class="toolbar-menu" [style.left.px]="pos.x" [style.top.px]="pos.y">
     <button
       class="btn ghost"
       type="button"
       title="Give everyone an equal share of the ticked lines"
-      (click)="splitTickedEvenly(); closeContextMenu()"
+      (click)="splitTickedEvenly(); closeShareMenu()"
     >
       Everyone
     </button>
@@ -294,12 +322,9 @@
       class="btn ghost"
       type="button"
       title="Clear the ticked lines' shares, keeping the lines"
-      (click)="clearTickedShares(); closeContextMenu()"
+      (click)="clearTickedShares(); closeShareMenu()"
     >
       Clear shares
-    </button>
-    <button class="btn danger" type="button" (click)="removeTicked(); closeContextMenu()">
-      Remove {{ ticked().length === 1 ? 'line' : ticked().length + ' lines' }}
     </button>
   </div>
 }

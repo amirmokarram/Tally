@@ -158,53 +158,30 @@ function tick(harness: Harness, items: readonly { id: string }[]): void {
   });
 }
 
-/** `closeContextMenu` is `protected` so the template can reach it. */
-interface ContextMenuHost {
-  closeContextMenu(): void;
+/** `closeShareMenu` is `protected` so the template can reach it. */
+interface ShareMenuHost {
+  closeShareMenu(): void;
 }
 
-function contextMenuHost(fixture: ComponentFixture<SplitGrid>): ContextMenuHost {
-  return fixture.componentInstance as unknown as ContextMenuHost;
+function shareMenuHost(fixture: ComponentFixture<SplitGrid>): ShareMenuHost {
+  return fixture.componentInstance as unknown as ShareMenuHost;
 }
 
-/**
- * Opens the context menu the way a real right-click would — a genuine DOM
- * dispatch, not a call against the handler directly.
- *
- * Unlike the drag handlers `onCell`/`selecting` drive directly (see
- * {@link Selecting} above), this one has to go through the real DOM:
- * `onContextMenu` is bound as a plain `(contextmenu)` host listener rather
- * than through one of AG Grid's own outputs, specifically so that
- * `preventDefault()` runs synchronously, in time to actually suppress the
- * browser's own menu — that timing is the entire point of the handler, and a
- * direct call proves nothing about it (see the `BUG:` describe block below).
- * Returns the dispatched event so a test can read `defaultPrevented` off the
- * same object the browser itself would consult.
- */
-function rightClick(fixture: ComponentFixture<SplitGrid>, rowId: string, colId = 'item'): MouseEvent {
-  const cell = (fixture.nativeElement as HTMLElement).querySelector(
-    `.ag-row[row-id="${rowId}"] [col-id="${colId}"]`,
-  )!;
-  const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
-  cell.dispatchEvent(event);
-  return event;
-}
-
-/** A row action from the context menu, or null while it is not open. */
-function menuButton(
+/** A button inside the Shares dropdown, or null while it is not open. */
+function shareMenuButton(
   fixture: ComponentFixture<SplitGrid>,
   label: string,
 ): HTMLButtonElement | null {
   return (
     Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
-        '.context-menu button',
+        '.toolbar-menu button',
       ),
     ).find((button) => button.textContent!.trim().startsWith(label)) ?? null
   );
 }
 
-/** A toolbar button, found by its own `title` — same convention as {@link menuButton}. */
+/** A toolbar button, found by its own `title` — same convention as {@link shareMenuButton}. */
 function toolbarButton(fixture: ComponentFixture<SplitGrid>, title: string): HTMLButtonElement {
   return (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
     `.toolbar-btn[title="${title}"]`,
@@ -446,7 +423,7 @@ describe('the ledger grid', () => {
    * buttons that used to sit on every row in a column of their own.
    */
   describe('the ticked lines', () => {
-    it('removes every ticked line, and takes its shares with it', async () => {
+    it('deletes every ticked line from its own toolbar button, and takes its shares with it', async () => {
       const harness = await grid();
       const items = harness.store.sheets()[0].items;
       const person = harness.store.people()[0];
@@ -455,11 +432,8 @@ describe('the ledger grid', () => {
 
       tick(harness, doomed);
       await settle(harness.fixture);
-      rightClick(harness.fixture, `item:${doomed[0].id}`);
-      await settle(harness.fixture);
 
-      expect(menuButton(harness.fixture, 'Remove')!.textContent).toContain('2 lines');
-      menuButton(harness.fixture, 'Remove')!.click();
+      toolbarButton(harness.fixture, 'Delete ticked lines').click();
       await settle(harness.fixture);
 
       expect(harness.store.sheets()[0].items.map((i) => i.id)).toEqual([
@@ -474,25 +448,39 @@ describe('the ledger grid', () => {
       ).not.toBe(before);
     });
 
-    it('gives everyone a share of the ticked lines, and clears them again', async () => {
+    it('disables Delete and Shares until a line is ticked', async () => {
+      const harness = await grid();
+      const item = harness.store.sheets()[0].items[0];
+
+      expect(toolbarButton(harness.fixture, 'Delete ticked lines').disabled).toBe(true);
+      expect(toolbarButton(harness.fixture, 'Set shares for ticked lines').disabled).toBe(true);
+
+      tick(harness, [item]);
+      await settle(harness.fixture);
+
+      expect(toolbarButton(harness.fixture, 'Delete ticked lines').disabled).toBe(false);
+      expect(toolbarButton(harness.fixture, 'Set shares for ticked lines').disabled).toBe(false);
+    });
+
+    it('gives everyone a share of the ticked lines from the Shares dropdown, and clears them again', async () => {
       const harness = await grid();
       const items = harness.store.sheets()[0].items;
       const people = harness.store.people();
 
       tick(harness, [items[0]]);
       await settle(harness.fixture);
-      rightClick(harness.fixture, `item:${items[0].id}`);
+      toolbarButton(harness.fixture, 'Set shares for ticked lines').click();
       await settle(harness.fixture);
-      menuButton(harness.fixture, 'Everyone')!.click();
+      shareMenuButton(harness.fixture, 'Everyone')!.click();
       await settle(harness.fixture);
 
       for (const person of people) {
         expect(harness.store.share(items[0].id, person.id).owe).toBe(1);
       }
 
-      rightClick(harness.fixture, `item:${items[0].id}`);
+      toolbarButton(harness.fixture, 'Set shares for ticked lines').click();
       await settle(harness.fixture);
-      menuButton(harness.fixture, 'Clear shares')!.click();
+      shareMenuButton(harness.fixture, 'Clear shares')!.click();
       await settle(harness.fixture);
 
       for (const person of people) {
@@ -500,59 +488,38 @@ describe('the ledger grid', () => {
       }
     });
 
-    it('shows no context menu until a line is right-clicked', async () => {
+    it('shows no Shares dropdown until its toolbar button is clicked', async () => {
       const harness = await grid();
       const item = harness.store.sheets()[0].items[0];
 
       tick(harness, [item]);
       await settle(harness.fixture);
-      expect(menuButton(harness.fixture, 'Remove')).toBeNull();
+      expect(shareMenuButton(harness.fixture, 'Everyone')).toBeNull();
 
-      rightClick(harness.fixture, `item:${item.id}`);
+      toolbarButton(harness.fixture, 'Set shares for ticked lines').click();
       await settle(harness.fixture);
-      expect(menuButton(harness.fixture, 'Remove')!.textContent).toContain('line');
+      expect(shareMenuButton(harness.fixture, 'Everyone')).not.toBeNull();
 
-      contextMenuHost(harness.fixture).closeContextMenu();
+      shareMenuHost(harness.fixture).closeShareMenu();
       await settle(harness.fixture);
-      expect(menuButton(harness.fixture, 'Remove')).toBeNull();
+      expect(shareMenuButton(harness.fixture, 'Everyone')).toBeNull();
     });
 
-    it('right-clicking an unticked line still opens the menu, on whatever is ticked elsewhere', async () => {
+    it('clicking the Shares button again closes its own dropdown', async () => {
       const harness = await grid();
-      const items = harness.store.sheets()[0].items;
+      const item = harness.store.sheets()[0].items[0];
 
-      tick(harness, [items[0], items[1]]);
+      tick(harness, [item]);
       await settle(harness.fixture);
 
-      // The menu acts on the tick as a whole, not on the row the pointer
-      // happens to be over — items[2] is not ticked, but items[0] and [1]
-      // still are, so there is something for a right-click anywhere to act on.
-      rightClick(harness.fixture, `item:${items[2].id}`);
+      const button = toolbarButton(harness.fixture, 'Set shares for ticked lines');
+      button.click();
       await settle(harness.fixture);
+      expect(shareMenuButton(harness.fixture, 'Everyone')).not.toBeNull();
 
-      // The tick itself is untouched — a right-click never changes it.
-      expect(harness.api.getSelectedNodes().map((n) => n.id).sort()).toEqual(
-        [`item:${items[0].id}`, `item:${items[1].id}`].sort(),
-      );
-      expect(menuButton(harness.fixture, 'Remove')!.textContent).toContain('2 lines');
-    });
-
-    it('right-clicking a ticked line opens the menu, preventing the browser’s own', async () => {
-      const harness = await grid();
-      const items = harness.store.sheets()[0].items;
-
-      tick(harness, [items[0], items[1]]);
+      button.click();
       await settle(harness.fixture);
-
-      const event = rightClick(harness.fixture, `item:${items[0].id}`);
-
-      // Read synchronously — see the `BUG:` describe block below for why an
-      // `await` first would prove nothing.
-      expect(event.defaultPrevented).toBe(true);
-
-      await settle(harness.fixture);
-      expect(harness.api.getSelectedNodes().length).toBe(2);
-      expect(menuButton(harness.fixture, 'Remove')!.textContent).toContain('2 lines');
+      expect(shareMenuButton(harness.fixture, 'Everyone')).toBeNull();
     });
 
     it('right-clicking a ticked line’s own number does not untick it first', async () => {
@@ -565,7 +532,7 @@ describe('the ledger grid', () => {
 
       // A browser fires `mousedown` for every button, not just the left one —
       // this is the right button's, the one a real right-click sends before
-      // its own `contextmenu` event.
+      // its own native context menu.
       sel.onCellMouseDown({
         node: harness.api.getRowNode(`item:${items[0].id}`),
         column: { getColId: () => 'index' },
@@ -574,130 +541,6 @@ describe('the ledger grid', () => {
       await settle(harness.fixture);
 
       expect(harness.api.getSelectedNodes().length).toBe(1);
-    });
-
-    it('leaves the browser’s own menu alone for a right-click with nothing ticked', async () => {
-      const harness = await grid();
-      const item = harness.store.sheets()[0].items[0];
-
-      const event = rightClick(harness.fixture, `item:${item.id}`);
-
-      expect(event.defaultPrevented).toBe(false);
-
-      await settle(harness.fixture);
-      expect(menuButton(harness.fixture, 'Remove')).toBeNull();
-    });
-
-    /**
-     * `onCellMouseDown` is driven directly elsewhere in this file, on the
-     * documented grounds that whether a pointer gesture becomes one of AG
-     * Grid's own events is AG Grid's plumbing, not this component's. This
-     * describe block is why `onContextMenu` is not driven the same way: a
-     * call made straight against a handler proves the handler's own logic is
-     * correct, but proves nothing about *when* the event actually reaches
-     * it — and that turned out to be the entire bug, in a first attempt at
-     * this that used AG Grid's own `(cellContextMenu)` output instead.
-     *
-     * `Event.preventDefault()` only suppresses a browser's own default action —
-     * here, its native right-click menu — when it is called before the
-     * browser finishes dispatching the event. Call it any later and the
-     * `defaultPrevented` flag still flips to `true` if you go back and check
-     * it, but the browser has already moved on: the menu it was going to show,
-     * it shows. AG Grid's Angular Output for `cellContextMenu` turned out to be
-     * exactly that kind of "later" — the native `contextmenu` event finishes
-     * dispatching, *then* the Output fires. A test that awaits a macrotask
-     * (`settle()`, used everywhere else in this file) before reading
-     * `defaultPrevented` cannot tell the two apart: by the time it checks, the
-     * flag has caught up either way. Proving the real bug means reading
-     * `defaultPrevented` *synchronously*, in the same task as the dispatch,
-     * exactly as a browser itself would when deciding whether to show its menu.
-     *
-     * The fix has to match: preventing the browser's menu can only happen from
-     * a listener that runs synchronously with the native event, which rules out
-     * AG Grid's Output for this one job. A plain `(contextmenu)` host listener
-     * — an ordinary `addEventListener`, not routed through AG Grid's event bus —
-     * is what actually runs in time.
-     */
-    describe('BUG: preventing the browser’s own menu, through the real DOM', () => {
-      it('a right-click on the ticked line itself prevents the browser’s own menu', async () => {
-        const harness = await grid();
-        const item = harness.store.sheets()[0].items[0];
-        const rowId = `item:${item.id}`;
-
-        tick(harness, [item]);
-        await settle(harness.fixture);
-        expect(harness.api.getSelectedNodes().map((n) => n.id)).toEqual([rowId]);
-
-        const event = rightClick(harness.fixture, rowId);
-
-        // Read *before* settling — a browser decides whether to show its own
-        // menu at the end of this same, synchronous dispatch.
-        expect(event.defaultPrevented).toBe(true);
-
-        await settle(harness.fixture);
-        // Still ticked — a right-click never touches the tick.
-        expect(harness.api.getSelectedNodes().map((n) => n.id)).toEqual([rowId]);
-        expect(menuButton(harness.fixture, 'Remove')).not.toBeNull();
-      });
-
-      /**
-       * A second, related lag: {@link SplitGrid.onSelectionChanged} is itself
-       * one of AG Grid's own outputs, so the `ticked` signal it maintains
-       * lags a tick by the same kind of margin `cellContextMenu` lagged a
-       * click by above. A right-click that follows hard on the left-click
-       * that did the ticking — no `settle()`, no `await`, in the same task —
-       * must not fall through to the browser's own menu just because the
-       * signal has not caught up yet.
-       */
-      it('a right-click immediately after ticking — no settling in between — still prevents the browser’s own menu', async () => {
-        const harness = await grid();
-        const item = harness.store.sheets()[0].items[0];
-        const rowId = `item:${item.id}`;
-
-        tick(harness, [item]);
-        // No `await settle()` — the tick and the right-click land in the same
-        // task, exactly as a fast left-click-then-right-click would.
-        const event = rightClick(harness.fixture, rowId);
-
-        expect(event.defaultPrevented).toBe(true);
-
-        await settle(harness.fixture);
-        expect(menuButton(harness.fixture, 'Remove')).not.toBeNull();
-      });
-
-      it('a right-click on a DIFFERENT, unticked line also prevents the browser’s own menu', async () => {
-        const harness = await grid();
-        const items = harness.store.sheets()[0].items;
-        const tickedId = `item:${items[0].id}`;
-        const elsewhereId = `item:${items[1].id}`;
-
-        tick(harness, [items[0]]);
-        await settle(harness.fixture);
-
-        // The row the bug report was about: right-clicking a line that was
-        // never ticked, while a different one is.
-        const event = rightClick(harness.fixture, elsewhereId);
-
-        expect(event.defaultPrevented).toBe(true);
-
-        await settle(harness.fixture);
-        // The tick is exactly what it was — a right-click never changes it,
-        // on the row it lands on or any other.
-        expect(harness.api.getSelectedNodes().map((n) => n.id)).toEqual([tickedId]);
-        expect(menuButton(harness.fixture, 'Remove')).not.toBeNull();
-      });
-
-      it('a right-click with nothing ticked anywhere leaves the browser’s own menu alone', async () => {
-        const harness = await grid();
-        const item = harness.store.sheets()[0].items[0];
-
-        const event = rightClick(harness.fixture, `item:${item.id}`);
-
-        expect(event.defaultPrevented).toBe(false);
-
-        await settle(harness.fixture);
-        expect(menuButton(harness.fixture, 'Remove')).toBeNull();
-      });
     });
 
     it('will not tick the blank row that ends a block', async () => {
@@ -1433,8 +1276,8 @@ describe('the ledger grid', () => {
   });
 
   /**
-   * Whole-line Copy/Cut/Paste, off the same tick used for the context menu's
-   * Everyone / Clear shares / Remove — a different thing from the cell-block
+   * Whole-line Copy/Cut/Paste, off the same tick used for the toolbar's
+   * Delete / Everyone / Clear shares — a different thing from the cell-block
    * copy/paste above, which only ever carries values, never a whole line.
    */
   describe('row copy, cut and paste', () => {
