@@ -37,6 +37,7 @@ import {
   isDevMode,
   signal,
   viewChild,
+  viewChildren,
 } from '@angular/core';
 import { AgGridAngular } from 'ag-grid-angular';
 import {
@@ -232,6 +233,11 @@ interface RowClipboardEntry {
     // A drag can end anywhere, including outside the grid.
     '(document:mouseup)': 'endDrag()',
     '(document:keydown.escape)': 'onEscape()',
+    // Both menus snapshot a fixed-position anchor (and the overflow menu
+    // also snapshots which groups are collapsed) when they open — a resize
+    // would leave either stale rather than tracking the button that moved,
+    // so it closes them instead of trying to re-anchor.
+    '(window:resize)': 'closeShareMenu(); closeOverflowMenu()',
     '[class.dragging]': 'dragging || fillDragging',
     '[class.filling]': 'fillDragging',
     '[class.no-row-hover]': '!settings.rowHoverEnabled()',
@@ -304,6 +310,16 @@ interface RowClipboardEntry {
       gap: 4px;
     }
 
+    /* Invisible to layout at normal widths — a group's buttons and divider
+       sit directly in \`.toolbar-group\`'s own flex row, under its own \`gap\`,
+       exactly as if this wrapper were not there. It exists only so the
+       narrow-container breakpoints further down have one element per group
+       to hide, collapsing each whole group into \`.toolbar-more\` as space
+       runs out rather than wrapping or clipping button-by-button. */
+    .toolbar-cluster {
+      display: contents;
+    }
+
     .toolbar-divider {
       width: 1px;
       height: 18px;
@@ -353,21 +369,94 @@ interface RowClipboardEntry {
       opacity: 0.6;
     }
 
-    /* Below this, the row stops fitting labels-and-all — Reorder sheets is
-       the longest, so it is what the threshold is tuned against. Icons
-       alone still say what each button does (their own \`title\` carries the
-       rest), and shedding the labels buys back exactly the width that was
-       overflowing rather than wrapping the toolbar onto a second line. The
-       currency picker is deliberately untouched: it is already as compact
-       as it gets (see \`.currency-select\` below), and it is what the trip's
-       numbers are in — not something to hide under pressure. */
-    @container (max-width: 620px) {
+    /* Below this, the row stops fitting labels-and-all — Reorder Sheets is
+       the longest, so it is what the threshold is tuned against, measured
+       (not derived, the same as the breakpoints below) with a margin above
+       the point the row actually starts overflowing. Icons alone still say
+       what each button does (their own \`title\` carries the rest), and
+       shedding the labels buys back exactly the width that was overflowing
+       rather than wrapping the toolbar onto a second line. The currency
+       picker is deliberately untouched: it is already as compact as it gets
+       (see \`.currency-select\` below), and it is what the trip's numbers are
+       in — not something to hide under pressure.
+
+       This one was 620px for a long time before Delete and Shares joined
+       the row (see \`.toolbar-cluster\`, below) without it being re-measured
+       against them — the same gap the breakpoints below already had to be
+       fixed for, just five groups' worth wider: up to 251px of the labeled
+       row could overflow, scrolled invisibly out of view behind the
+       (invisible) escape-hatch scrollbar, before label-shedding ever got a
+       chance to reclaim the space. */
+    @container (max-width: 940px) {
       .toolbar-btn .btn-label {
         display: none;
       }
 
       .toolbar-btn {
         padding-inline: 8px;
+      }
+    }
+
+    /* Hidden until the row runs out of room even icon-only — the widest of
+       the four breakpoints below sets it to \`inline-flex\` once the first
+       group collapses, and it stays that way through the narrower ones too
+       (an \`@container\` rule that has already matched keeps applying as the
+       container keeps shrinking, since \`max-width\` conditions are
+       cumulative), the same one button standing in for however many groups
+       are currently stacked in its menu — see \`overflowedClusters\`, on the
+       host. */
+    .toolbar-more {
+      display: none;
+    }
+
+    /* Each \`.toolbar-cluster\` is \`display: contents\` normally — invisible to
+       layout, its buttons and divider sitting directly in \`.toolbar-group\`'s
+       own flex row exactly as if the wrapper were not there. Four
+       breakpoints, one per group, widest first — group 4 (Reorder
+       Sheets/Export) goes first since it was placed last and least central,
+       group 1 (Delete/Shares) goes last since it was placed first. Each
+       collapses its own group into \`.toolbar-more\`'s menu instead of
+       clipping or wrapping, on top of whatever narrower breakpoints already
+       collapsed. Currency and Settings are deliberately untouched, the same
+       reasoning as the 620px breakpoint above: not something to hide under
+       pressure.
+
+       The numbers themselves are measured, not derived: each is the
+       narrowest width at which everything down to that group still
+       rendered without the row overflowing, in the icon-only state the
+       620px breakpoint already put it in, plus a margin for
+       \`.toolbar-more\` itself, which is not on the page to measure until
+       the first of these already applies. Cutting a breakpoint too close
+       leaves a gap where the row genuinely overflows before it fires — a
+       real bug this once had at a single, cruder 480px cutoff: content
+       quietly scrolled out of view behind the (invisible) escape-hatch
+       scrollbar, one button at a time as the window narrowed, rather than
+       moving into the menu. */
+    @container (max-width: 540px) {
+      .cluster-4 {
+        display: none;
+      }
+
+      .toolbar-more {
+        display: inline-flex;
+      }
+    }
+
+    @container (max-width: 460px) {
+      .cluster-3 {
+        display: none;
+      }
+    }
+
+    @container (max-width: 380px) {
+      .cluster-2 {
+        display: none;
+      }
+    }
+
+    @container (max-width: 300px) {
+      .cluster-1 {
+        display: none;
       }
     }
 
@@ -575,9 +664,10 @@ interface RowClipboardEntry {
       transform: translate(-50%, -50%);
     }
 
-    /* The transparent click-catcher behind the Shares dropdown — nothing to
-       dim, since unlike the editor panel this is not a modal over the grid,
-       just a way to notice a click elsewhere and close it. */
+    /* The transparent click-catcher behind the Shares dropdown and the
+       overflow menu — nothing to dim, since unlike the editor panel neither
+       is a modal over the grid, just a way to notice a click elsewhere and
+       close whichever is open. */
     .toolbar-menu-backdrop {
       position: fixed;
       inset: 0;
@@ -601,6 +691,31 @@ interface RowClipboardEntry {
     .toolbar-menu .btn {
       width: 100%;
       justify-content: flex-start;
+    }
+
+    /* The overflow menu stacks every \`.toolbar-actions\` button at once
+       (see the 480px breakpoint, above), so it is taller than the two-item
+       Shares dropdown reusing the rest of \`.toolbar-menu\` — this is its own
+       width and a cap on how tall it can grow before scrolling. */
+    .overflow-menu {
+      width: 200px;
+      max-height: calc(100vh - 20px);
+      overflow-y: auto;
+    }
+
+    .toolbar-menu-divider {
+      height: 1px;
+      margin: 4px 2px;
+      background: var(--border);
+    }
+
+    /* Points at the Shares row's own further popup — the same down chevron
+       \`.toolbar-caret\` draws on the toolbar button, quarter-turned to read
+       as "opens more" rather than "opens downward" the way it does there. */
+    .menu-submenu-caret {
+      margin-left: auto;
+      opacity: 0.6;
+      transform: rotate(-90deg);
     }
 
     /* The panel floats over the grid rather than inside a cell: the grid clips
@@ -2264,11 +2379,61 @@ export class SplitGrid {
   }
 
   /**
-   * Escape's own job: close the Shares dropdown, back out of a pending cut,
-   * and dismiss a Copy's own marching-ants marker.
+   * Where the overflow menu is open, right-aligned under the "More actions"
+   * button: unlike {@link shareMenuAnchor}, that button sits at the
+   * toolbar's own right edge, so a menu grown from its *left* edge risks
+   * running off the right side of the viewport instead.
+   */
+  protected readonly overflowMenuAnchor = signal<{ right: number; top: number } | null>(null);
+
+  /**
+   * The one real box in each `.toolbar-cluster` — the divider survives its
+   * wrapper's `display: contents`, everything else in there does not — in
+   * DOM order, so index 0 is group 1 (Delete/Shares) through index 3, group
+   * 4 (Reorder Sheets/Export). What {@link toggleOverflowMenu} checks to
+   * tell which groups the container query below has actually collapsed.
+   */
+  private readonly clusterMarkers = viewChildren<ElementRef<HTMLElement>>('cluster');
+
+  /**
+   * Which of the four toolbar groups (1-based, matching `.cluster-1`
+   * through `.cluster-4`) are currently collapsed — computed once, when the
+   * menu opens, rather than kept continuously in sync: nothing changes it
+   * while the menu is open except a resize, and closing on resize (like the
+   * Shares dropdown already implicitly does, since its own anchor is a
+   * snapshot too) is a fair trade against watching every group with a
+   * `ResizeObserver` for a popup that is rarely open in the first place.
+   */
+  protected readonly overflowedClusters = signal<ReadonlySet<number>>(new Set());
+
+  /** Opens the overflow menu under the "More actions" button, or closes it if already open. */
+  protected toggleOverflowMenu(event: MouseEvent): void {
+    if (this.overflowMenuAnchor()) {
+      this.closeOverflowMenu();
+      return;
+    }
+    const hidden = new Set<number>();
+    this.clusterMarkers().forEach((marker, index) => {
+      if (marker.nativeElement.offsetParent === null) {
+        hidden.add(index + 1);
+      }
+    });
+    this.overflowedClusters.set(hidden);
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.overflowMenuAnchor.set({ right: window.innerWidth - rect.right, top: rect.bottom + 4 });
+  }
+
+  protected closeOverflowMenu(): void {
+    this.overflowMenuAnchor.set(null);
+  }
+
+  /**
+   * Escape's own job: close the Shares dropdown and the overflow menu, back
+   * out of a pending cut, and dismiss a Copy's own marching-ants marker.
    */
   protected onEscape(): void {
     this.closeShareMenu();
+    this.closeOverflowMenu();
     this.cancelPendingCut();
     this.cancelCopiedMark();
   }
