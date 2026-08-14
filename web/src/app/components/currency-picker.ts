@@ -174,7 +174,7 @@ let nextId = 0;
        button chrome there instead of standing out as the one boxed control
        among them. */
     :host(.plain) .picker-trigger {
-      padding: 2px 0;
+      padding: 6px 5px;
       border: none;
       background: none;
       color: var(--text-muted);

@@ -304,7 +304,7 @@ interface RowClipboardEntry {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 6px 10px;
+      padding: 6px 5px;
       border: 1px solid transparent;
       border-radius: var(--radius-sm);
       background: none;
