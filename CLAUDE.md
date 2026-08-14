@@ -27,3 +27,25 @@ CSS to a component, particularly `split-grid.ts` (the fused report page,
 already the largest component's styles by a wide margin). If a legitimate
 addition pushes a component over the current error budget, raise the number
 in `angular.json` rather than trying to golf the CSS to fit.
+
+## AG Grid integration gotchas
+
+**Don't let two mechanisms write the same AG Grid option for the same
+logical change.** An Angular `@Input` binding and an imperative
+`api.setGridOption(...)` call both pushing the same `columnDefs` update in
+close succession (one reactive, one explicit "just to be sure") left AG Grid
+processing the change twice and rendering a duplicate, orphaned header —
+found in `split-grid.ts`'s PNG-capture column restore. Pick one mechanism —
+prefer the reactive binding — and drop the other rather than layering a
+manual push "for safety" on top of a binding that already does the same job.
+
+**A signal write reaching a bound `@Input` needs a real change-detection
+pass, not just a `setTimeout` tick, in a Karma/TestBed spec — unlike the live
+app.** In production, zone.js runs `ApplicationRef.tick()` automatically once
+the zone stabilizes after a macrotask, so a bare `await new
+Promise(resolve => setTimeout(resolve))` is enough for a signal change to
+reach AG Grid. TestBed does not auto-run change detection the same way; a
+spec has to call `fixture.detectChanges()` itself (this codebase's
+`settle()` helper in `split-grid.spec.ts`) before reading anything that
+depends on the update having landed. A test that only awaits a tick can pass
+by coincidence rather than proving the update actually happened.

@@ -130,6 +130,12 @@ rejected rather than failing generically.
 The reasoning behind each of these is in
 [docs/PORTING-NOTES.md §10](docs/PORTING-NOTES.md).
 
+A split can also be saved as a PNG — a flattened snapshot of the report (no
+toolbar, no scrollbar, every column sized to its own content rather than
+whatever the browser window happened to leave over) for sharing or printing,
+rather than a way to move the split itself. JSON is for the data; PNG is for
+the picture of it.
+
 ## Correctness
 
 The four worked examples from the original guide are encoded as fixtures and
