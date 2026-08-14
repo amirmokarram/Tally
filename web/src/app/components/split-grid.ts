@@ -1711,10 +1711,25 @@ export class SplitGrid {
   /**
    * Puts the report into its flattened, print-ready shape — see the
    * `:host(.exporting-png)` styles below, and {@link printRows} — for as long
-   * as a PNG capture is in flight. `savePng` is the only place this is
-   * written; every capturing-aware binding elsewhere just reads it.
+   * as the DOM is actually being rasterized. Deliberately narrower than
+   * {@link exportingPng}: once {@link capturePng} has the image, nothing
+   * about the *save* step (which can sit open for as long as a native picker
+   * takes to be answered) needs the report still flattened, so this reverts
+   * the moment the pixels are captured rather than staying flattened behind
+   * whatever comes next — a user opening the picker should find the ordinary,
+   * editable report waiting under it, not the toolbar-less one.
    */
   protected readonly capturing = signal(false);
+
+  /**
+   * True for the whole export — capture *and* save — so a second click can't
+   * start an overlapping capture while the first one is still saving (a
+   * native picker, in particular, can stay open indefinitely). What the PNG
+   * button's own `disabled` binding reads; {@link capturing} is reserved for
+   * the report's own flattened *appearance*, which ends well before this
+   * does.
+   */
+  protected readonly exportingPng = signal(false);
 
   /**
    * Saves the report as a PNG, named after the split.
@@ -1727,13 +1742,14 @@ export class SplitGrid {
    * frame: the same reasoning as `settle()` in `split-grid.spec.ts` — a
    * `requestAnimationFrame` only fires once the tab is actually compositing,
    * which a backgrounded or occluded one may delay far longer than this
-   * needs to wait for. The `finally` is what guarantees the grid always
-   * reverts to its normal, editable layout even if the capture or the save
-   * itself throws — a stuck-in-print-mode grid would be a far worse failure
-   * than a missing PNG.
+   * needs to wait for. The inner `finally` is what guarantees the grid
+   * always reverts to its normal, editable layout even if the capture itself
+   * throws — a stuck-in-print-mode grid would be a far worse failure than a
+   * missing PNG — and, on the happy path, is what lets that revert happen
+   * before the save step below rather than after it.
    */
   protected async savePng(): Promise<void> {
-    if (this.capturing()) {
+    if (this.exportingPng()) {
       return;
     }
     const node = this.reportRoot()?.nativeElement;
@@ -1741,14 +1757,20 @@ export class SplitGrid {
       return;
     }
 
-    this.capturing.set(true);
+    this.exportingPng.set(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve));
-      await new Promise((resolve) => setTimeout(resolve));
-      const blob = await capturePng(node);
+      this.capturing.set(true);
+      let blob: Blob;
+      try {
+        await new Promise((resolve) => setTimeout(resolve));
+        await new Promise((resolve) => setTimeout(resolve));
+        blob = await capturePng(node);
+      } finally {
+        this.capturing.set(false);
+      }
       await saveImageFile(blob, `${slugifyTitle(this.store.title())}.png`);
     } finally {
-      this.capturing.set(false);
+      this.exportingPng.set(false);
     }
   }
 

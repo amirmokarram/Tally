@@ -118,11 +118,15 @@ function rowDragHost(fixture: ComponentFixture<SplitGrid>): RowDragHost {
   return fixture.componentInstance as unknown as RowDragHost;
 }
 
-/** `rows`, `printRows` and `capturing`, which are `protected` so the template can reach them. */
+/**
+ * `rows`, `printRows`, `capturing` and `exportingPng`, which are `protected`
+ * so the template can reach them.
+ */
 interface PrintCapture {
   rows(): { kind: string }[];
   printRows(): { kind: string }[];
   capturing: { (): boolean; set(value: boolean): void };
+  exportingPng: { (): boolean; set(value: boolean): void };
 }
 
 function printCapture(fixture: ComponentFixture<SplitGrid>): PrintCapture {
@@ -402,7 +406,7 @@ describe('the ledger grid', () => {
       expect(capture.printRows().length).toBe(capture.rows().length - store.sheets().length);
     });
 
-    it('disables Save as PNG for as long as a capture is in flight', async () => {
+    it('disables Save as PNG for the whole export, capture and save alike', async () => {
       const { fixture } = await grid();
       const capture = printCapture(fixture);
 
@@ -410,13 +414,39 @@ describe('the ledger grid', () => {
       await settle(fixture);
       expect(menuItem(fixture, 'Save the report as a PNG image').disabled).toBe(false);
 
-      capture.capturing.set(true);
+      capture.exportingPng.set(true);
       await settle(fixture);
       expect(menuItem(fixture, 'Save the report as a PNG image').disabled).toBe(true);
 
-      capture.capturing.set(false);
+      capture.exportingPng.set(false);
       await settle(fixture);
       expect(menuItem(fixture, 'Save the report as a PNG image').disabled).toBe(false);
+    });
+
+    it('reverts the flattened report before the save step, not after it', async () => {
+      const { fixture } = await grid();
+      const capture = printCapture(fixture);
+
+      // `capturing` (the flattened appearance) is meant to end as soon as the
+      // image is captured — well before `exportingPng` (the whole export,
+      // including a possibly long-open native save dialog) does. Exercised
+      // directly against the two signals rather than through a real
+      // `savePng()` call, which would actually invoke `html-to-image` and a
+      // real save — see this describe block's own doc comment.
+      capture.exportingPng.set(true);
+      capture.capturing.set(true);
+      await settle(fixture);
+      expect((fixture.nativeElement as HTMLElement).className).toContain('exporting-png');
+
+      // The capture finishes; the save (e.g. a native picker) is still open —
+      // `exportingPng` alone still guards re-entry and disables the button,
+      // but the report itself is back to its normal, editable appearance.
+      capture.capturing.set(false);
+      await settle(fixture);
+      expect((fixture.nativeElement as HTMLElement).className).not.toContain('exporting-png');
+      expect(capture.exportingPng()).toBe(true);
+
+      capture.exportingPng.set(false);
     });
   });
 
