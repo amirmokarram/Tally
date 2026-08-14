@@ -12,10 +12,14 @@
  *   - lines are ticked down the left and acted on together from the toolbar,
  *     which is where the buttons that used to ride every row now live.
  *
- * A cell in a person column holds the workbook's packed `owe.pay` number: the
- * whole part is how much of the item that person is on the hook for *relative
- * to the others in the same row*, and the first decimal is how much of it they
- * already paid. `1.2` therefore reads "owes one share, paid two".
+ * A cell in a person column holds the workbook's packed `owe.pay` number,
+ * shown and typed as `owe|pay`: the first part is how much of the item that
+ * person is on the hook for *relative to the others in the same row*, and the
+ * second is how much of it they already paid. `2|1` therefore reads "owes two
+ * shares, paid one" — but a side that is 0 is left out rather than spelled
+ * out ({@link formatShare}), so the ordinary owe-only case reads as bare `1`,
+ * not `1|0`. Typing the old `owe.pay` decimal still works — see {@link
+ * parseShare} — so muscle memory from the original spreadsheet carries over.
  *
  * Selecting a block of cells and copying or pasting it is this file's own work
  * for the same reason the sheet blocks are: AG Grid's range selection and
@@ -60,6 +64,7 @@ import {
   ColumnMovedEvent,
   ColumnResizedEvent,
   _ColumnMoveModule,
+  CustomEditorModule,
   EventApiModule,
   FullWidthCellKeyDownEvent,
   GetRowIdParams,
@@ -120,6 +125,7 @@ import { SettingsPopup } from './settings-popup';
 import { AddPersonHeader, PersonHeader } from './person-header';
 import { IndexHeader } from './index-header';
 import { CurrencyPicker } from './currency-picker';
+import { ShareCellEditor } from './share-cell-editor';
 
 // Community modules only, and named one by one rather than pulled in as
 // `AllCommunityModule`: the bundle is shipped to a GitHub Pages demo, and the
@@ -139,7 +145,8 @@ ModuleRegistry.registerModules([
   RowStyleModule, // getRowClass
   RowSelectionModule, // the tick boxes, and the column they live in
   TextEditorModule, // the Item column
-  NumberEditorModule, // Amount and the share cells
+  NumberEditorModule, // Amount
+  CustomEditorModule, // the share cells' own editor — see `share-cell-editor.ts`
   // `api.getColumns()`, `api.getRowNode()`, `api.getCellValue()`. Nothing in
   // the app calls them — they are how the tests drive the real grid instead of
   // asserting against a mock of it, which is worth their small weight.
@@ -3247,13 +3254,16 @@ export class SplitGrid {
           p.data?.kind === 'add-item' ||
           p.data?.kind === 'filler') satisfies SuppressNavigableCallback<LedgerRowData>,
         editable: (p) => p.data?.kind === 'item',
+        cellEditor: ShareCellEditor,
         valueGetter: (p: ValueGetterParams<LedgerRowData>) =>
           p.data?.kind === 'item'
             ? packShare(this.store.share(p.data.row.item.id, person.id))
             : null,
-        // A share is a ratio and is left exactly as typed — putting a currency
-        // symbol on `1.2` would be a lie about what it means.
-        valueFormatter: (p) => (p.value == null ? '' : String(p.value)),
+        // A share is a ratio, not an amount — putting a currency symbol on it
+        // would be a lie about what it means. Shown as `owe|pay` rather than
+        // the packed `owe.pay` decimal underneath: `0|1` cannot be misread as
+        // a fraction the way `0.1` can.
+        valueFormatter: (p) => (p.value == null ? '' : formatShare(unpackShare(p.value))),
         valueSetter: (p: ValueSetterParams<LedgerRowData>) => {
           if (p.data?.kind !== 'item') {
             return false;
@@ -3437,13 +3447,40 @@ function parseAmount(value: unknown): number | null {
 }
 
 /**
- * Parses a share cell, holding the workbook's data validation on the split
- * grid: 0 – 10, one decimal. Returns null for anything outside it.
+ * `owe|pay` — but a part that is 0, meaning that side of the ratio was never
+ * set, is left out rather than spelled out: an owe-only share reads `1`, a
+ * pay-only one `|1`. Only a share with both parts set reads `2|1`.
  */
-function parseShare(value: unknown): ReturnType<typeof unpackShare> | null {
+function formatShare(share: Share): string {
+  if (share.owe && share.pay) {
+    return `${share.owe}|${share.pay}`;
+  }
+  if (share.pay) {
+    return `|${share.pay}`;
+  }
+  return `${share.owe}`;
+}
+
+/**
+ * Parses a share cell. Accepts the display format, `owe|pay`, each an
+ * integer within the workbook's own bounds (owe 0 – 10, pay a single digit
+ * 0 – 9); and, for typing muscle memory carried over from the original
+ * spreadsheet, the packed `owe.pay` decimal that format is short for.
+ * Returns null for anything outside either.
+ */
+function parseShare(value: unknown): Share | null {
   const raw = String(value ?? '').trim();
   if (raw === '') {
     return { owe: 0, pay: 0 };
+  }
+  if (raw.includes('|')) {
+    const [owePart, payPart = '0'] = raw.split('|');
+    const owe = Number(owePart);
+    const pay = Number(payPart);
+    if (!Number.isInteger(owe) || owe < 0 || owe > 10 || !Number.isInteger(pay) || pay < 0 || pay > 9) {
+      return null;
+    }
+    return { owe, pay };
   }
   const packed = Number(raw);
   if (!Number.isFinite(packed) || packed < 0 || packed > 10) {

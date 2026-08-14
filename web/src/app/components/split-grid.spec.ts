@@ -418,6 +418,40 @@ describe('the ledger grid', () => {
     expect(store.share(item.id, person.id)).toEqual(before);
   });
 
+  it('reads a typed owe|pay pair the same as the packed decimal it replaced', async () => {
+    const { store, api } = await grid();
+
+    const person = store.people()[0];
+    const item = store.sheets()[0].items[0];
+
+    api.getRowNode(`item:${item.id}`)!.setDataValue(`person:${person.id}`, '2|1');
+
+    expect(store.share(item.id, person.id)).toEqual({ owe: 2, pay: 1 });
+  });
+
+  it('still accepts the old owe.pay decimal, for muscle memory from the spreadsheet', async () => {
+    const { store, api } = await grid();
+
+    const person = store.people()[0];
+    const item = store.sheets()[0].items[0];
+
+    api.getRowNode(`item:${item.id}`)!.setDataValue(`person:${person.id}`, '2.1');
+
+    expect(store.share(item.id, person.id)).toEqual({ owe: 2, pay: 1 });
+  });
+
+  it('refuses a pay digit outside 0 – 9 in the owe|pay form', async () => {
+    const { store, api } = await grid();
+
+    const person = store.people()[0];
+    const item = store.sheets()[0].items[0];
+    const before = store.share(item.id, person.id);
+
+    api.getRowNode(`item:${item.id}`)!.setDataValue(`person:${person.id}`, '1|10');
+
+    expect(store.share(item.id, person.id)).toEqual(before);
+  });
+
   /**
    * Ticking lines and acting on all of them at once — what replaced the three
    * buttons that used to sit on every row in a column of their own.
@@ -737,12 +771,175 @@ describe('the ledger grid', () => {
       );
     });
 
-    it('leaves a share cell as the ratio it is', async () => {
+    it('shows an owe-only share bare, not with a trailing |0', async () => {
       const { fixture, store } = await grid();
       const item = store.sheets()[0].items[0];
       const person = store.people()[0];
 
       expect(text(fixture, `item:${item.id}`, `person:${person.id}`)).toBe('1');
+    });
+
+    it('shows owe|pay, not the packed decimal underneath, once both sides are set', async () => {
+      const { fixture, store, api } = await grid();
+      const item = store.sheets()[0].items[0];
+      const person = store.people()[0];
+
+      api.getRowNode(`item:${item.id}`)!.setDataValue(`person:${person.id}`, '2|1');
+      await settle(fixture);
+
+      expect(text(fixture, `item:${item.id}`, `person:${person.id}`)).toBe('2|1');
+    });
+
+    it('shows a pay-only share as |pay, not with a leading 0', async () => {
+      const { fixture, store, api } = await grid();
+      const item = store.sheets()[0].items[0];
+      const person = store.people()[0];
+
+      api.getRowNode(`item:${item.id}`)!.setDataValue(`person:${person.id}`, '0|1');
+      await settle(fixture);
+
+      expect(text(fixture, `item:${item.id}`, `person:${person.id}`)).toBe('|1');
+    });
+
+    /** The share editor's own `<input>` — a live mask, not the grid's plain text one. */
+    function shareEditor(fixture: ComponentFixture<SplitGrid>): HTMLInputElement {
+      return (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+        '.ledger-share.ag-cell-inline-editing input',
+      )!;
+    }
+
+    /** A single keystroke into whichever input the mask currently owns. */
+    async function press(fixture: ComponentFixture<SplitGrid>, key: string): Promise<void> {
+      shareEditor(fixture).dispatchEvent(
+        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
+      );
+      await settle(fixture);
+    }
+
+    it('masks an empty share cell with the shape it is typed in, _|_', async () => {
+      const { fixture, store, api } = await grid();
+      const item = store.sheets()[0].items[0];
+      const person = store.people()[0];
+
+      store.clearItemShares(item.id);
+      await settle(fixture);
+
+      api.startEditingCell({ rowIndex: 0, colKey: `person:${person.id}` });
+      await settle(fixture);
+
+      expect(shareEditor(fixture).value).toBe('_|_');
+    });
+
+    it('seeds the editor with the digit that started the edit, not the value it replaces', async () => {
+      const { fixture, store, api } = await grid();
+      const item = store.sheets()[0].items[0];
+      const person = store.people()[0];
+
+      api.startEditingCell({ rowIndex: 0, colKey: `person:${person.id}`, key: '2' });
+      await settle(fixture);
+
+      expect(shareEditor(fixture).value).toBe('2|_');
+    });
+
+    it('seeds the editor with what the cell shows, not the packed decimal, on an ordinary edit', async () => {
+      const { fixture, store, api } = await grid();
+      const item = store.sheets()[0].items[0];
+      const person = store.people()[0];
+
+      api.getRowNode(`item:${item.id}`)!.setDataValue(`person:${person.id}`, '2|1');
+      await settle(fixture);
+
+      api.startEditingCell({ rowIndex: 0, colKey: `person:${person.id}` });
+      await settle(fixture);
+
+      expect(shareEditor(fixture).value).toBe('2|1');
+    });
+
+    it('advances past the pipe on its own once one owe digit is typed', async () => {
+      const { fixture, store, api } = await grid();
+      const item = store.sheets()[0].items[0];
+      const person = store.people()[0];
+
+      store.clearItemShares(item.id);
+      await settle(fixture);
+      api.startEditingCell({ rowIndex: 0, colKey: `person:${person.id}` });
+      await settle(fixture);
+
+      await press(fixture, '2');
+      expect(shareEditor(fixture).value).toBe('2|_');
+
+      await press(fixture, '1');
+      expect(shareEditor(fixture).value).toBe('2|1');
+
+      await press(fixture, 'Enter');
+      expect(store.share(item.id, person.id)).toEqual({ owe: 2, pay: 1 });
+    });
+
+    it('reaches a share of 10 by backing into the owe slot instead of erasing it', async () => {
+      const { fixture, store, api } = await grid();
+      const item = store.sheets()[0].items[0];
+      const person = store.people()[0];
+
+      store.clearItemShares(item.id);
+      await settle(fixture);
+      api.startEditingCell({ rowIndex: 0, colKey: `person:${person.id}` });
+      await settle(fixture);
+
+      await press(fixture, '1');
+      expect(shareEditor(fixture).value).toBe('1|_');
+
+      // Backspace on the empty pay slot steps back into owe without erasing it.
+      await press(fixture, 'Backspace');
+      expect(shareEditor(fixture).value).toBe('1|_');
+
+      await press(fixture, '0');
+      expect(shareEditor(fixture).value).toBe('10|_');
+
+      await press(fixture, 'Enter');
+      expect(store.share(item.id, person.id)).toEqual({ owe: 10, pay: 0 });
+    });
+
+    it('replaces a pre-filled slot on the first digit instead of appending to it', async () => {
+      const { fixture, store, api } = await grid();
+      const item = store.sheets()[0].items[0];
+      const person = store.people()[0];
+
+      api.getRowNode(`item:${item.id}`)!.setDataValue(`person:${person.id}`, '2|1');
+      await settle(fixture);
+      api.startEditingCell({ rowIndex: 0, colKey: `person:${person.id}` });
+      await settle(fixture);
+
+      // Replacing owe leaves the pre-filled pay digit alone rather than
+      // clearing the whole cell — only the slot actually typed into changes.
+      await press(fixture, '3');
+      expect(shareEditor(fixture).value).toBe('3|1');
+
+      await press(fixture, '9');
+      expect(shareEditor(fixture).value).toBe('3|9');
+
+      await press(fixture, 'Enter');
+      expect(store.share(item.id, person.id)).toEqual({ owe: 3, pay: 9 });
+    });
+
+    it('blocks anything but a digit from reaching the mask', async () => {
+      const { fixture, store, api } = await grid();
+      const item = store.sheets()[0].items[0];
+      const person = store.people()[0];
+
+      store.clearItemShares(item.id);
+      await settle(fixture);
+      api.startEditingCell({ rowIndex: 0, colKey: `person:${person.id}` });
+      await settle(fixture);
+
+      await press(fixture, 'a');
+      await press(fixture, '|');
+      await press(fixture, '.');
+      await press(fixture, ' ');
+      expect(shareEditor(fixture).value).toBe('_|_');
+
+      // A digit still gets through around them.
+      await press(fixture, '2');
+      expect(shareEditor(fixture).value).toBe('2|_');
     });
 
     it('draws an amount as money and hands the editor the plain number', async () => {
