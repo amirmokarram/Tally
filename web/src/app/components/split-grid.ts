@@ -590,9 +590,23 @@ interface RowClipboardEntry {
     }
 
     .totals-band .cell.grand {
-      justify-content: flex-start;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 1px;
       padding-left: 15px;
       padding-right: 15px;
+    }
+
+    .grand-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+    }
+
+    .grand-amount {
       font-weight: 700;
       font-size: 15px;
     }

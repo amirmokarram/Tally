@@ -765,7 +765,7 @@ describe('the ledger grid', () => {
 
       // Both carry the symbol; both put a credit in parentheses rather than
       // behind a minus sign, the way the workbook showed someone who is owed.
-      expect(totalsCell(fixture, '.grand')).toMatch(/^\$[\d,]+\.\d\d$/);
+      expect(totalsCell(fixture, '.grand-amount')).toMatch(/^\$[\d,]+\.\d\d$/);
       expect(totalsCell(fixture, `[data-person-id="${person.id}"]`)).toMatch(
         /^\(?\$[\d,]+\.\d\d\)?$/,
       );
@@ -972,7 +972,7 @@ describe('the ledger grid', () => {
 
       expect(text(fixture, rowId, 'amount')).toBe('€15.00');
       // The trip total stays in the trip's currency — it is a different sum.
-      expect(totalsCell(fixture, '.grand').startsWith('$')).toBe(true);
+      expect(totalsCell(fixture, '.grand-amount').startsWith('$')).toBe(true);
     });
 
     it('copies the number, not the way it is drawn', async () => {
@@ -1356,7 +1356,7 @@ describe('the ledger grid', () => {
 
     const total = () =>
       (fixture.nativeElement as HTMLElement)
-        .querySelector('.totals-band .grand')!
+        .querySelector('.totals-band .grand-amount')!
         .textContent!.trim();
     expect(total()).toBe(money.transform(store.grandTotal(), '$'));
 

@@ -283,7 +283,8 @@
       </div>
     </div>
     <div class="cell grand ledger-numeric">
-      {{ store.grandTotal() | money: store.baseSymbol() }}
+      <span class="grand-label">Total</span>
+      <span class="grand-amount">{{ store.grandTotal() | money: store.baseSymbol() }}</span>
     </div>
     @for (balance of store.balances(); track balance.personId) {
       <div
