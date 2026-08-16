@@ -12,12 +12,10 @@
  * `✕` beside it in the same line — the header's height standing in for the
  * block height a spanned Sheet cell has to spare.
  *
- * Reordering is the grid's own column dragging rather than a pair of arrows:
- * AG Grid already does this, and a person column is the only one left
- * `movable` for it (see `split-grid.ts`) — everything else in the ledger is
- * fixed so a stray drag cannot reshuffle Item or Amount. `onColumnMoved`
- * there is what turns the drop back into the trip's own person order, which
- * is what every other column reads to draw itself.
+ * Reordering itself lives outside the grid, in the toolbar's "Reorder →
+ * People" dialog (`person-reorder-dialog.ts`) — every ledger column is fixed
+ * (`suppressMovable`, `split-grid.ts`) so a stray header drag cannot reshuffle
+ * Item, Amount, or a person's own place among the others.
  */
 
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
