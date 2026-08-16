@@ -72,19 +72,24 @@ export type LedgerRow =
 /**
  * The shortest a sheet's block may be.
  *
- * Two rows are all the name box and the `⋯` beside it need — 70 pixels of line
- * against the 73 a two-row block gives. Four is for the line beside them: three
- * charge boxes want 154, and a four-row block's 141 brings them to 46 apiece
- * against the 50 they ask for, where a two-row block leaves them 20.
+ * Sized off the Sheet cell's own CSS floor (`min-height: 155px`,
+ * `sheet-cell.ts`), not just the name box and charges' own content: AG Grid
+ * spans the cell across exactly this many rows and never revisits it, so if
+ * the rows summed to less than that floor the cell would render taller than
+ * the row-space actually reserved for it — spilling into whatever sits
+ * below rather than showing complete. Five rows, with the add-item row
+ * collapsed, comes to `4 * LEDGER_ROW_HEIGHT + LEDGER_ADD_ROW_HEIGHT - 1`
+ * (171px), comfortably past the floor; four came to 133px, short of it by
+ * enough to spill.
  *
- * It is paid for in blank rows — three on a sheet with no lines, two on a sheet
- * with one, none from three lines on, by which point the block is this tall on
- * its own.
+ * It is paid for in blank rows — four on a sheet with no lines, three on a
+ * sheet with one, none from four lines on, by which point the block is this
+ * tall on its own.
  *
  * Held here rather than in the cell that needs it because it is the *rows* that
  * have to be built, and only this file builds them.
  */
-export const MIN_BLOCK_ROWS = 4;
+export const MIN_BLOCK_ROWS = 5;
 
 /**
  * The row data type AG Grid is generic over.

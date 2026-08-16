@@ -3320,7 +3320,7 @@ export class SplitGrid {
   /**
    * The totals band is plain HTML, not a grid row, so its columns have to be
    * told to match the real ones by hand rather than inheriting them. Every
-   * width here is copied from {@link columns} — Sheet's 70, the line number's
+   * width here is copied from {@link columns} — Sheet's 50, the line number's
    * 30, Amount's 100, 40 for every person, and {@link ADD_PERSON_COLUMN_WIDTH}
    * for the trailing add-person column, plus one more trailing
    * {@link GRID_SCROLLBAR_WIDTH} spacer with
@@ -3354,7 +3354,7 @@ export class SplitGrid {
     const itemWidth = this.itemColumnWidth();
     const itemTrack = itemWidth != null ? `${itemWidth}px` : 'minmax(150px, 1fr)';
     return [
-      '70px',
+      '50px',
       '30px',
       itemTrack,
       '100px',
@@ -3382,10 +3382,7 @@ export class SplitGrid {
         headerComponent: AddSheetHeader,
         headerComponentParams: { addSheet: () => this.addSheet() },
         headerClass: 'ledger-sheet-header',
-        // Three lines of sideways text and the room around them, measured
-        // rather than guessed: the name box, the charges and the "Paid by"
-        // caption come to 63 across, plus the cell's padding and borders.
-        width: 70,
+        width: 50,
         cellRenderer: SheetCell,
         cellClass: 'ledger-sheet-cell',
         // What makes a sheet a block: adjacent rows sharing this value are

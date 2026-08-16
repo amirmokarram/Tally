@@ -126,13 +126,17 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
     :host {
       display: block;
       writing-mode: sideways-lr;
-      /* The cell is stretched to the block and the boxes to the cell. */
+      /* The cell is stretched to the block and the boxes to the cell. A
+         floor under AG Grid's own row-based height (set imperatively in
+         the effect() below) — short/empty sheets read as this tall at
+         minimum, while a sheet with enough rows keeps growing past it. */
       width: 100%;
       height: 100%;
+      min-height: 155px;
       overflow: hidden;
       line-height: 1.35;
       padding: 4px 2px;
-      /* Two lines of boxes and a caption have to sit across a column 70 pixels
+      /* Two lines of boxes and a caption have to sit across a column 50 pixels
          wide, which is what the turn bought. */
       font-size: 12px;
       /* The tint (bound above) is always one of the two dark blues in
@@ -226,6 +230,7 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
       display: flex;
       gap: 2px;
       margin-block-start: 1px;
+      border-left: 1px solid #ffffff17;
       font-size: 11px;
 
       /* Each field's own caption-then-box pair, laid out along the same
@@ -243,7 +248,7 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
         flex: none;
         padding-inline: 2px;
         color: rgb(255 255 255 / 65%);
-        font-size: 9px;
+        font-size: 11px;
         white-space: nowrap;
       }
 
