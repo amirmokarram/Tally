@@ -1,0 +1,15 @@
+# Text files are stored with LF and checked out with LF on every platform.
+#
+# Without this, committing from Windows warns "LF will be replaced by CRLF"
+# on every file, and the same commit produces genuinely different working
+# copies on Windows and on Linux or macOS — which turns a contributor's
+# editor into a source of whole-file diffs.
+#
+# Every text file already in the repository is LF in the index, so this
+# normalizes nothing retroactively; it only fixes what happens on checkout.
+* text=auto eol=lf
+
+# Binary: never convert line endings, never diff as text.
+*.xlsx binary
+*.pdf  binary
+*.ico  binary
