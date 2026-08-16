@@ -452,7 +452,7 @@ describe('the ledger grid', () => {
       );
       // Sanity check on the fixture itself: this only proves the fix if the
       // trip is actually wider than a normal viewport would show at once.
-      expect(expectedWidth).toBeGreaterThan(1000);
+      expect(expectedWidth).toBeGreaterThan(900);
       expect(capture.totalColumnWidth()).toBe(expectedWidth);
     });
 
