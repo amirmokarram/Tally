@@ -96,16 +96,19 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
       @if (sheet.items.length) {
         <div class="charges" [title]="chargeHint()">
           @for (field of CHARGES; track field.kind) {
-            <input
-              type="text"
-              inputmode="decimal"
-              [placeholder]="field.label"
-              [attr.aria-label]="field.label + ' for this sheet'"
-              [value]="charge(field.kind)"
-              (change)="setCharge(field.kind, $event)"
-              (keydown)="keepKey($event)"
-              (keydown.enter)="commit($event)"
-            />
+            <div class="charge-field">
+              <span class="charge-label" aria-hidden="true">{{ field.label }}</span>
+              <input
+                type="text"
+                inputmode="decimal"
+                placeholder="?"
+                [attr.aria-label]="field.label + ' for this sheet'"
+                [value]="charge(field.kind)"
+                (change)="setCharge(field.kind, $event)"
+                (keydown)="keepKey($event)"
+                (keydown.enter)="commit($event)"
+              />
+            </div>
           }
         </div>
       }
@@ -167,7 +170,7 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
          \`MIN_BLOCK_ROWS\`), and it is what stands between a box and being sawn
          off by the cell's edge if either figure is ever changed. */
       max-height: 100%;
-      padding: 1px 3px;
+      padding: 2px 0px;
       border: 1px solid transparent;
       border-radius: 3px;
       background: transparent;
@@ -213,13 +216,36 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
       }
     }
 
-    /* Tax, tip and discount down one line: three boxes fit where three labelled
-       rows would not, and the placeholder names each while it is empty. */
+    /* Tax, tip and discount down one line: three fields fit where three
+       labelled rows would not. Each pairs a small caption with its box —
+       shrinking the box from 50px to 27px is what buys the room for the
+       caption without lengthening the line, so the amount still reads as
+       what it is after it's typed rather than only while the placeholder
+       shows. */
     .charges {
       display: flex;
       gap: 2px;
       margin-block-start: 1px;
       font-size: 11px;
+
+      /* Each field's own caption-then-box pair, laid out along the same
+         axis as \`.charges\` itself (the default \`flex-direction: row\`
+         follows the writing mode's inline axis, the "down the cell"
+         direction) so the caption sits before its box in reading order
+         rather than beside it across the column's width. */
+      .charge-field {
+        display: flex;
+        align-items: center;
+        flex-shrink: 1;
+      }
+
+      .charge-label {
+        flex: none;
+        padding-inline: 2px;
+        color: rgb(255 255 255 / 65%);
+        font-size: 9px;
+        white-space: nowrap;
+      }
 
       /* The other exception to the fixed length above: three boxes want 154 of
          line and the shortest block there is gives 141, so these share what is
@@ -228,6 +254,7 @@ export interface SheetCellParams extends ICellRendererParams<LedgerRowData> {
          46; a name does not. */
       input {
         flex-shrink: 1;
+        height: 27px;
         font-variant-numeric: tabular-nums;
       }
     }
