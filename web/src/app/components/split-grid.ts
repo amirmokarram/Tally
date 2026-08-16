@@ -1094,8 +1094,13 @@ interface RowClipboardEntry {
       --ag-cell-horizontal-padding: 0px;
     }
 
+    /* \`.ag-text-field-input\`'s own theme padding (8px either side) is meant
+       for a full-width text field, not a 35-pixel share editor — it leaves a
+       two-character "9.9" nowhere to go but clipped. */
     :host ::ng-deep .ledger-share.ag-cell-inline-editing input {
       text-align: center;
+      padding-left: 0;
+      padding-right: 0;
     }
 
     /* Reused by the totals band above the grid — see \`.totals-band .person\`
