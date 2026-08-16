@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd web)",
+      "Bash(npm run build)",
+      "Bash(npm run build:*)",
+      "Bash(npx ng test:*)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npm ci)",
+      "Bash(npm install)",
+      "Bash(git status)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)"
+    ],
+    "deny": []
+  }
+}

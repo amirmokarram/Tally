@@ -1,0 +1,82 @@
+# AG Grid integration
+
+Background for work on the ledger grid. Read this when touching
+`components/split-grid.ts`, `components/ledger-model.ts`,
+`components/cell-range.ts` or `components/sheet-cell.ts`.
+
+## Community only, and what that costs
+
+The app uses AG Grid **Community** — MIT, no licence key, no seat cost.
+Nothing may import `ag-grid-enterprise`. Two features the enterprise build
+would have given us are therefore the app's own code:
+
+- **Row grouping** → the sheet blocks are cell spanning (`enableCellSpan` +
+  `spanRows`) over the flat row array built in `components/ledger-model.ts`.
+- **Range selection and clipboard** → the rectangle in
+  `components/cell-range.ts`, driven from `components/split-grid.ts`, writing
+  through the columns' own `valueSetter`s so a paste obeys exactly the rules
+  typing does.
+
+That last detail is the point of the design: there is one path into the model,
+so paste can never produce a value typing would have rejected.
+
+## Don't let two mechanisms write the same grid option
+
+An Angular `@Input` binding and an imperative `api.setGridOption(...)` call
+both pushing the same `columnDefs` update in close succession (one reactive,
+one explicit "just to be sure") left AG Grid processing the change twice and
+rendering a duplicate, orphaned header — found in `split-grid.ts`'s
+PNG-capture column restore.
+
+Pick one mechanism — prefer the reactive binding — and drop the other, rather
+than layering a manual push "for safety" on top of a binding that already does
+the same job.
+
+## A signal write needs a real change-detection pass in a spec
+
+In production, zone.js runs `ApplicationRef.tick()` automatically once the zone
+stabilizes after a macrotask, so a bare
+`await new Promise(resolve => setTimeout(resolve))` is enough for a signal
+change to reach AG Grid through a bound `@Input`.
+
+TestBed does not auto-run change detection the same way. A spec has to call
+`fixture.detectChanges()` itself — that is what `settle()` in
+`split-grid.spec.ts` exists for:
+
+```ts
+async function settle(fixture: ComponentFixture<SplitGrid>): Promise<void> {
+  fixture.detectChanges();
+  await new Promise((resolve) => setTimeout(resolve));
+  fixture.detectChanges();
+}
+```
+
+A test that only awaits a tick can pass by coincidence rather than proving the
+update actually happened.
+
+## `MIN_BLOCK_ROWS` and the Sheet cell's `min-height` are one invariant
+
+They are not two independent numbers. AG Grid spans the Sheet cell across
+exactly `MIN_BLOCK_ROWS` rows once, when the block is built, and never revisits
+that span as the cell's own height changes.
+
+If the cell's `min-height` floor (`sheet-cell.ts`) is taller than
+
+```
+(MIN_BLOCK_ROWS - 1) * LEDGER_ROW_HEIGHT + LEDGER_ADD_ROW_HEIGHT - 1
+```
+
+— the row-based height `sheet-cell.ts`'s own `effect()` computes — the cell
+renders taller than the row-space actually reserved for it and spills past its
+own block. Raising one means raising the other to match.
+
+`ledger-model.spec.ts` hardcodes the resulting filler-row counts, so changing
+either number breaks specs that a DOM-only browser check will not catch. Run
+the full test suite, not just a build, after touching either constant.
+
+## Read the grid's live state, don't re-derive it
+
+AG Grid's outputs are asynchronous, and `colSpan` and row-height-driven
+centering both depend on state the grid owns. Ask the `GridApi` what is
+currently true rather than recomputing it from the model and assuming the two
+agree.
