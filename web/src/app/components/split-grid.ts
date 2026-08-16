@@ -1247,11 +1247,22 @@ interface RowClipboardEntry {
     }
 
     /* \`ag-right-aligned-header\`, set by the \`numericColumn\` type, right-aligns
-       the title through \`.ag-header-cell-text\`'s own \`text-align: end\` — the
-       one part of the type this column keeps only for its cell values, not
-       its title. */
-    :host ::ng-deep .ledger-amount-header .ag-header-cell-text {
-      text-align: center;
+       the title through \`.ag-header-cell-label\`'s own \`justify-content: flex-end\`
+       — the one part of the type this column keeps only for its cell values,
+       not its title. \`.ag-header-cell-text\` only shrink-wraps its own
+       content, so centering has to target the flex container, not the span. */
+    :host ::ng-deep .ledger-amount-header .ag-header-cell-label {
+      justify-content: center;
+    }
+
+    /* The Item column's header defaults to left-aligned, matching its own
+       left-aligned text values — the title itself reads better centered.
+       \`.ag-header-cell-text\` only shrink-wraps its own content, so
+       \`text-align\` on the span is a no-op once the column (and its flex
+       label container) is wider than the word "Item"; centering the flex
+       container itself is what actually moves the text. */
+    :host ::ng-deep .ledger-item-header .ag-header-cell-label {
+      justify-content: center;
     }
 
     /* The Sheet cell is a spine of sideways boxes rather than a line of text:
@@ -3438,6 +3449,7 @@ export class SplitGrid {
       {
         colId: 'item',
         headerName: 'Item',
+        headerClass: 'ledger-item-header',
         flex: 1,
         minWidth: 150,
         cellClass: 'ledger-item',
