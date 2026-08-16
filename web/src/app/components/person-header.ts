@@ -58,7 +58,7 @@ export interface PersonHeaderParams extends IHeaderParams {
     :host {
       display: flex;
       /* Centres \`.line\` across the column's width — its own content (a name
-         a few characters wide plus \`✕\`) is narrower than the 40-pixel column
+         a few characters wide plus \`✕\`) is narrower than the 35-pixel column
          it sits in, and left to a block's default start edge it reads flush
          left instead of in the middle of the header. */
       align-items: center;
@@ -89,7 +89,7 @@ export interface PersonHeaderParams extends IHeaderParams {
     .name {
       flex: 1;
       max-inline-size: 100%;
-      padding: 2px 3px;
+      padding: 2px 1px;
       border: 1px solid transparent;
       border-radius: 4px;
       background: transparent;
@@ -120,7 +120,7 @@ export interface PersonHeaderParams extends IHeaderParams {
       border: none;
       background: transparent;
       color: inherit;
-      padding: 2px 0;
+      padding-bottom: 5px;
       font-size: 11px;
       line-height: 1.4;
       cursor: pointer;

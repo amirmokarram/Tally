@@ -198,7 +198,7 @@ const GRID_SCROLLBAR_WIDTH = 10;
 
 /**
  * The trailing add-person column's width — narrower than a person's own
- * 40-pixel column (set inline in {@link SplitGrid.columns}) since its header
+ * 35-pixel column (set inline in {@link SplitGrid.columns}) since its header
  * holds only the add button's icon, not a rotated name. Fits the 26-pixel
  * button (see `person-header.ts`'s `AddPersonHeader`) with a pixel of
  * breathing room either side.
@@ -622,8 +622,7 @@ interface RowClipboardEntry {
       align-items: flex-start;
       justify-content: center;
       gap: 1px;
-      padding-left: 15px;
-      padding-right: 15px;
+      padding: 0 5px;
     }
 
     .grand-label {
@@ -1087,7 +1086,7 @@ interface RowClipboardEntry {
       text-align: center;
     }
 
-    /* A person column is 40 pixels wide, and AG Grid's 15 either side leaves
+    /* A person column is 35 pixels wide, and AG Grid's 15 either side leaves
        a share reading "9.9" nowhere to go but off the edge. Dropped only
        while the cell is showing its value, not while it holds the editor —
        that still wants room around the input. */
@@ -1255,6 +1254,15 @@ interface RowClipboardEntry {
       justify-content: center;
     }
 
+    /* \`.ag-header-cell\`'s own theme default (16px each side) swallows most
+       of this column's 80px width before the label ever sees it — overriding
+       padding on the label only stacks 5px on top of that 16px. The literal
+       "0 5px" has to land on \`.ledger-amount-header\` itself, since that
+       class is the header cell element, to actually replace it. */
+    :host ::ng-deep .ledger-amount-header {
+      padding: 0 5px;
+    }
+
     /* The Item column's header defaults to left-aligned, matching its own
        left-aligned text values — the title itself reads better centered.
        \`.ag-header-cell-text\` only shrink-wraps its own content, so
@@ -1309,8 +1317,8 @@ interface RowClipboardEntry {
     }
 
     /* The same fix, for the same reason: a person column turned on its side
-       is 40 pixels wide, and AG Grid's 16 either side would leave the header
-       component 8 to work with instead of the 40 it is sized for. */
+       is 35 pixels wide, and AG Grid's 16 either side would leave the header
+       component 3 to work with instead of the 35 it is sized for. */
     :host ::ng-deep .ledger-person-header {
       --ag-cell-horizontal-padding: 0px;
     }
@@ -3325,7 +3333,7 @@ export class SplitGrid {
    * The totals band is plain HTML, not a grid row, so its columns have to be
    * told to match the real ones by hand rather than inheriting them. Every
    * width here is copied from {@link columns} — Sheet's 50, the line number's
-   * 30, Amount's 100, 40 for every person, and {@link ADD_PERSON_COLUMN_WIDTH}
+   * 30, Amount's 80, 35 for every person, and {@link ADD_PERSON_COLUMN_WIDTH}
    * for the trailing add-person column, plus one more trailing
    * {@link GRID_SCROLLBAR_WIDTH} spacer with
    * no cell of its own, matching the same padding the grid adds to its own
@@ -3354,14 +3362,14 @@ export class SplitGrid {
     // `repeat()` treats a zero count as invalid — which invalidates the
     // whole `grid-template-columns` declaration, not just that term, and
     // the band collapses to an unstyled implicit grid.
-    const peopleTracks = Array(this.store.people().length).fill('40px').join(' ');
+    const peopleTracks = Array(this.store.people().length).fill('35px').join(' ');
     const itemWidth = this.itemColumnWidth();
     const itemTrack = itemWidth != null ? `${itemWidth}px` : 'minmax(150px, 1fr)';
     return [
       '50px',
       '30px',
       itemTrack,
-      '100px',
+      '80px',
       peopleTracks,
       ...(this.capturing() ? [] : [`${ADD_PERSON_COLUMN_WIDTH}px`, `${GRID_SCROLLBAR_WIDTH}px`]),
     ]
@@ -3500,7 +3508,7 @@ export class SplitGrid {
       {
         colId: 'amount',
         headerName: 'Amount',
-        width: 100,
+        width: 80,
         type: 'numericColumn',
         // \`numericColumn\` right-aligns its header text along with the cell
         // values; the values should stay that way (a column of money reads
@@ -3562,7 +3570,12 @@ export class SplitGrid {
         headerComponent: PersonHeader,
         headerComponentParams: { personId: person.id },
         headerClass: 'ledger-person-header',
-        width: 40,
+        width: 35,
+        // AG Grid's own default `minWidth` is `min(36, rowHeight)` — wider
+        // than this column, and left alone it wins over `width` above (see
+        // {@link ADD_PERSON_COLUMN_WIDTH}'s doc comment for the same fix on
+        // the trailing add-person column).
+        minWidth: 35,
         // Only the first person column's own colDef is read for a spanned
         // cell (AG Grid's rule, not this one) — see `colSpan` below — so
         // this function is what the whole merged block on an add-item row
