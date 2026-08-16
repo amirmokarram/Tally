@@ -6,7 +6,7 @@
  * so the whole business model is testable in isolation.
  *
  * Each exported step names the workbook cell it replaces. See
- * `docs/FORMULAS.md` for the original formula text side by side.
+ * `docs/SPREADSHEET-FORMULAS.md` for the original formula text side by side.
  */
 
 import {
