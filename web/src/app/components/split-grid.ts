@@ -3363,7 +3363,7 @@ export class SplitGrid {
    * Item.
    */
   protected readonly totalsColumns = computed(() => {
-    // Not `repeat(N, 40px)`: with nobody in the split yet, N is 0, and
+    // Not `repeat(N, 35px)`: with nobody in the split yet, N is 0, and
     // `repeat()` treats a zero count as invalid — which invalidates the
     // whole `grid-template-columns` declaration, not just that term, and
     // the band collapses to an unstyled implicit grid.
