@@ -93,19 +93,42 @@ main h2 {
    fold behind a menu button. `flex-wrap` on `.tabs` above already lets four
    tabs run to a second line if a narrow phone needs it. */
 @media (max-width: 640px) {
-  /* Back to an ordinary tall page: the browser window scrolls, and the
-     Split tab goes back to sizing its own grid off `100vh` — see its
-     `@media` override in `split-grid.ts`. */
+  /* Still a flex column stretching `main` to fill the leftover height below
+     the topbar — same as desktop — but `min-height` instead of `height`, so
+     the column can grow past one screen instead of clipping. That's what
+     lets the browser window scroll as an ordinary tall page rather than
+     pinning to exactly 100vh and fighting the on-screen keyboard / pull-to-
+     refresh. `main`'s `flex: 1` is what makes the Split tab's report fill
+     all the way to the bottom on a short split instead of leaving a dead
+     gap under it — see `split-grid.ts`, which now inherits the same
+     height: 100% / flex: 1 chain desktop already uses instead of guessing
+     the grid's height from `100vh` minus a fixed pixel count. */
   :host {
-    display: block;
-    height: auto;
+    display: flex;
+    flex-direction: column;
     min-height: 100vh;
   }
 
   main {
-    flex: none;
+    flex: 1;
     overflow-y: visible;
     padding: 16px;
+  }
+
+  /* The Split tab's report runs edge-to-edge on a phone (see split-grid.ts)
+     — zeroed here, at the source of the padding, rather than by a negative
+     margin on the report itself. A negative margin can't do this reliably:
+     the report sits inside a chain of elements each sized with an explicit
+     \`height: 100%\` (\`:host\`s all the way down to \`.report\`), and per the
+     margin-collapsing spec a child's bottom margin only collapses through a
+     parent whose own height is \`auto\` — none of these are, so a negative
+     margin-bottom on \`.report\` silently did nothing while the matching
+     margin-top (collapsing rules for the top edge don't have that same
+     auto-height requirement) worked fine. Zeroing \`main\`'s own padding
+     sidesteps the collapsing question entirely. Scoped with \`:has()\` to
+     only the Split tab — Splits and Help still want the normal padding. */
+  main:has(app-split-grid) {
+    padding: 0;
   }
 
   .topbar {

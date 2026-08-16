@@ -650,8 +650,15 @@ interface RowClipboardEntry {
        gap or border between the totals band's own bottom edge and this
        one, which is the seam — and rounded only at the bottom, where the
        report block actually ends; see the \`.ag-root-wrapper\` override
-       below. On phones this reverts to a fixed, \`vh\`-based height instead
-       — see the \`@media\` block below. */
+       below. This same rule now carries phones too — see app.scss's own
+       \`@media\` override for \`:host\`/\`main\`, which turned \`main\` into a
+       \`min-height\`-based flex column so this \`flex: 1\` has real leftover
+       space to fill there as well, rather than the fixed \`vh\`-minus-a-
+       constant height this used on phones before. That constant was always
+       a guess at the header/toolbar/totals-band's real height, which
+       changes with content (a wrapped title, a warning line) — wrong by
+       just 16px it left a visible gap once the phone view below went
+       edge-to-edge. */
     .grid {
       display: block;
       width: 100%;
@@ -659,19 +666,28 @@ interface RowClipboardEntry {
       min-height: 0;
     }
 
-    /* A pinned, page-filling report fights the on-screen keyboard and
-       pull-to-refresh on a phone, so this reverts to the page scrolling as
-       a whole, with the grid sized off the viewport the way it always was
-       — see app.scss's own \`@media\` override for \`:host\` and \`main\`. */
+    /* Edge-to-edge on a phone. \`main\` itself drops its own padding around
+       the report there (app.scss, scoped with \`:has()\` to just this tab) —
+       squaring off \`.report\`'s corners and shadow here is what actually
+       makes it read as flush rather than a card floating on the page. */
     @media (max-width: 640px) {
       .report {
-        display: block;
-        height: auto;
-        margin-bottom: 16px;
+        border-radius: 0;
+        box-shadow: none;
       }
 
-      .grid {
-        height: clamp(320px, calc(100vh - 260px), 900px);
+      .report-toolbar {
+        border: none;
+        border-radius: 0;
+      }
+
+      .totals-band {
+        border: none;
+      }
+
+      :host ::ng-deep .ag-root-wrapper {
+        border: none;
+        border-radius: 0;
       }
     }
 
