@@ -123,6 +123,7 @@ import {
 import { AddSheetHeader, SheetCell } from './sheet-cell';
 import { SheetEditor } from './sheet-editor';
 import { SheetReorderDialog } from './sheet-reorder-dialog';
+import { PersonReorderDialog } from './person-reorder-dialog';
 import { SettingsPopup } from './settings-popup';
 import { AddPersonHeader, PersonHeader } from './person-header';
 import { IndexHeader } from './index-header';
@@ -230,7 +231,15 @@ interface RowClipboardEntry {
 
 @Component({
   selector: 'app-split-grid',
-  imports: [AgGridAngular, SheetEditor, SheetReorderDialog, CurrencyPicker, MoneyPipe, SettingsPopup],
+  imports: [
+    AgGridAngular,
+    SheetEditor,
+    SheetReorderDialog,
+    PersonReorderDialog,
+    CurrencyPicker,
+    MoneyPipe,
+    SettingsPopup,
+  ],
   templateUrl: './split-grid.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
@@ -247,12 +256,12 @@ interface RowClipboardEntry {
     // A drag can end anywhere, including outside the grid.
     '(document:mouseup)': 'endDrag()',
     '(document:keydown.escape)': 'onEscape()',
-    // All three menus snapshot a fixed-position anchor (and the overflow
+    // Every dropdown menu snapshots a fixed-position anchor (and the overflow
     // menu also snapshots which groups are collapsed) when they open — a
     // resize would leave any of them stale rather than tracking the button
     // that moved, so it closes them instead of trying to re-anchor.
     '(window:resize)':
-      'closeAddMenu(); closeShareMenu(); closeExportMenu(); closeOverflowMenu()',
+      'closeAddMenu(); closeShareMenu(); closeExportMenu(); closeReorderMenu(); closeOverflowMenu()',
     '[class.dragging]': 'dragging || fillDragging',
     '[class.filling]': 'fillDragging',
     '[class.no-row-hover]': '!settings.rowHoverEnabled()',
@@ -385,8 +394,13 @@ interface RowClipboardEntry {
       opacity: 0.6;
     }
 
-    /* Below this, the row stops fitting labels-and-all — Reorder Sheets is
-       the longest, so it is what the threshold is tuned against, measured
+    /* Below this, the row stops fitting labels-and-all — "Reorder Sheets"
+       (now just "Reorder", since the Reorder button folded People in behind
+       its own dropdown the same way Export already did for its two formats;
+       shorter only ever needs less room, so this is left loose rather than
+       re-measured — see the same reasoning below for the four breakpoints
+       after Save as PNG's merge) was the longest, so it is what the
+       threshold was originally tuned against, measured
        (not derived, the same as the breakpoints below) with a margin above
        the point the row actually starts overflowing. Icons alone still say
        what each button does (their own \`title\` carries the rest), and
@@ -1539,7 +1553,10 @@ export class SplitGrid {
   protected readonly settingsOpen = signal(false);
 
   /** Whether the sheet-reorder dialog — see `sheet-reorder-dialog.ts` — is open. */
-  protected readonly reorderOpen = signal(false);
+  protected readonly sheetReorderOpen = signal(false);
+
+  /** Whether the person-reorder dialog — see `person-reorder-dialog.ts` — is open. */
+  protected readonly personReorderOpen = signal(false);
 
   /** The block of cells a copy or a paste applies to, or null. */
   private readonly selection = signal<CellRange | null>(null);
@@ -2728,6 +2745,29 @@ export class SplitGrid {
   }
 
   /**
+   * Where the Reorder dropdown (Sheets / People) is open, the same pattern
+   * as {@link exportMenuAnchor}. Sheets and people share one toolbar slot
+   * rather than each keeping their own reorder button, both for the same
+   * reason Export shares one slot for its two formats — this is reached for
+   * occasionally, not on every visit.
+   */
+  protected readonly reorderMenuAnchor = signal<{ x: number; y: number } | null>(null);
+
+  /** Opens the Reorder dropdown under the button that was clicked, or closes it if already open. */
+  protected toggleReorderMenu(event: MouseEvent): void {
+    if (this.reorderMenuAnchor()) {
+      this.closeReorderMenu();
+      return;
+    }
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.reorderMenuAnchor.set({ x: rect.left, y: rect.bottom + 4 });
+  }
+
+  protected closeReorderMenu(): void {
+    this.reorderMenuAnchor.set(null);
+  }
+
+  /**
    * Where the overflow menu is open, right-aligned under the "More actions"
    * button: unlike {@link shareMenuAnchor}, that button sits at the
    * toolbar's own right edge, so a menu grown from its *left* edge risks
@@ -2739,7 +2779,7 @@ export class SplitGrid {
    * The one real box in each `.toolbar-cluster` — the divider survives its
    * wrapper's `display: contents`, everything else in there does not — in
    * DOM order, so index 0 is group 1 (Delete/Shares) through index 3, group
-   * 4 (Reorder Sheets/Export). What {@link toggleOverflowMenu} checks to
+   * 4 (Reorder/Export). What {@link toggleOverflowMenu} checks to
    * tell which groups the container query below has actually collapsed.
    */
   private readonly clusterMarkers = viewChildren<ElementRef<HTMLElement>>('cluster');
@@ -2777,14 +2817,15 @@ export class SplitGrid {
   }
 
   /**
-   * Escape's own job: close the Add, Shares and Export dropdowns and the
-   * overflow menu, back out of a pending cut, and dismiss a Copy's own
-   * marching-ants marker.
+   * Escape's own job: close the Add, Shares, Export and Reorder dropdowns
+   * and the overflow menu, back out of a pending cut, and dismiss a Copy's
+   * own marching-ants marker.
    */
   protected onEscape(): void {
     this.closeAddMenu();
     this.closeShareMenu();
     this.closeExportMenu();
+    this.closeReorderMenu();
     this.closeOverflowMenu();
     this.cancelPendingCut();
     this.cancelCopiedMark();

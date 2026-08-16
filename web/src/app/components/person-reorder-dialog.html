@@ -1,0 +1,42 @@
+<div class="backdrop" (click)="close()"></div>
+<div class="panel" role="dialog" aria-label="Reorder people">
+  <h2>Reorder people</h2>
+  <p class="hint">
+    Click people to select them, then use the arrow keys to move the selection — click a selected
+    person again to remove it. Or drag one by its handle.
+  </p>
+
+  <div
+    class="list"
+    cdkDropList
+    [cdkDropListData]="store.people()"
+    (cdkDropListDropped)="drop($event)"
+  >
+    @for (person of store.people(); track person.id) {
+      <div
+        class="row"
+        [class.selected]="isSelected(person.id)"
+        cdkDrag
+        [cdkDragData]="person"
+        (cdkDragStarted)="onDragStarted()"
+        (click)="toggleSelect(person.id)"
+      >
+        <span class="handle" cdkDragHandle aria-hidden="true">
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+            <circle cx="5" cy="3" r="1.2" fill="currentColor" />
+            <circle cx="11" cy="3" r="1.2" fill="currentColor" />
+            <circle cx="5" cy="8" r="1.2" fill="currentColor" />
+            <circle cx="11" cy="8" r="1.2" fill="currentColor" />
+            <circle cx="5" cy="13" r="1.2" fill="currentColor" />
+            <circle cx="11" cy="13" r="1.2" fill="currentColor" />
+          </svg>
+        </span>
+        <span class="name">{{ person.name || 'Unnamed' }}</span>
+      </div>
+    }
+  </div>
+
+  <div class="footer">
+    <button class="btn primary" type="button" (click)="close()">Close</button>
+  </div>
+</div>

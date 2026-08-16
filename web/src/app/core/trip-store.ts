@@ -600,6 +600,11 @@ export class TripStore {
     this.update((trip) => ({ ...trip, people: move(trip.people, personId, delta) }));
   }
 
+  /** As {@link movePerson}, for a whole multi-selection moved as one block. */
+  movePeople(personIds: ReadonlySet<string>, delta: number): void {
+    this.update((trip) => ({ ...trip, people: moveGroup(trip.people, personIds, delta) }));
+  }
+
   // --- Expense sheets ---------------------------------------------------
 
   addSheet(name?: string): ExpenseSheet {

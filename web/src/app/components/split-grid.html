@@ -182,9 +182,9 @@
         <button
           class="toolbar-btn"
           type="button"
-          title="Reorder Sheets"
-          [disabled]="store.sheets().length <= 1"
-          (click)="reorderOpen.set(true)"
+          title="Reorder sheets or people"
+          [disabled]="store.sheets().length <= 1 && store.people().length <= 1"
+          (click)="toggleReorderMenu($event)"
         >
           <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false">
             <path
@@ -195,7 +195,10 @@
               stroke-linecap="round"
             />
           </svg>
-          <span class="btn-label">Reorder Sheets</span>
+          <span class="btn-label">Reorder</span>
+          <svg class="toolbar-caret" viewBox="0 0 10 6" width="8" height="5" aria-hidden="true" focusable="false">
+            <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </button>
         <button
           class="toolbar-btn"
@@ -253,8 +256,11 @@
   @if (settingsOpen()) {
     <app-settings-popup (closed)="settingsOpen.set(false)" />
   }
-  @if (reorderOpen()) {
-    <app-sheet-reorder-dialog (closed)="reorderOpen.set(false)" />
+  @if (sheetReorderOpen()) {
+    <app-sheet-reorder-dialog (closed)="sheetReorderOpen.set(false)" />
+  }
+  @if (personReorderOpen()) {
+    <app-person-reorder-dialog (closed)="personReorderOpen.set(false)" />
   }
   <!-- Built here rather than left as the grid's own pinned row: the answer
        belongs at the top of a report, above the detail it comes from, not
@@ -398,6 +404,34 @@
       (click)="clearTickedShares(); closeShareMenu()"
     >
       Clear shares
+    </button>
+  </div>
+}
+
+<!-- The Reorder toolbar button's own dropdown — anchored under whichever
+     button opened it, see `toggleReorderMenu`, on the host. Sheets and
+     People are the same two entities the Add dropdown above offers, so
+     this matches its plain-text style rather than Export's iconed one. -->
+@if (reorderMenuAnchor(); as pos) {
+  <div class="toolbar-menu-backdrop" (click)="closeReorderMenu()"></div>
+  <div class="toolbar-menu" [style.left.px]="pos.x" [style.top.px]="pos.y">
+    <button
+      class="btn ghost"
+      type="button"
+      title="Reorder expense sheets"
+      [disabled]="store.sheets().length <= 1"
+      (click)="sheetReorderOpen.set(true); closeReorderMenu()"
+    >
+      Sheets
+    </button>
+    <button
+      class="btn ghost"
+      type="button"
+      title="Reorder people"
+      [disabled]="store.people().length <= 1"
+      (click)="personReorderOpen.set(true); closeReorderMenu()"
+    >
+      People
     </button>
   </div>
 }
@@ -627,9 +661,9 @@
       <button
         class="btn ghost"
         type="button"
-        title="Reorder Sheets"
-        [disabled]="store.sheets().length <= 1"
-        (click)="reorderOpen.set(true); closeOverflowMenu()"
+        title="Reorder sheets or people"
+        [disabled]="store.sheets().length <= 1 && store.people().length <= 1"
+        (click)="closeOverflowMenu(); toggleReorderMenu($event)"
       >
         <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false">
           <path
@@ -640,7 +674,10 @@
             stroke-linecap="round"
           />
         </svg>
-        Reorder Sheets
+        Reorder
+        <svg class="menu-submenu-caret" viewBox="0 0 10 6" width="8" height="5" aria-hidden="true" focusable="false">
+          <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
       </button>
       <button
         class="btn ghost"
