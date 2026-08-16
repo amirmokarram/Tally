@@ -149,6 +149,9 @@ let nextId = 0;
     /* The collapsed readout for \`compact\` — a symbol and a code rather than
        the full box, for spots too tight for "(USD) US Dollar". */
     .picker-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
       padding: 7px 10px;
       border: 1px solid var(--border-strong);
       border-radius: var(--radius-sm);
@@ -167,6 +170,14 @@ let nextId = 0;
         outline: 2px solid var(--navy-700);
         outline-offset: -1px;
       }
+    }
+
+    /* The one hint, in plain mode, that this reads as text but opens a menu
+       like the others don't — dimmer than the label itself so it registers
+       as a cue rather than competing with "$ USD" for attention. */
+    .trigger-caret {
+      flex: none;
+      opacity: 0.6;
     }
 
     /* The report's toolbar reads as a strip of plain-text actions (see
