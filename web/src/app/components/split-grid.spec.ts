@@ -1062,7 +1062,7 @@ describe('the ledger grid', () => {
       expect(text(fixture, `item:${item.id}`, `person:${person.id}`)).toBe('2|1');
     });
 
-    it('shows a pay-only share as |pay, not with a leading 0', async () => {
+    it('shows a pay-only share as 0|pay, keeping the leading 0', async () => {
       const { fixture, store, api } = await grid();
       const item = store.sheets()[0].items[0];
       const person = store.people()[0];
@@ -1070,7 +1070,7 @@ describe('the ledger grid', () => {
       api.getRowNode(`item:${item.id}`)!.setDataValue(`person:${person.id}`, '0|1');
       await settle(fixture);
 
-      expect(text(fixture, `item:${item.id}`, `person:${person.id}`)).toBe('|1');
+      expect(text(fixture, `item:${item.id}`, `person:${person.id}`)).toBe('0|1');
     });
 
     /** The share editor's own `<input>` — a live mask, not the grid's plain text one. */

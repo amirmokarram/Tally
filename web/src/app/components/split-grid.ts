@@ -17,9 +17,11 @@
  * shown and typed as `owe|pay`: the first part is how much of the item that
  * person is on the hook for *relative to the others in the same row*, and the
  * second is how much of it they already paid. `2|1` therefore reads "owes two
- * shares, paid one" — but a side that is 0 is left out rather than spelled
- * out ({@link formatShare}), so the ordinary owe-only case reads as bare `1`,
- * not `1|0`. Typing the old `owe.pay` decimal still works — see {@link
+ * shares, paid one" — but a pay of 0, the ordinary owe-only line, is left out
+ * rather than spelled out ({@link formatShare}), so that case reads as bare
+ * `1`, not `1|0`. Owe is never dropped the same way: a pay-only share still
+ * reads `0|1`, not bare `|1`, since dropping it would leave no visible owe
+ * side at all. Typing the old `owe.pay` decimal still works — see {@link
  * parseShare} — so muscle memory from the original spreadsheet carries over.
  *
  * Selecting a block of cells and copying or pasting it is this file's own work
@@ -3880,16 +3882,15 @@ function parseAmount(value: unknown): number | null {
 }
 
 /**
- * `owe|pay` — but a part that is 0, meaning that side of the ratio was never
- * set, is left out rather than spelled out: an owe-only share reads `1`, a
- * pay-only one `|1`. Only a share with both parts set reads `2|1`.
+ * `owe|pay` — but a pay of 0, the ordinary owe-only line, is left out rather
+ * than spelled out: it reads bare `1`, not `1|0`. Owe is never dropped the
+ * same way: a pay-only share still needs its owe side written out as `0|1`,
+ * or it would read as a bare pay amount with no owe side at all rather than
+ * the deliberate "owes nothing, already paid" case it actually is.
  */
 function formatShare(share: Share): string {
-  if (share.owe && share.pay) {
-    return `${share.owe}|${share.pay}`;
-  }
   if (share.pay) {
-    return `|${share.pay}`;
+    return `${share.owe}|${share.pay}`;
   }
   return `${share.owe}`;
 }
