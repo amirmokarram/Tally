@@ -80,3 +80,20 @@ AG Grid's outputs are asynchronous, and `colSpan` and row-height-driven
 centering both depend on state the grid owns. Ask the `GridApi` what is
 currently true rather than recomputing it from the model and assuming the two
 agree.
+
+## Overriding one of AG Grid's own icons
+
+The `icons` grid option takes a raw HTML string (or a function returning one)
+per icon name, and AG Grid uses it in place of the theme's built-in glyph
+whenever one is supplied — regardless of Community vs Enterprise, and
+regardless of the Theming API (`themeQuartz.withParams(...)`, what this app
+uses) vs the older CSS-class themes. `split-grid.ts` binds `[icons]="icons"`
+with `{ rowDrag: ROW_DRAG_ICON }` to replace AG Grid's own six-dot row-drag
+grip with the four-dot one drawn in `person-reorder-dialog.html` and
+`sheet-reorder-dialog.html`, so every "drag this to reorder" handle in the app
+reads as the same control.
+
+The override is inserted as a plain HTML string, not a template — it bypasses
+the theme's own CSS classes entirely, so the SVG needs its own
+`fill="currentColor"` to pick up the surrounding element's icon color rather
+than rendering invisibly or in the wrong shade.
