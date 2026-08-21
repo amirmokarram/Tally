@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { Router } from '@angular/router';
 
 import { TripStore } from '../core/trip-store';
 import { SampleTripId } from '../data/sample-trips';
@@ -96,8 +97,10 @@ import { SampleTripId } from '../data/sample-trips';
 })
 export class HelpPanel {
   protected readonly store = inject(TripStore);
+  private readonly router = inject(Router);
 
   protected load(id: SampleTripId): void {
     this.store.loadSample(id);
+    void this.router.navigateByUrl('/split');
   }
 }
