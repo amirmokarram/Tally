@@ -2683,12 +2683,24 @@ export class SplitGrid {
    */
   protected readonly addMenuAnchor = signal<{ x: number; y: number } | null>(null);
 
-  /** Opens the Add dropdown under the button that was clicked, or closes it if already open. */
+  /**
+   * Opens the Add dropdown under the button that was clicked, or closes it
+   * if already open. Closes Shares/Export/Reorder first — Add, Shares,
+   * Export and Reorder each kept their own independent anchor, so opening
+   * one used to leave any other still open behind it rather than replacing
+   * it, the way a normal toolbar's dropdowns do. The overflow menu is
+   * deliberately left alone: it is this dropdown's own parent when opened
+   * from there (see the comment on the Add dropdown, in the template), not
+   * a sibling to close.
+   */
   protected toggleAddMenu(event: MouseEvent): void {
     if (this.addMenuAnchor()) {
       this.closeAddMenu();
       return;
     }
+    this.closeShareMenu();
+    this.closeExportMenu();
+    this.closeReorderMenu();
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     this.addMenuAnchor.set(this.clampMenuAnchor(rect));
   }
@@ -2705,12 +2717,19 @@ export class SplitGrid {
    */
   protected readonly shareMenuAnchor = signal<{ x: number; y: number } | null>(null);
 
-  /** Opens the Shares dropdown under the button that was clicked, or closes it if already open. */
+  /**
+   * Opens the Shares dropdown under the button that was clicked, or closes
+   * it if already open. Closes Add/Export/Reorder first — see the doc
+   * comment on {@link toggleAddMenu} for why.
+   */
   protected toggleShareMenu(event: MouseEvent): void {
     if (this.shareMenuAnchor()) {
       this.closeShareMenu();
       return;
     }
+    this.closeAddMenu();
+    this.closeExportMenu();
+    this.closeReorderMenu();
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     this.shareMenuAnchor.set(this.clampMenuAnchor(rect));
   }
@@ -2731,12 +2750,19 @@ export class SplitGrid {
    */
   protected readonly exportMenuAnchor = signal<{ x: number; y: number } | null>(null);
 
-  /** Opens the Export dropdown under the button that was clicked, or closes it if already open. */
+  /**
+   * Opens the Export dropdown under the button that was clicked, or closes
+   * it if already open. Closes Add/Shares/Reorder first — see the doc
+   * comment on {@link toggleAddMenu} for why.
+   */
   protected toggleExportMenu(event: MouseEvent): void {
     if (this.exportMenuAnchor()) {
       this.closeExportMenu();
       return;
     }
+    this.closeAddMenu();
+    this.closeShareMenu();
+    this.closeReorderMenu();
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     this.exportMenuAnchor.set(this.clampMenuAnchor(rect));
   }
@@ -2754,12 +2780,19 @@ export class SplitGrid {
    */
   protected readonly reorderMenuAnchor = signal<{ x: number; y: number } | null>(null);
 
-  /** Opens the Reorder dropdown under the button that was clicked, or closes it if already open. */
+  /**
+   * Opens the Reorder dropdown under the button that was clicked, or closes
+   * it if already open. Closes Add/Shares/Export first — see the doc
+   * comment on {@link toggleAddMenu} for why.
+   */
   protected toggleReorderMenu(event: MouseEvent): void {
     if (this.reorderMenuAnchor()) {
       this.closeReorderMenu();
       return;
     }
+    this.closeAddMenu();
+    this.closeShareMenu();
+    this.closeExportMenu();
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     this.reorderMenuAnchor.set(this.clampMenuAnchor(rect));
   }

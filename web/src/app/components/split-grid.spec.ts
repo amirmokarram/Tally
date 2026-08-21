@@ -587,6 +587,42 @@ describe('the ledger grid', () => {
     });
   });
 
+  describe('the toolbar\'s dropdown menus', () => {
+    /**
+     * Regression coverage for a real bug: Add, Shares, Reorder and Export
+     * each keep their own independent open/closed signal (`addMenuAnchor`,
+     * `exportMenuAnchor`, and so on — see `toggleAddMenu` and its siblings
+     * on the host), and opening one never touched any of the others. Opening
+     * a second dropdown while a first was still open left both showing at
+     * once, stacked on top of each other, rather than the first closing the
+     * way a normal toolbar's dropdowns do.
+     */
+    it('closes whichever dropdown was open when another toolbar button opens its own', async () => {
+      const { fixture } = await grid();
+      const root = fixture.nativeElement as HTMLElement;
+      const exportButton = root.querySelector<HTMLButtonElement>(
+        '.toolbar-btn[title="Export this split as a JSON file or a PNG image"]',
+      )!;
+      const addButton = root.querySelector<HTMLButtonElement>(
+        '.toolbar-btn[title="Add a sheet or a person"]',
+      )!;
+
+      exportButton.click();
+      await settle(fixture);
+      expect(
+        root.querySelector('.toolbar-menu .btn[title="Download this split as a JSON file"]'),
+      ).not.toBeNull();
+
+      addButton.click();
+      await settle(fixture);
+
+      expect(
+        root.querySelector('.toolbar-menu .btn[title="Download this split as a JSON file"]'),
+      ).withContext('the Export dropdown, still open behind the Add one').toBeNull();
+      expect(root.querySelector('.toolbar-menu .btn[title="Add expense sheet"]')).not.toBeNull();
+    });
+  });
+
   it('grows a column when a person is added and drops it when removed', async () => {
     const { fixture, store, api } = await grid();
     const before = store.people().length;
