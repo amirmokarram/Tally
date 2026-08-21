@@ -171,6 +171,12 @@ interface SplitRow {
       list-style: none;
       display: grid;
       gap: 10px;
+
+      /* Queries the list's own width, not the viewport's, so a card wraps
+         its actions below exactly when *it* runs out of room — whatever the
+         reason (a narrow window, a sidebar, zoom) — the same reasoning as
+         the toolbar's own container query in split-grid.ts. */
+      container-type: inline-size;
     }
 
     li {
@@ -183,6 +189,18 @@ interface SplitRow {
       &.active {
         border-color: var(--navy-700);
         box-shadow: inset 3px 0 0 var(--navy-700), var(--shadow);
+      }
+
+      /*
+       * A fixed-width actions column takes the same room whatever the text
+       * column has to say. Below the width where Open/Export/Duplicate/Delete
+       * next to a real title and meta line stop fitting, that squeezes the
+       * text into a strip narrow enough to wrap on almost every word instead
+       * — so here the actions drop to a row of their own, and the text keeps
+       * the card's full width.
+       */
+      @container (max-width: 680px) {
+        grid-template-columns: 1fr;
       }
     }
 
