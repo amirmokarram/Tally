@@ -49,6 +49,14 @@ Two rules that are never negotiable, because breaking either is silent:
 - Proving a *visual* fix has its own workflow — use the `verify-ui-change`
   skill. A screenshot is not available here; a rendering fix is proven with a
   spec that reads real geometry in real Chrome.
+- A responsive breakpoint should be a `@container` query, not `@media`, unless
+  it genuinely depends on the viewport rather than an element's own size —
+  `ul { container-type: inline-size }` in `splits-panel.ts`, the same
+  reasoning as the toolbar's own container query in `split-grid.ts`. Beyond
+  matching what the element actually needs to respond to, only a container
+  query is testable here: Karma has no way to resize the real browser window,
+  but a spec can set an element's `style.width` directly and read the
+  rendered layout back, real geometry included.
 
 ## Settings scope
 

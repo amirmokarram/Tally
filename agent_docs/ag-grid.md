@@ -127,3 +127,23 @@ The override is inserted as a plain HTML string, not a template — it bypasses
 the theme's own CSS classes entirely, so the SVG needs its own
 `fill="currentColor"` to pick up the surrounding element's icon color rather
 than rendering invisibly or in the wrong shade.
+
+## A custom header component isn't AG Grid's own selection column
+
+`select-cell.ts` (removed — see `f3c219c` in history) drew tick boxes into AG
+Grid's *own* checkbox-selection column, reachable only through
+`checkboxSelection`/`headerCheckboxSelection` on a `colDef`. That column is
+one `ColumnModel.refreshCols` prepends to the front of the column list on
+every rebuild (`lockPosition` aside), so it could never be placed after Sheet
+and the line number — which is why ticking moved off a dedicated column
+entirely and onto the line-number column's own cells, and why the header lost
+its tick box too.
+
+`index-header.ts`'s header isn't that column, though: it's a plain
+`headerComponent` on the ordinary `index` colDef this app already controls
+the position of, same as `person-header.ts` or any other custom header here.
+Reading and writing `node.isSelected()` through the `GridApi` is still
+AG Grid's own `RowSelectionModule`, but *drawing* that state — a `#` glyph, a
+real three-state `<input type="checkbox">`, whatever reads best — is free to
+change without hitting the positioning constraint above. Only a `colDef`
+actually opting into `checkboxSelection` would.

@@ -40,6 +40,18 @@ entity. Match whichever your two options are.
 
 The full procedure is the `add-toolbar-action` skill.
 
+## Confirming a destructive action
+
+Use `ConfirmDialog` (`confirm-dialog.ts`), not `window.confirm` — the native
+dialog doesn't render in some mobile browsers' embedded webviews.
+`title`/`message`/`confirmLabel`/`cancelLabel` are inputs; `confirmed` and
+`cancelled` are outputs. See `splits-panel.ts`'s `remove()` for the wiring:
+a signal holding the pending target (or null), set on the action that would
+need confirming, read by an `@if` in the template, cleared by either output.
+Same fixed backdrop/panel shape as `PersonReorderDialog` /
+`SheetReorderDialog` — reuse it rather than building another one-off dialog
+for the next destructive action.
+
 ## Before you finish
 
 Adding CSS here can breach the per-component style budget, and **only**
