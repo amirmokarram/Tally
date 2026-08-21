@@ -1293,6 +1293,41 @@ describe('the ledger grid', () => {
     });
   });
 
+  describe('a row with an error', () => {
+    function classesOf(
+      fixture: ComponentFixture<SplitGrid>,
+      rowId: string,
+      colId: string,
+    ): DOMTokenList {
+      return (fixture.nativeElement as HTMLElement).querySelector(
+        `.ag-row[row-id="${rowId}"] [col-id="${colId}"]`,
+      )!.classList;
+    }
+
+    it('marks the index cell instead of painting the item and share cells red', async () => {
+      const { fixture, store } = await grid();
+      const item = store.sheets()[0].items[0];
+      const person = store.people()[0];
+
+      // Priced but unassigned — Split!A3's shareValuesMissing.
+      store.clearItemShares(item.id);
+      await settle(fixture);
+
+      expect(classesOf(fixture, `item:${item.id}`, 'index')).toContain('ledger-index-error');
+      expect(classesOf(fixture, `item:${item.id}`, 'item')).not.toContain('ledger-missing');
+      expect(classesOf(fixture, `item:${item.id}`, `person:${person.id}`)).not.toContain(
+        'ledger-missing',
+      );
+    });
+
+    it('leaves an error-free row unmarked', async () => {
+      const { fixture, store } = await grid();
+      const item = store.sheets()[0].items[1];
+
+      expect(classesOf(fixture, `item:${item.id}`, 'index')).not.toContain('ledger-index-error');
+    });
+  });
+
   /**
    * Rendering is normally AG Grid's own problem (see the top of this file) —
    * but a selected cell's own ring (`.ledger-selected`), the fill handle's

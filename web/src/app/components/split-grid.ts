@@ -1028,15 +1028,6 @@ interface RowClipboardEntry {
       background: color-mix(in srgb, var(--paid-bg) 100%, var(--text) 6%);
     }
 
-    /* A priced row nobody has claimed a share of — the workbook's red cells. */
-    :host ::ng-deep .ledger-missing {
-      background: var(--credit-bg);
-    }
-
-    :host ::ng-deep .ag-row-odd .ledger-missing {
-      background: color-mix(in srgb, var(--credit-bg) 100%, var(--text) 6%);
-    }
-
     :host ::ng-deep .ag-cell {
       align-content: center;
     }
@@ -1078,6 +1069,24 @@ interface RowClipboardEntry {
       background: var(--selected-bg);
       color: var(--navy-700);
       font-weight: 600;
+    }
+
+    /* A priced line nobody has claimed a share of, or one missing its own
+       amount — the workbook's red cells, but as a mark on the index cell
+       rather than a background painted across the Item cell and every
+       person's share cell: that read as loud even on one line, and reduced
+       a ticked-and-errored line's own yellow to whatever the index cell
+       itself did not use, which was not much. The corner is the one part of
+       the cell a row number, ticked or not, never draws into. */
+    :host ::ng-deep .ledger-index-error::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 0;
+      height: 0;
+      border-top: 8px solid var(--credit);
+      border-right: 8px solid transparent;
     }
 
     /* Not \`--ag-cell-horizontal-padding\`: AG Grid's own theme subtracts a
@@ -3552,6 +3561,8 @@ export class SplitGrid {
               : 'ledger-index',
         cellClassRules: {
           'ledger-index-ticked': (p) => p.node.isSelected() ?? false,
+          'ledger-index-error': (p) =>
+            p.data?.kind === 'item' && this.itemHasError(p.data.row.item.id),
           'ledger-cut-pending': (p) =>
             p.data?.kind === 'item' && this.isCutPending(p.data.row.item.id),
           'ledger-copied': (p) => p.data?.kind === 'item' && this.isCopied(p.data.row.item.id),
@@ -3604,8 +3615,6 @@ export class SplitGrid {
             this.store.updateItem(sheetId, itemId, { name: String(p.newValue ?? '') }),
           ),
         cellClassRules: {
-          'ledger-missing': (p) =>
-            p.data?.kind === 'item' && this.itemHasError(p.data.row.item.id),
           'ledger-selected': (p) => this.isSelected(p.node, 'item'),
           'ledger-fill-handle': (p) => this.isFillHandle(p.node, 'item'),
           'ledger-fill-preview': (p) => this.isFillPreview(p.node, 'item'),
@@ -3740,8 +3749,6 @@ export class SplitGrid {
         },
         cellClassRules: {
           'ledger-paid': (p) => p.data?.kind === 'item' && this.isPayer(p.data, person.id),
-          'ledger-missing': (p) =>
-            p.data?.kind === 'item' && isRowUnassigned(p.data.row),
           'ledger-selected': (p) => this.isSelected(p.node, `person:${person.id}`),
           'ledger-fill-handle': (p) => this.isFillHandle(p.node, `person:${person.id}`),
           'ledger-fill-preview': (p) => this.isFillPreview(p.node, `person:${person.id}`),
@@ -3912,11 +3919,6 @@ function isRedoKey(event: KeyboardEvent): boolean {
     (event.ctrlKey || event.metaKey) &&
     (key === 'y' || (event.shiftKey && key === 'z'))
   );
-}
-
-/** A priced row nobody has claimed a share of — the workbook's red cells. */
-function isRowUnassigned(row: { item: { amount: number | null }; lineTotal: number; unitCost: number | null }): boolean {
-  return row.item.amount != null && row.lineTotal !== 0 && row.unitCost === null;
 }
 
 function parseAmount(value: unknown): number | null {
