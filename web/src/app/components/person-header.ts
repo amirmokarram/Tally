@@ -58,7 +58,7 @@ export interface PersonHeaderParams extends IHeaderParams {
     :host {
       display: flex;
       /* Centres \`.line\` across the column's width — its own content (a name
-         a few characters wide plus \`✕\`) is narrower than the 35-pixel column
+         a few characters wide plus \`✕\`) is narrower than the 30-pixel column
          it sits in, and left to a block's default start edge it reads flush
          left instead of in the middle of the header. */
       align-items: center;
@@ -194,7 +194,7 @@ export interface AddPersonHeaderParams extends IHeaderParams {
  * toolbar, which was itself where it went after a first attempt at exactly
  * this trailing column: at 96 pixels wide, an empty column running the full
  * height of the grid was a real cost for a button used once in a while.
- * Narrowed since, first to the 35 pixels a person's own column needs, then
+ * Narrowed since, first to the 30 pixels a person's own column needs, then
  * to `ADD_PERSON_COLUMN_WIDTH` (`split-grid.ts`) once the button itself lost
  * its border and background — an icon on its own doesn't need a person's
  * full width, only enough to click.

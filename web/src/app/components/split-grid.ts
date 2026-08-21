@@ -198,7 +198,7 @@ const GRID_SCROLLBAR_WIDTH = 10;
 
 /**
  * The trailing add-person column's width — narrower than a person's own
- * 35-pixel column (set inline in {@link SplitGrid.columns}) since its header
+ * 30-pixel column (set inline in {@link SplitGrid.columns}) since its header
  * holds only the add button's icon, not a rotated name. Fits the 26-pixel
  * button (see `person-header.ts`'s `AddPersonHeader`) with a pixel of
  * breathing room either side.
@@ -1086,7 +1086,7 @@ interface RowClipboardEntry {
       text-align: center;
     }
 
-    /* A person column is 35 pixels wide, and AG Grid's 15 either side leaves
+    /* A person column is 30 pixels wide, and AG Grid's 15 either side leaves
        a share reading "9.9" nowhere to go but off the edge. Dropped only
        while the cell is showing its value, not while it holds the editor —
        that still wants room around the input. */
@@ -1095,7 +1095,7 @@ interface RowClipboardEntry {
     }
 
     /* \`.ag-text-field-input\`'s own theme padding (8px either side) is meant
-       for a full-width text field, not a 35-pixel share editor — it leaves a
+       for a full-width text field, not a 30-pixel share editor — it leaves a
        two-character "9.9" nowhere to go but clipped. */
     :host ::ng-deep .ledger-share.ag-cell-inline-editing input {
       text-align: center;
@@ -1322,8 +1322,9 @@ interface RowClipboardEntry {
     }
 
     /* The same fix, for the same reason: a person column turned on its side
-       is 35 pixels wide, and AG Grid's 16 either side would leave the header
-       component 3 to work with instead of the 35 it is sized for. */
+       is 30 pixels wide, and AG Grid's 16 either side would consume the
+       header component entirely instead of leaving it the 30 it is sized
+       for. */
     :host ::ng-deep .ledger-person-header {
       --ag-cell-horizontal-padding: 0px;
     }
@@ -3362,7 +3363,7 @@ export class SplitGrid {
    * The totals band is plain HTML, not a grid row, so its columns have to be
    * told to match the real ones by hand rather than inheriting them. Every
    * width here is copied from {@link columns} — Sheet's 50, the line number's
-   * 30, Amount's 80, 35 for every person, and {@link ADD_PERSON_COLUMN_WIDTH}
+   * 30, Amount's 80, 30 for every person, and {@link ADD_PERSON_COLUMN_WIDTH}
    * for the trailing add-person column, plus one more trailing
    * {@link GRID_SCROLLBAR_WIDTH} spacer with
    * no cell of its own, matching the same padding the grid adds to its own
@@ -3387,11 +3388,11 @@ export class SplitGrid {
    * Item.
    */
   protected readonly totalsColumns = computed(() => {
-    // Not `repeat(N, 35px)`: with nobody in the split yet, N is 0, and
+    // Not `repeat(N, 30px)`: with nobody in the split yet, N is 0, and
     // `repeat()` treats a zero count as invalid — which invalidates the
     // whole `grid-template-columns` declaration, not just that term, and
     // the band collapses to an unstyled implicit grid.
-    const peopleTracks = Array(this.store.people().length).fill('35px').join(' ');
+    const peopleTracks = Array(this.store.people().length).fill('30px').join(' ');
     const itemWidth = this.itemColumnWidth();
     const itemTrack = itemWidth != null ? `${itemWidth}px` : 'minmax(150px, 1fr)';
     return [
@@ -3599,12 +3600,12 @@ export class SplitGrid {
         headerComponent: PersonHeader,
         headerComponentParams: { personId: person.id },
         headerClass: 'ledger-person-header',
-        width: 35,
+        width: 30,
         // AG Grid's own default `minWidth` is `min(36, rowHeight)` — wider
         // than this column, and left alone it wins over `width` above (see
         // {@link ADD_PERSON_COLUMN_WIDTH}'s doc comment for the same fix on
         // the trailing add-person column).
-        minWidth: 35,
+        minWidth: 30,
         // Only the first person column's own colDef is read for a spanned
         // cell (AG Grid's rule, not this one) — see `colSpan` below — so
         // this function is what the whole merged block on an add-item row
