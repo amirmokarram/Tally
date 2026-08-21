@@ -1011,6 +1011,34 @@ describe('the ledger grid', () => {
       expect(valid(api.getRowNode(`item:${store.sheets()[1].items[0].id}`))).toBe(false);
       expect(valid(api.getRowNode(`add-item:${firstSheet.id}`))).toBe(false);
     });
+
+    /**
+     * Regression coverage: AG Grid's own row-drag glyph is a six-dot grip
+     * (three rows of two), which reads as `:::` — a different shape from the
+     * four-dot grip the Reorder dialogs use for the same "drag this into a
+     * new order" affordance (see `person-reorder-dialog.html` and
+     * `sheet-reorder-dialog.html`). `icons: { rowDrag: ... }` on the grid
+     * (`split-grid.ts`) overrides AG Grid's default glyph with that same
+     * four-dot SVG, so the two affordances match.
+     */
+    it('shows the same four-dot grip as the Reorder dialogs, not AG Grid\'s own six-dot one', async () => {
+      const { fixture } = await grid();
+      const root = fixture.nativeElement as HTMLElement;
+
+      const handle = root.querySelector('.ag-cell[col-id="item"] .ag-drag-handle');
+      expect(handle).withContext('the row-drag handle on a line').not.toBeNull();
+
+      const circles = [...handle!.querySelectorAll('circle')].map((c) => ({
+        cx: c.getAttribute('cx'),
+        cy: c.getAttribute('cy'),
+      }));
+      expect(circles).toEqual([
+        { cx: '5', cy: '5' },
+        { cx: '11', cy: '5' },
+        { cx: '5', cy: '11' },
+        { cx: '11', cy: '11' },
+      ]);
+    });
   });
 
   /**

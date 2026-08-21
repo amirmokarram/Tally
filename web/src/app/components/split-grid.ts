@@ -216,6 +216,22 @@ const ADD_PERSON_COLUMN_WIDTH = 28;
 const money = new MoneyPipe();
 
 /**
+ * The same four-dot grip drawn in `person-reorder-dialog.html` and
+ * `sheet-reorder-dialog.html`, handed to AG Grid's `icons.rowDrag` (see
+ * {@link SplitGrid.icons}) in place of its own six-dot glyph — a raw HTML
+ * string is what that grid option takes, not a template, so it is written
+ * out here rather than shared with the dialogs' own inline SVG.
+ */
+const ROW_DRAG_ICON = `
+  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+    <circle cx="5" cy="5" r="1.2" fill="currentColor" />
+    <circle cx="11" cy="5" r="1.2" fill="currentColor" />
+    <circle cx="5" cy="11" r="1.2" fill="currentColor" />
+    <circle cx="11" cy="11" r="1.2" fill="currentColor" />
+  </svg>
+`;
+
+/**
  * A ticked line's data, snapshotted by Copy/Cut so Paste can recreate it —
  * including in a different sheet, since shares live at trip level and stay
  * valid wherever the line lands.
@@ -1481,6 +1497,15 @@ export class SplitGrid {
 
   protected readonly theme = ledgerTheme;
   protected readonly scrollbarWidth = GRID_SCROLLBAR_WIDTH;
+
+  /**
+   * Replaces AG Grid's own row-drag glyph — a six-dot grip, three rows of
+   * two, reading as `:::` — with the four-dot grip the Reorder dialogs use
+   * for the same "drag this into a new order" affordance (see {@link
+   * ROW_DRAG_ICON}), so a line's drag handle and a sheet's or person's read
+   * as the same control everywhere it appears.
+   */
+  protected readonly icons = { rowDrag: ROW_DRAG_ICON };
 
   /** Shared with the Sheet cell, which has to size a spanned block itself. */
   protected readonly rowHeight = LEDGER_ROW_HEIGHT;
