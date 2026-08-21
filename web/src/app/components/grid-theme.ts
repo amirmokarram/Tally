@@ -34,7 +34,7 @@ const TOKENS = {
  * Sheet cell's height has to be worked out from a row count — see
  * `sheet-cell.ts`, which re-applies it.
  */
-export const LEDGER_ROW_HEIGHT = 38;
+export const LEDGER_ROW_HEIGHT = 30;
 
 /**
  * The "add item" row's height while it sits blank and unfocused — short

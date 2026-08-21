@@ -1114,11 +1114,16 @@ interface RowClipboardEntry {
 
     /* \`.ag-text-field-input\`'s own theme padding (8px either side) is meant
        for a full-width text field, not a 30-pixel share editor — it leaves a
-       two-character "9.9" nowhere to go but clipped. */
+       two-character "9.9" nowhere to go but clipped. \`min-height\` is the
+       same story on the other axis: the theme's own default (32px) is taller
+       than \`LEDGER_ROW_HEIGHT\` now is, so the input opened taller than its
+       cell and immediately snapped down to \`height: 100%\` — a one-frame
+       flicker on every share edit. */
     :host ::ng-deep .ledger-share.ag-cell-inline-editing input {
       text-align: center;
       padding-left: 0;
       padding-right: 0;
+      min-height: 0;
     }
 
     /* Reused by the totals band above the grid — see \`.totals-band .person\`
