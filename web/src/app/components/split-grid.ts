@@ -2652,6 +2652,30 @@ export class SplitGrid {
   private readonly copiedRows = signal<{ sheetId: string; itemId: string }[]>([]);
 
   /**
+   * Clamps a dropdown's `{x, y}` anchor to stay fully inside the viewport.
+   * `addMenuAnchor`, `shareMenuAnchor`, `exportMenuAnchor` and
+   * `reorderMenuAnchor` all anchor from their button's own *left* edge, so a
+   * button sitting close to the right side of the toolbar — or, worse,
+   * inside the right-hugging overflow menu itself — can otherwise open a
+   * dropdown that runs off the right edge of the viewport, invisible past
+   * the browser's own edge. `overflowMenuAnchor` doesn't need this: it's
+   * deliberately anchored from the *right* instead (see the comment on it,
+   * below), which can't run off the edge it's already measuring from.
+   * `width`/`height` match `.toolbar-menu`'s own `min-width` and the taller
+   * of its two-button dropdowns (Export/Reorder's icon rows) in the styles
+   * below — these are two-item menus only, never taller.
+   */
+  private clampMenuAnchor(rect: DOMRect): { x: number; y: number } {
+    const width = 150;
+    const height = 100;
+    const margin = 8;
+    return {
+      x: Math.max(margin, Math.min(rect.left, window.innerWidth - width - margin)),
+      y: Math.max(margin, Math.min(rect.bottom + 4, window.innerHeight - height - margin)),
+    };
+  }
+
+  /**
    * Where the Add dropdown (Add Sheet / Add Person) is open, in viewport
    * coordinates — anchored under the toolbar button that opened it, the
    * same pattern as {@link shareMenuAnchor} just below.
@@ -2665,7 +2689,7 @@ export class SplitGrid {
       return;
     }
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.addMenuAnchor.set({ x: rect.left, y: rect.bottom + 4 });
+    this.addMenuAnchor.set(this.clampMenuAnchor(rect));
   }
 
   protected closeAddMenu(): void {
@@ -2687,7 +2711,7 @@ export class SplitGrid {
       return;
     }
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.shareMenuAnchor.set({ x: rect.left, y: rect.bottom + 4 });
+    this.shareMenuAnchor.set(this.clampMenuAnchor(rect));
   }
 
   protected closeShareMenu(): void {
@@ -2713,7 +2737,7 @@ export class SplitGrid {
       return;
     }
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.exportMenuAnchor.set({ x: rect.left, y: rect.bottom + 4 });
+    this.exportMenuAnchor.set(this.clampMenuAnchor(rect));
   }
 
   protected closeExportMenu(): void {
@@ -2736,7 +2760,7 @@ export class SplitGrid {
       return;
     }
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.reorderMenuAnchor.set({ x: rect.left, y: rect.bottom + 4 });
+    this.reorderMenuAnchor.set(this.clampMenuAnchor(rect));
   }
 
   protected closeReorderMenu(): void {
