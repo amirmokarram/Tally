@@ -74,6 +74,36 @@ own block. Raising one means raising the other to match.
 either number breaks specs that a DOM-only browser check will not catch. Run
 the full test suite, not just a build, after touching either constant.
 
+A PNG capture drops every add-item row outright (`printRows`, `split-grid.ts`)
+rather than collapsing it to `LEDGER_ADD_ROW_HEIGHT` the way the screen does —
+there is nothing to type on in a still image. That row was one of the rows
+paying for the floor above, so the same `MIN_BLOCK_ROWS` that clears it on
+screen can fall short during a capture specifically. `MIN_BLOCK_ROWS_CAPTURING`
+(`ledger-model.ts`) is the same invariant solved a row taller, used only while
+`isCapturing()`; `printRows` builds its own row array off it rather than
+filtering the screen's, and `sheet-cell.ts`'s height `effect()` passes it to
+`ledgerBlockSize` in step. Lower `LEDGER_ROW_HEIGHT` again and both constants
+need re-checking against the floor, not just the screen-facing one.
+
+## `selectedRowBackgroundColor` is dead for a spanned row
+
+The Theming API's own row-selection overlay only paints when the row element
+carries the base `.ag-row` class alongside `.ag-row-selected` — that pairing
+is what sets `--ag-internal-row-overlay-color` to
+`var(--ag-selected-row-background-color)` in AG Grid's generated CSS. A row
+that spans (`ag-spanned-row`, this app's own cell-span reimplementation — see
+above) never carries plain `.ag-row`, so the variable never gets set and the
+whole-row wash never renders, regardless of what `selectedRowBackgroundColor`
+is set to in `grid-theme.ts`.
+
+The only visible selection cue on this grid is therefore whatever CSS a
+column's own `cellClassRules` paints by hand off `node.isSelected()` —
+`.ledger-index-ticked` on the index column. Setting
+`selectedRowBackgroundColor` still matters (some AG Grid chrome outside the
+spanned rows reads it), but do not expect it to colour a ledger row on its
+own; confirm any row-selection colour change by inspecting the actual
+ticked-cell element, not the theme param.
+
 ## Read the grid's live state, don't re-derive it
 
 AG Grid's outputs are asynchronous, and `colSpan` and row-height-driven
