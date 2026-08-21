@@ -1070,10 +1070,12 @@ interface RowClipboardEntry {
       cursor: pointer;
     }
 
-    /* The ticked state, in the same ink used for the cell-range selection so
-       the two read as the same kind of thing: chosen. */
+    /* The ticked state — matches \`selectedRowBackgroundColor\`
+       (\`grid-theme.ts\`) rather than the cell-range selection's own navy, so
+       the number cell reads as part of the same highlighted row rather than
+       a mismatched patch of it. */
     :host ::ng-deep .ledger-index-ticked {
-      background: var(--navy-050);
+      background: var(--selected-bg);
       color: var(--navy-700);
       font-weight: 600;
     }

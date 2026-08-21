@@ -25,6 +25,7 @@ const TOKENS = {
   text: '#16233a',
   textMuted: '#5c6b83',
   textInvert: '#ffffff',
+  selectedBg: '#f5f29a',
 } as const;
 
 /**
@@ -65,7 +66,9 @@ export const ledgerTheme = themeQuartz.withParams({
 
   oddRowBackgroundColor: TOKENS.surfaceAlt,
   rowHoverColor: TOKENS.navy050,
-  selectedRowBackgroundColor: TOKENS.navy050,
+  // Not navy050, unlike hover above: that pale blue reads too close to
+  // oddRowBackgroundColor for a ticked row to stand out against an odd one.
+  selectedRowBackgroundColor: TOKENS.selectedBg,
 
   // The app is 10px/6px throughout; the grid should not look like a widget
   // borrowed from somewhere else.

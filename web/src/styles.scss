@@ -29,6 +29,11 @@
   --warn: #8a5a00;
   --warn-bg: #fdf3dc;
 
+  /* A ticked/selected row's own highlight — not a navy, unlike the rest of
+     this palette: against the alternating --surface-alt row tint, the
+     obvious --navy-050 choice read as barely-there. */
+  --selected-bg: #f5f29a;
+
   /* Settlement group colours — the workbook had seven. */
   --group-1: #6b1f4d;
   --group-2: #8a5314;
