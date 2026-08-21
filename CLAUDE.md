@@ -52,8 +52,9 @@ Two rules that are never negotiable, because breaking either is silent:
 
 ## Settings scope
 
-Display preferences (totals band height, row hover, continuous row numbers)
-live in `ReportSettings` (`core/report-settings.ts`) under the `tally.settings`
+Display preferences (totals band height, whether the totals band is
+collapsed, row hover, continuous row numbers) live in `ReportSettings`
+(`core/report-settings.ts`) under the `tally.settings`
 storage key — separate from `tally.library` (`core/library-storage.ts`), which
 holds the saved splits themselves. These settings are global, apply the same
 way across every split, and never travel with an export/import.
@@ -85,5 +86,6 @@ Loaded on demand — read these when the work touches them:
 
 - `agent_docs/ag-grid.md` — how Community substitutes for the enterprise
   features, and the integration traps.
-- `agent_docs/report-layout.md` — the mobile flex chain, and the two layout
-  approaches that were tried and rejected.
+- `agent_docs/report-layout.md` — the mobile flex chain, the CSS Grid
+  auto-placement trap behind the totals band's collapse toggle, and the
+  layout approaches that were tried and rejected.
