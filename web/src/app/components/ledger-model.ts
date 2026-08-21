@@ -95,6 +95,20 @@ export type LedgerRow =
 export const MIN_BLOCK_ROWS = 6;
 
 /**
+ * {@link MIN_BLOCK_ROWS}, for a PNG export instead of the screen.
+ *
+ * A capture drops every sheet's add-item row outright rather than
+ * collapsing it (`printRows`, `split-grid.ts`) — there is nothing left to
+ * type on in a still image. That row was one of the six paying for the
+ * floor above, so a block landing exactly on `MIN_BLOCK_ROWS` loses its
+ * `LEDGER_ADD_ROW_HEIGHT` of padding along with it: 149px, under the 155px
+ * floor by enough to clip, where the screen's own 169px cleared it. One
+ * more row — sized in whole `LEDGER_ROW_HEIGHT`s, since there is no add-item
+ * row left to size in its own shorter one — comes to 179px.
+ */
+export const MIN_BLOCK_ROWS_CAPTURING = 7;
+
+/**
  * The row data type AG Grid is generic over.
  *
  * Used to carry a `BalanceRow` too, for a pinned top row showing each
@@ -119,6 +133,11 @@ export function buildLedgerRows(
   // every sheet — the `continuousRowNumbers` display setting, passed in
   // rather than read here since this function stays free of Angular.
   continuousRowNumbers: boolean,
+  // {@link MIN_BLOCK_ROWS} by default; {@link MIN_BLOCK_ROWS_CAPTURING} for
+  // `printRows` (`split-grid.ts`), which calls this a second time rather
+  // than filtering the screen's own rows — a capture's filler rows are
+  // themselves a row taller, not just short their add-item row.
+  minBlockRows: number = MIN_BLOCK_ROWS,
 ): LedgerRow[] {
   const bySheet = new Map<string, SplitRow[]>();
   for (const row of rows) {
@@ -150,7 +169,7 @@ export function buildLedgerRows(
     // otherwise a block too short to write its own name down. One row taken to
     // whatever height the remainder needs, not one row per unit of it. Sized
     // off this sheet's own item count, never the running `index`.
-    const fillerRows = MIN_BLOCK_ROWS - items.length - 1;
+    const fillerRows = minBlockRows - items.length - 1;
     if (fillerRows > 0) {
       out.push({ kind: 'filler', sheetId: sheet.id, rows: fillerRows });
     }
@@ -164,10 +183,16 @@ export function buildLedgerRows(
  * {@link MIN_BLOCK_ROWS}, the filler rows making up the difference.
  *
  * Only the spanned Sheet cell needs this — it is sized by row count rather than
- * by content, and AG Grid does not resize it once the block grows.
+ * by content, and AG Grid does not resize it once the block grows. `sheet-cell.ts`
+ * passes {@link MIN_BLOCK_ROWS_CAPTURING} while a PNG capture is in progress, to
+ * stay in step with the taller filler rows {@link buildLedgerRows} gives
+ * `printRows` (`split-grid.ts`) for the same reason.
  */
-export function ledgerBlockSize(sheet: ExpenseSheet): number {
-  return Math.max(sheet.items.length + 1, MIN_BLOCK_ROWS);
+export function ledgerBlockSize(
+  sheet: ExpenseSheet,
+  minBlockRows: number = MIN_BLOCK_ROWS,
+): number {
+  return Math.max(sheet.items.length + 1, minBlockRows);
 }
 
 /**

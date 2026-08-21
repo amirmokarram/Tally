@@ -103,7 +103,13 @@ import { MoneyPipe } from '../core/money.pipe';
 import { buildExportPayload, downloadJson, exportFileName, slugifyTitle } from '../core/trip-file';
 import { capturePng, saveImageFile } from '../core/report-export';
 import { packShare, Share, unpackShare } from '../models/trip.model';
-import { LedgerItemRow, LedgerRowData, buildLedgerRows, ledgerRowId } from './ledger-model';
+import {
+  LedgerItemRow,
+  LedgerRowData,
+  MIN_BLOCK_ROWS_CAPTURING,
+  buildLedgerRows,
+  ledgerRowId,
+} from './ledger-model';
 import {
   CellRange,
   CellRef,
@@ -3413,15 +3419,24 @@ export class SplitGrid {
   );
 
   /**
-   * {@link rows}, minus every sheet's own add-item row — what {@link savePng}
+   * {@link rows} without every sheet's own add-item row — what {@link savePng}
    * swaps in as the grid's `rowData` for as long as {@link capturing} is
-   * true. Filtered rather than hidden with CSS: an add-item row is sized and
-   * spanned as part of its sheet's block (see `sheet-cell.ts`'s height
-   * `effect()`), so hiding its DOM would leave a blank gap rather than a
+   * true. Built fresh rather than filtered from {@link rows}: dropping the
+   * add-item row costs a block the padding it was collapsed down to, so a
+   * block landing exactly on {@link MIN_BLOCK_ROWS} needs a filler row taller
+   * than the screen's own — see {@link MIN_BLOCK_ROWS_CAPTURING}, which
+   * `sheet-cell.ts`'s height `effect()` matches while capturing. An add-item
+   * row is sized and spanned as part of its sheet's block regardless, so
+   * hiding one with CSS instead would leave a blank gap rather than a
    * closed-up one — AG Grid positions rows by absolute offset, not CSS flow.
    */
   protected readonly printRows = computed<LedgerRowData[]>(() =>
-    this.rows().filter((row) => row.kind !== 'add-item'),
+    buildLedgerRows(
+      this.store.split().rows,
+      this.store.sheets(),
+      this.settings.continuousRowNumbers(),
+      MIN_BLOCK_ROWS_CAPTURING,
+    ).filter((row) => row.kind !== 'add-item'),
   );
 
   /**

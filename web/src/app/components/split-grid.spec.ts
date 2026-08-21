@@ -411,9 +411,16 @@ describe('the ledger grid', () => {
 
       expect(capture.rows().some((r) => r.kind === 'add-item')).toBe(true);
       expect(capture.printRows().some((r) => r.kind === 'add-item')).toBe(false);
-      // Nothing else about the rows changes — one add-item row per sheet is
-      // the only difference between the two.
-      expect(capture.printRows().length).toBe(capture.rows().length - store.sheets().length);
+      // The 'restaurant' sample's one sheet has 5 items — one short of
+      // MIN_BLOCK_ROWS_CAPTURING, so losing the add-item row costs it a
+      // filler row it did not need on screen (MIN_BLOCK_ROWS_CAPTURING is a
+      // row past MIN_BLOCK_ROWS; see that constant's doc comment). Both
+      // total 6: the on-screen 5 items plus their add-item row, and the
+      // print-ready 5 items plus the filler row standing in for it.
+      expect(store.sheets().length).toBe(1);
+      expect(store.sheets()[0].items.length).toBe(5);
+      expect(capture.rows().length).toBe(6);
+      expect(capture.printRows().length).toBe(6);
     });
 
     it('leaves the add-person column out of the print-ready columns', async () => {

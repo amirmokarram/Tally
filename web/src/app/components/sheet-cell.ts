@@ -31,7 +31,13 @@ import { ICellRendererParams, IHeaderParams } from 'ag-grid-community';
 
 import { TripStore } from '../core/trip-store';
 import { ExpenseSheet, formatCharge, parseCharge } from '../models/trip.model';
-import { LedgerRowData, ledgerBlockSize, sheetCaption } from './ledger-model';
+import {
+  LedgerRowData,
+  MIN_BLOCK_ROWS,
+  MIN_BLOCK_ROWS_CAPTURING,
+  ledgerBlockSize,
+  sheetCaption,
+} from './ledger-model';
 import { LEDGER_ADD_ROW_HEIGHT, LEDGER_ROW_HEIGHT } from './grid-theme';
 
 type ChargeKind = 'tax' | 'tip' | 'discount';
@@ -308,7 +314,13 @@ export class SheetCell implements ICellRendererAngularComp {
       if (!cell || !sheet) {
         return;
       }
-      const rows = ledgerBlockSize(sheet);
+      const capturing = this.params?.isCapturing() ?? false;
+      // `printRows` (`split-grid.ts`) builds a capture's rows off
+      // `MIN_BLOCK_ROWS_CAPTURING`, not `MIN_BLOCK_ROWS` — matched here so
+      // this cell's height stays in step with the filler row actually
+      // underneath it. See that constant's doc comment for why a capture
+      // needs a row more.
+      const rows = ledgerBlockSize(sheet, capturing ? MIN_BLOCK_ROWS_CAPTURING : MIN_BLOCK_ROWS);
       // A one-row block is not merged at all, and a cell AG Grid is sizing
       // itself must be left to do so.
       if (rows <= 1) {
@@ -323,7 +335,7 @@ export class SheetCell implements ICellRendererAngularComp {
       // keeps this cell's height in step with that row's real one — both
       // read a signal on the grid itself, so this effect reruns on its own
       // when either changes, no extra refresh needed.
-      const addRowHeight = this.params?.isCapturing()
+      const addRowHeight = capturing
         ? 0
         : this.params?.isAddRowEditing(sheet.id)
           ? LEDGER_ROW_HEIGHT
