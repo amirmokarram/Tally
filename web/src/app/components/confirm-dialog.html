@@ -1,0 +1,10 @@
+<div class="backdrop" (click)="cancel()"></div>
+<div class="panel" role="alertdialog" aria-modal="true" [attr.aria-label]="title()">
+  <h2>{{ title() }}</h2>
+  <p class="message">{{ message() }}</p>
+
+  <div class="footer">
+    <button class="btn" type="button" (click)="cancel()">{{ cancelLabel() }}</button>
+    <button class="btn danger" type="button" (click)="confirm()">{{ confirmLabel() }}</button>
+  </div>
+</div>

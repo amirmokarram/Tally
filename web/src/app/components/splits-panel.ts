@@ -19,6 +19,7 @@ import { TRIP_STORAGE } from '../core/library-storage';
 import { SavedSplit } from '../models/library.model';
 import { Trip } from '../models/trip.model';
 import { CURRENCIES } from '../data/currencies';
+import { ConfirmDialog } from './confirm-dialog';
 
 interface SettleTransferView {
   fromName: string;
@@ -58,7 +59,7 @@ interface SplitRow {
  */
 @Component({
   selector: 'app-splits-panel',
-  imports: [MoneyPipe],
+  imports: [MoneyPipe, ConfirmDialog],
   templateUrl: './splits-panel.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
@@ -426,13 +427,28 @@ export class SplitsPanel {
     }
   }
 
+  /** The row awaiting confirmation in the delete dialog, or null when it's closed. */
+  protected readonly deleteTarget = signal<SplitRow | null>(null);
+
   protected remove(row: SplitRow): void {
-    const label = row.split.trip.title || 'this split';
     const isEmpty = row.people === 0 && row.items === 0;
-    if (!isEmpty && !confirm(`Delete "${label}"? Export it first if you want to keep it.`)) {
+    if (isEmpty) {
+      this.store.deleteSplit(row.split.id);
       return;
     }
-    this.store.deleteSplit(row.split.id);
+    this.deleteTarget.set(row);
+  }
+
+  protected confirmDelete(): void {
+    const row = this.deleteTarget();
+    if (row) {
+      this.store.deleteSplit(row.split.id);
+    }
+    this.deleteTarget.set(null);
+  }
+
+  protected cancelDelete(): void {
+    this.deleteTarget.set(null);
   }
 }
 

@@ -179,6 +179,16 @@
   <div class="card empty">No splits saved yet.</div>
 }
 
+@if (deleteTarget(); as row) {
+  <app-confirm-dialog
+    title="Delete split?"
+    [message]="'Delete \'' + (row.split.trip.title || 'this split') + '\'? Export it first if you want to keep it.'"
+    confirmLabel="Delete"
+    (confirmed)="confirmDelete()"
+    (cancelled)="cancelDelete()"
+  />
+}
+
 <div class="alerts-overlay">
   @if (importExport.importError(); as message) {
     <div class="alert conflict with-actions" role="alert">
