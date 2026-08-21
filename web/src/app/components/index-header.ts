@@ -1,13 +1,17 @@
 /**
- * The line number column's header — "#" doubling as the select-all control
- * the checkbox column's own header used to be.
+ * The line number column's header — a three-state checkbox standing in for
+ * every line's own tick, the same job the removed selection column's header
+ * checkbox used to do (see `select-cell.ts` in history: AG Grid pins that
+ * column to the front of the list on every rebuild, which is why ticking
+ * moved onto this column's cells instead — this header isn't that column,
+ * so a real checkbox is free to sit here without hitting that constraint).
  *
- * There is no tick box drawn here: the header just reads whether every line
- * is ticked, some are, or none are, and a click sets them all to match — the
- * same job {@link SplitGrid.onCellMouseDown} does per line, one column over.
+ * Unchecked, checked and indeterminate read whether none, all, or some
+ * lines are ticked; a click or Space sets them all to match — the same job
+ * {@link SplitGrid.onCellMouseDown} does per line, one column over.
  */
 
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, effect, signal, viewChild } from '@angular/core';
 import { IHeaderAngularComp } from 'ag-grid-angular';
 import { GridApi, IHeaderParams, IRowNode } from 'ag-grid-community';
 
@@ -28,16 +32,14 @@ function selectableNodes(api: GridApi<LedgerRowData>): IRowNode<LedgerRowData>[]
   selector: 'app-index-header',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <button
-      type="button"
-      [class.all]="all()"
-      [class.some]="some()"
+    <input
+      #box
+      type="checkbox"
+      [checked]="all()"
       [attr.aria-label]="all() ? 'Untick every line' : 'Tick every line'"
       [title]="all() ? 'Untick every line' : 'Tick every line'"
-      (click)="toggle()"
-    >
-      #
-    </button>
+      (change)="toggle()"
+    />
   `,
   styles: `
     :host {
@@ -48,51 +50,50 @@ function selectableNodes(api: GridApi<LedgerRowData>): IRowNode<LedgerRowData>[]
       height: 100%;
     }
 
-    button {
-      all: unset;
-      box-sizing: border-box;
+    /* The header sits on the same navy band as every other column's — the
+       browser's default checkbox border reads at low contrast there, so it
+       gets the same translucent-white treatment \`person-header.ts\`'s own
+       name box uses for the same reason. \`accent-color\` alone covers the
+       checked and indeterminate fills. */
+    input {
+      width: 15px;
+      height: 15px;
+      margin: 0;
+      border-radius: 3px;
+      outline: 1px solid rgb(255 255 255 / 55%);
+      outline-offset: -1px;
+      accent-color: var(--text-invert);
       cursor: pointer;
-      color: inherit;
-      font: inherit;
-      font-weight: inherit;
-      padding: 2px 6px;
-      border: 1px solid transparent;
-      border-radius: 4px;
     }
 
-    /* The header sits on the same navy band as every other column's, so a
-       hover reads the way \`person-header.ts\`'s own name box does there — a
-       translucent white edge rather than a colour that would only work on a
-       light background. */
-    button:hover {
-      border-color: rgb(255 255 255 / 35%);
+    input:hover {
+      outline-color: var(--text-invert);
     }
 
-    button:focus-visible {
-      outline: none;
-      border-color: var(--text-invert);
-    }
-
-    /* Some ticked: a dotted underline rather than a fill, since a partial
-       state reads oddly as solid colour on one character. */
-    button.some {
-      text-decoration: underline dotted;
-      text-underline-offset: 3px;
-    }
-
-    /* Every line ticked: inverted, the one state worth a fill against the
-       dark header band. */
-    button.all {
-      background: rgb(255 255 255 / 92%);
-      color: var(--navy-700);
+    input:focus-visible {
+      outline: 2px solid var(--text-invert);
+      outline-offset: 1px;
     }
   `,
 })
 export class IndexHeader implements IHeaderAngularComp {
   private api?: GridApi<LedgerRowData>;
 
+  private readonly box = viewChild<ElementRef<HTMLInputElement>>('box');
+
   protected readonly all = signal(false);
   protected readonly some = signal(false);
+
+  constructor() {
+    // Indeterminate has no HTML attribute, only the DOM property — the
+    // template can bind `checked` declaratively but not this.
+    effect(() => {
+      const input = this.box()?.nativeElement;
+      if (input) {
+        input.indeterminate = this.some();
+      }
+    });
+  }
 
   agInit(params: IHeaderParams<LedgerRowData>): void {
     this.api = params.api;

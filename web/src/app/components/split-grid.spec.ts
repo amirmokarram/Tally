@@ -948,7 +948,7 @@ describe('the ledger grid', () => {
       const { fixture, api, store } = await grid();
       const host = fixture.nativeElement as HTMLElement;
       const header = () =>
-        host.querySelector<HTMLButtonElement>('.ag-header-cell[col-id="index"] button')!;
+        host.querySelector<HTMLInputElement>('.ag-header-cell[col-id="index"] input')!;
 
       header().click();
       await settle(fixture);
@@ -961,6 +961,47 @@ describe('the ledger grid', () => {
 
       expect(api.getSelectedNodes().length).toBe(0);
       expect(header().getAttribute('aria-label')).toBe('Tick every line');
+    });
+
+    it('shows the header checkbox as indeterminate when only some lines are ticked', async () => {
+      const { fixture, api, store } = await grid();
+      const items = store.sheets()[0].items;
+      const sel = selecting(fixture);
+      const host = fixture.nativeElement as HTMLElement;
+      const header = () =>
+        host.querySelector<HTMLInputElement>('.ag-header-cell[col-id="index"] input')!;
+
+      expect(header().checked).toBe(false);
+      expect(header().indeterminate).toBe(false);
+
+      sel.onCellMouseDown(onCell(api, `item:${items[0].id}`, 'index'));
+      await settle(fixture);
+
+      // Neither state has an HTML attribute for "some" — this only proves
+      // anything if the DOM property itself, not just the `some` signal, was
+      // actually set.
+      expect(header().checked).toBe(false);
+      expect(header().indeterminate).toBe(true);
+
+      header().click();
+      await settle(fixture);
+
+      expect(header().checked).toBe(true);
+      expect(header().indeterminate).toBe(false);
+    });
+
+    it('clears every ticked line on Escape, the "start over" gesture Ctrl/Cmd+Click does not cover', async () => {
+      const harness = await grid();
+      const items = harness.store.sheets()[0].items;
+      tick(harness, [items[0], items[1]]);
+      await settle(harness.fixture);
+
+      expect(harness.api.getSelectedNodes().length).toBe(2);
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await settle(harness.fixture);
+
+      expect(harness.api.getSelectedNodes().length).toBe(0);
     });
   });
 

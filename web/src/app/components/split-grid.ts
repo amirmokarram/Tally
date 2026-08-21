@@ -1447,7 +1447,7 @@ interface RowClipboardEntry {
       --ag-cell-horizontal-padding: 0px;
     }
 
-    /* The same fix, for the same reason: the line-number header's "#" button
+    /* The same fix, for the same reason: the line-number header's checkbox
        is meant to fill its 30-pixel column, not sit inside AG Grid's 16
        either side. */
     :host ::ng-deep .ledger-index-header {
@@ -2980,8 +2980,10 @@ export class SplitGrid {
 
   /**
    * Escape's own job: close the Add, Shares, Export and Reorder dropdowns
-   * and the overflow menu, back out of a pending cut, and dismiss a Copy's
-   * own marching-ants marker.
+   * and the overflow menu, back out of a pending cut, dismiss a Copy's own
+   * marching-ants marker, and clear any ticked lines — the one-at-a-time
+   * Ctrl/Cmd+Click toggle ({@link onCellMouseDown}) still works for undoing
+   * a single line, but this is the "start over" gesture.
    */
   protected onEscape(): void {
     this.closeAddMenu();
@@ -2991,6 +2993,7 @@ export class SplitGrid {
     this.closeOverflowMenu();
     this.cancelPendingCut();
     this.cancelCopiedMark();
+    this.api?.deselectAll();
   }
 
   protected onSelectionChanged(event: SelectionChangedEvent<LedgerRowData>): void {
