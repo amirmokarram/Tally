@@ -214,6 +214,14 @@ const GRID_SCROLLBAR_WIDTH = 10;
 const ADD_PERSON_COLUMN_WIDTH = 28;
 
 /**
+ * The totals band's own height while `settings.totalsBandCollapsed` is on —
+ * short enough to give the grid back real room, tall enough that
+ * `.masthead-issue` (a validation warning) still reads on one line rather
+ * than being clipped along with the figures it replaces.
+ */
+const COLLAPSED_TOTALS_BAND_HEIGHT = 20;
+
+/**
  * The app's money formatting — thousands separators, and a credit in
  * parentheses rather than behind a minus sign, which is how the spreadsheet
  * showed someone who is owed. Reused through the pipe class so the grid cannot
@@ -670,6 +678,76 @@ interface RowClipboardEntry {
       justify-content: flex-start;
       align-items: center;
       padding: 4px;
+    }
+
+    /* \`settings.totalsBandCollapsed\` — the title input and every figure go,
+       \`.masthead-issue\` (a validation warning) stays. The row collapses to
+       two cells, not the original one-plus-a-hidden-many: this one grows
+       from its usual 3-column span to every track up to
+       \`.cell.toggle-cell\`'s own (pinned at \`-3\`, see below), so the message
+       actually owns the width the hidden \`.cell.grand\`/\`.cell.person\`
+       tracks would otherwise leave as unclaimed empty grid space. Tighter
+       padding too: at full padding a bare warning line still held the row
+       well above {@link COLLAPSED_TOTALS_BAND_HEIGHT}. */
+    .totals-band.collapsed .cell.masthead-cell {
+      grid-column: 1 / -3;
+      padding: 2px 15px;
+      /* Its own right border used to mark the seam with \`.cell.grand\`
+         directly beside it — with that cell (and every person cell) gone
+         below, the border would land on empty space instead, and nothing
+         replaces it: message and button share one plain cell now, with no
+         divider between them. */
+      border-right: none;
+    }
+
+    .totals-band.collapsed .title-input,
+    .totals-band.collapsed .cell.grand,
+    .totals-band.collapsed .cell.person {
+      display: none;
+    }
+
+    /* Pinned to the second-to-last track (the last is the empty scrollbar
+       spacer — see \`totalsColumns\`) by explicit line, not left to grid
+       auto-placement: collapsing hides \`.cell.grand\`/\`.cell.person\` with
+       \`display: none\`, which drops them out of the grid entirely and would
+       otherwise pull this cell — the only one with nothing before it to
+       take its place — leftward into whichever track they vacated. */
+    .totals-band .cell.toggle-cell {
+      grid-column: -3;
+      padding: 0 1px;
+      justify-content: center;
+    }
+
+    /* The same button as \`AddPersonHeader\`'s own (\`person-header.ts\`) —
+       this sits directly above it, in the same 28-pixel column, and the
+       two are meant to read as one stacked control. Same size, same
+       dimmed-then-full-opacity interaction; only the color swaps, from
+       \`--text-invert\` to \`--navy-800\`, since this cell's surface is the
+       band's light \`--surface\`, not the grid header's navy. */
+    .totals-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: end;
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--navy-800);
+      opacity: 0.5;
+      cursor: pointer;
+      transition: opacity 120ms;
+
+      &:hover,
+      &:focus-visible {
+        opacity: 1;
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--navy-800);
+        outline-offset: 1px;
+      }
     }
 
     /* Takes whatever height \`.report\` has left over above (see \`:host\` and
@@ -1444,6 +1522,7 @@ export class SplitGrid {
   protected readonly store = inject(TripStore);
   protected readonly settings = inject(ReportSettings);
   protected readonly defaultTotalsBandHeight = DEFAULT_TOTALS_BAND_HEIGHT;
+  protected readonly collapsedTotalsBandHeight = COLLAPSED_TOTALS_BAND_HEIGHT;
   private readonly elementRef = inject(ElementRef<HTMLElement>);
   private readonly destroyRef = inject(DestroyRef);
 

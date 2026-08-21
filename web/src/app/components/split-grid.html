@@ -269,12 +269,24 @@
        pinned a row down inside it — see `totalsColumns` for how its column
        widths are kept in step with the grid's own. The split's name shares
        this row too, in the merged Sheet/#/Item cell — a figure nobody owns,
-       and room a masthead row of its own would have wasted. -->
+       and room a masthead row of its own would have wasted.
+
+       Shrunk to a thin strip, not removed outright, when
+       `settings.totalsBandCollapsed` is on — `.collapsed` below hides the
+       title input and every figure but leaves `.masthead-issue` showing: a
+       validation warning is exactly the thing a user reclaiming this row's
+       space still needs to see. `capturing()` overrides the toggle in both
+       directions the same way — a PNG export is a snapshot to share, not
+       the live editing screen, so it always gets the full band regardless
+       of what's collapsed on screen. -->
   <div
     #totalsBand
     class="totals-band"
+    [class.collapsed]="settings.totalsBandCollapsed() && !capturing()"
     [style.gridTemplateColumns]="totalsColumns()"
-    [style.minHeight.px]="settings.totalsBandHeight() ?? defaultTotalsBandHeight"
+    [style.minHeight.px]="
+      settings.totalsBandCollapsed() && !capturing() ? collapsedTotalsBandHeight : (settings.totalsBandHeight() ?? defaultTotalsBandHeight)
+    "
   >
     <div class="cell masthead-cell">
       <div class="masthead-title">
@@ -309,8 +321,29 @@
     @if (!capturing()) {
       <!-- The add-person column's own trailing track, plus the grid's
            scrollbar spacer beside it — see `totalsColumns`. Neither track
-           exists while capturing, so this has nowhere left to sit. -->
-      <div class="cell"></div>
+           exists while capturing, so this has nowhere left to sit. Also
+           where the band's own collapse toggle lives — the last column,
+           directly above the grid's own "add person" `+`, so the two read
+           as a stacked pair rather than two unrelated controls. -->
+      <div class="cell toggle-cell">
+        <button
+          class="totals-toggle"
+          type="button"
+          [attr.aria-pressed]="settings.totalsBandCollapsed()"
+          [title]="settings.totalsBandCollapsed() ? 'Show totals band' : 'Hide totals band'"
+          (click)="settings.setTotalsBandCollapsed(!settings.totalsBandCollapsed())"
+        >
+          @if (settings.totalsBandCollapsed()) {
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+              <path d="M4.5 6.5l3.5 3 3.5-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          } @else {
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+              <path d="M4.5 9.5l3.5-3 3.5 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          }
+        </button>
+      </div>
     }
   </div>
 

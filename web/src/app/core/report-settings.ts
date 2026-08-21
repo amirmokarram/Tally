@@ -28,6 +28,8 @@ interface SettingsDocument {
   rowHoverEnabled: boolean;
   /** Whether a line's number counts up across the whole trip rather than resetting per sheet. */
   continuousRowNumbers: boolean;
+  /** Whether the totals band above the grid is hidden. */
+  totalsBandCollapsed: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -50,6 +52,7 @@ function readSettings(storage: Storage | null): SettingsDocument {
     totalsBandHeight: null,
     rowHoverEnabled: true,
     continuousRowNumbers: false,
+    totalsBandCollapsed: false,
   };
   if (!storage) {
     return fallback;
@@ -66,11 +69,13 @@ function readSettings(storage: Storage | null): SettingsDocument {
     const height = parsed['totalsBandHeight'];
     const rowHoverEnabled = parsed['rowHoverEnabled'];
     const continuousRowNumbers = parsed['continuousRowNumbers'];
+    const totalsBandCollapsed = parsed['totalsBandCollapsed'];
     return {
       version: SETTINGS_VERSION,
       totalsBandHeight: height === null || isValidHeight(height) ? height : null,
       rowHoverEnabled: typeof rowHoverEnabled === 'boolean' ? rowHoverEnabled : true,
       continuousRowNumbers: typeof continuousRowNumbers === 'boolean' ? continuousRowNumbers : false,
+      totalsBandCollapsed: typeof totalsBandCollapsed === 'boolean' ? totalsBandCollapsed : false,
     };
   } catch {
     return fallback;
@@ -107,6 +112,11 @@ export class ReportSettings {
   /** Whether a line's number counts up across the whole trip rather than resetting per sheet. */
   readonly continuousRowNumbers = this.continuousRowNumbersState.asReadonly();
 
+  private readonly totalsBandCollapsedState = signal<boolean>(this.initial.totalsBandCollapsed);
+
+  /** Whether the totals band above the grid is hidden. */
+  readonly totalsBandCollapsed = this.totalsBandCollapsedState.asReadonly();
+
   constructor() {
     effect(() => {
       writeSettings(this.storage, {
@@ -114,6 +124,7 @@ export class ReportSettings {
         totalsBandHeight: this.totalsBandHeightState(),
         rowHoverEnabled: this.rowHoverEnabledState(),
         continuousRowNumbers: this.continuousRowNumbersState(),
+        totalsBandCollapsed: this.totalsBandCollapsedState(),
       });
     });
   }
@@ -128,5 +139,9 @@ export class ReportSettings {
 
   setContinuousRowNumbers(enabled: boolean): void {
     this.continuousRowNumbersState.set(enabled);
+  }
+
+  setTotalsBandCollapsed(collapsed: boolean): void {
+    this.totalsBandCollapsedState.set(collapsed);
   }
 }

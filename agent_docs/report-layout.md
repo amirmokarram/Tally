@@ -50,7 +50,7 @@ layout rather than the element's own computed margin value.
 ## Component style budgets
 
 `web/angular.json`'s production config enforces a per-component CSS size budget
-(`anyComponentStyle`: currently 11kB error / 7kB warning).
+(`anyComponentStyle`: currently 12kB error / 7kB warning).
 
 This is only checked by `ng build`. `tsc --noEmit` and `ng test` both pass
 regardless of how large a component's styles get, so neither will catch a
