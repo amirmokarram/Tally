@@ -76,20 +76,23 @@ export type LedgerRow =
  * `sheet-cell.ts`), not just the name box and charges' own content: AG Grid
  * spans the cell across exactly this many rows and never revisits it, so if
  * the rows summed to less than that floor the cell would render taller than
- * the row-space actually reserved for it — spilling into whatever sits
- * below rather than showing complete. Five rows, with the add-item row
- * collapsed, comes to `4 * LEDGER_ROW_HEIGHT + LEDGER_ADD_ROW_HEIGHT - 1`
- * (171px), comfortably past the floor; four came to 133px, short of it by
- * enough to spill.
+ * the row-space actually reserved for it — clipped by the grid cell's own
+ * `overflow: hidden` rather than showing complete. Six rows, with the
+ * add-item row collapsed, comes to `5 * LEDGER_ROW_HEIGHT +
+ * LEDGER_ADD_ROW_HEIGHT - 1` (169px), comfortably past the floor; five came
+ * to 139px, short of it by enough to clip. (Five was enough at the row
+ * height this shipped with first — `LEDGER_ROW_HEIGHT` shrinking to 30 is
+ * what moved the floor out of reach and forced this to grow with it; the
+ * floor itself is fixed content, not tied to row height at all.)
  *
- * It is paid for in blank rows — four on a sheet with no lines, three on a
- * sheet with one, none from four lines on, by which point the block is this
+ * It is paid for in blank rows — five on a sheet with no lines, four on a
+ * sheet with one, none from five lines on, by which point the block is this
  * tall on its own.
  *
  * Held here rather than in the cell that needs it because it is the *rows* that
  * have to be built, and only this file builds them.
  */
-export const MIN_BLOCK_ROWS = 5;
+export const MIN_BLOCK_ROWS = 6;
 
 /**
  * The row data type AG Grid is generic over.
