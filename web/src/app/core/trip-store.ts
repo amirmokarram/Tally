@@ -728,6 +728,22 @@ export class TripStore {
     this.patchSheet(sheetId, (sheet) => ({ items: move(sheet.items, itemId, delta) }));
   }
 
+  /**
+   * As {@link moveItem}, but for a whole new order at once rather than one
+   * line shifted by a step — what a multi-line drag needs, since
+   * `rowDragManaged` may move any number of lines together and the grid
+   * already knows the resulting order; there is no single delta to diff.
+   * Ids missing from `orderedItemIds`, or not matching the sheet's current
+   * items one-for-one, leave the sheet unchanged.
+   */
+  reorderItems(sheetId: string, orderedItemIds: readonly string[]): void {
+    this.patchSheet(sheetId, (sheet) => {
+      const byId = new Map(sheet.items.map((item) => [item.id, item] as const));
+      const reordered = orderedItemIds.map((id) => byId.get(id)).filter((item) => item !== undefined);
+      return reordered.length === sheet.items.length ? { items: reordered } : {};
+    });
+  }
+
   // --- Shares -----------------------------------------------------------
 
   share(itemId: string, personId: string): Share {

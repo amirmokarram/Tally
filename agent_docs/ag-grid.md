@@ -147,3 +147,95 @@ AG Grid's own `RowSelectionModule`, but *drawing* that state — a `#` glyph, a
 real three-state `<input type="checkbox">`, whatever reads best — is free to
 change without hitting the positioning constraint above. Only a `colDef`
 actually opting into `checkboxSelection` would.
+
+## `rowDragMultiRow` drags the whole ticked selection, and is Community too
+
+Dragging a ticked line by its handle drags every other ticked line along with
+it — `[rowDragMultiRow]="true"` in `split-grid.html`, same `RowDragModule` as
+plain single-line drag, no Enterprise fallback needed. AG Grid decides this
+itself: if the row a drag starts on is part of the current selection
+(`node.isSelected()`, the hand-rolled ticking above), `getSelectedNodes()`
+supplies the whole set; otherwise only the grabbed row drags, ignoring
+whatever else happens to be ticked.
+
+`onRowDragEnd` (`split-grid.ts`) does not special-case the multi-row count.
+`rowDragManaged` has already reordered AG Grid's own row model — one line or
+several — by the time the handler fires, so it always reads the dragged
+sheet's *entire* resulting order back via `forEachNode` and writes it whole
+through `TripStore.reorderItems(sheetId, orderedItemIds)`, rather than
+computing a per-line delta. `reorderItems` replaces the sheet's `items` array
+to match that order outright; it is the general case `moveItem`'s
+single-entry splice was a special case of.
+
+`isRowValidDropPosition` checks every entry in `params.rows` (the whole
+dragged set) against the drop target's `sheetId`, not just `params.source`
+(the one line whose handle was grabbed) — a ticked selection spanning more
+than one sheet would otherwise let AG Grid's flat row array physically
+interleave another sheet's line into this one's block, which nothing in the
+per-sheet `items` model or the cell-span reimplementation above expects. A
+multi-sheet selection dragged this way is simply rejected; there is no
+partial-drop behavior.
+
+**A `kind !== 'item'` row a drag merely passes over can read as the whole
+drop being refused, not just that one hover.** An earlier version of
+`isRowValidDropPosition` rejected the "add" row and any filler row outright,
+on the theory that only another line is ever a sensible drop target. In
+practice AG Grid tracks validity live as the pointer moves — every hover, not
+just the release point — and a drag from high up a sheet down to its last
+line has to cross that "add"/filler stretch below the last line to get
+there, or overshoot it and come back. Rejecting that stretch showed the
+"not-allowed" cursor for however much of the drag passed over it, which reads
+as the whole gesture having failed even on a path that ends over a perfectly
+valid line. The fix: the "add" row and filler rows of the dragged lines' own
+sheet are valid drop targets too — the natural way to make a line the
+sheet's new last line, symmetric with dropping "below" the line that used to
+be last.
+
+**Allowing that hover is not enough on its own — it also has to force where
+the row lands, or the fix produces a worse bug than the one it replaces.**
+Returning a bare `true` for an "add"/filler target leaves AG Grid free to
+pick `position: 'below'` depending on which half of the row the pointer sits
+over, same as any other row. "Below" the filler row lands one slot too low —
+between "add" and filler — and "below" the "add" row lands between "add" and
+the first item wrapped from the top, if there's more than one item; either
+way `rowDragManaged`'s live-preview reorder physically splices the dragged
+line in *after* "add", inside AG Grid's own row model, which
+`ledger-model.ts`'s fixed items-then-"add"-then-filler layout never expects
+and never re-sorts back — that layout is only ever produced fresh from the
+store's `items` array, never renegotiated in place. Worse, `onRowDragEnd`
+reads the sheet's new order back by collecting `kind === 'item'` rows in
+visitation order, so a line spliced in after "add" without changing position
+*relative to other items* looks identical to a no-op drag — `onRowDragEnd`
+skips writing back (the same skip that keeps a genuine drop-in-place off the
+undo stack), so nothing ever tells the grid to rebuild that sheet's block
+from the store again, and the broken layout sits there indefinitely — through
+undo/redo, though *not* a page reload, since that rebuilds the row list fresh
+from the store's own (never actually corrupted) `items` array rather than
+carrying AG Grid's in-memory row model forward — until literally any other
+edit touches that sheet. The fix returns an explicit `{ position: 'above', target:
+<the sheet's "add" row node> }` for both the "add" row and any filler row —
+not `overNode` itself — so a drop anywhere in that stretch always lands
+immediately above "add", the one position that keeps every item ahead of it
+regardless of which of the two rows, or which half of it, was under the
+pointer.
+
+**`isRowValidDropPosition` needs to read `params.target`, not
+`params.overNode` — they silently diverge, and the divergence looks
+intermittent from the outside.** `overNode` is just whatever row is under the
+pointer's raw Y pixel. `target` is what AG Grid actually splices the dragged
+rows against, and AG Grid substitutes a *different* node into it
+(`deltaDraggingTarget`, in AG Grid's own source) whenever `overNode` happens
+to be one of the rows currently being dragged: it walks forward, in the
+direction of travel, to the next row that *isn't* part of the drag, and uses
+that instead. Hovering a ticked line that already sits right next to "add" —
+which happens naturally once a multi-line drag has partly landed — is exactly
+when this fires, and the substituted `target` becomes the "add" row itself
+while `overNode` still reports an ordinary `item` row. A version of this fix
+keyed on `overNode` sailed through every hand-built and real-pointer-driven
+test in the suite, because none of them happened to end a drag hovering one
+of the dragged lines' own rows — the gap only showed up as an intermittent
+"drops under New Row" report from actual use, since whether it fires depends
+on the ticked group's position at that instant relative to "add", not on
+anything visibly under the pointer. `params.target` already carries AG Grid's
+own substitution by the time the validator runs — reading it instead closes
+the gap without needing to reimplement `deltaDraggingTarget`'s own logic.

@@ -111,7 +111,9 @@ function drag(harness: Harness, from: [string, string], to: [string, string]): v
  */
 interface RowDragHost {
   onRowDragEnd(event: unknown): void;
-  isRowValidDropPosition(params: unknown): boolean;
+  isRowValidDropPosition(
+    params: unknown,
+  ): boolean | { allowed?: boolean; position?: string; target?: unknown } | null;
 }
 
 function rowDragHost(fixture: ComponentFixture<SplitGrid>): RowDragHost {
@@ -1063,7 +1065,7 @@ describe('the ledger grid', () => {
       expect(undoBtn.disabled).toBe(true);
     });
 
-    it('only allows a drop onto another line in the same sheet', async () => {
+    it('only allows a drop within the dragged line\'s own sheet', async () => {
       const { fixture, api, store } = await grid();
       const firstSheet = store.sheets()[0];
       const secondSheet = store.addSheet('Taxi');
@@ -1072,11 +1074,671 @@ describe('the ledger grid', () => {
 
       const host = rowDragHost(fixture);
       const source = api.getRowNode(`item:${firstSheet.items[0].id}`);
-      const valid = (overNode: unknown) => host.isRowValidDropPosition({ source, overNode });
+      const valid = (target: unknown) =>
+        host.isRowValidDropPosition({ source, overNode: target, target, rows: [source] });
 
       expect(valid(api.getRowNode(`item:${firstSheet.items[1].id}`))).toBe(true);
       expect(valid(api.getRowNode(`item:${store.sheets()[1].items[0].id}`))).toBe(false);
-      expect(valid(api.getRowNode(`add-item:${firstSheet.id}`))).toBe(false);
+      expect(valid(api.getRowNode(`add-item:${store.sheets()[1].id}`))).toBe(false);
+    });
+
+    it('also allows a drop onto the "add" row or a filler row, to land as the sheet\'s last line', async () => {
+      // Rejecting these outright (an earlier version of this did) meant a
+      // drag whose path crossed this stretch on the way to a perfectly
+      // valid line further up got read as refused, even though only the
+      // released-on position actually matters.
+      const { fixture, api, store } = await grid();
+      const firstSheet = store.sheets()[0];
+      // A single-item sheet is short enough that ledger-model pads it with
+      // filler rows up to MIN_BLOCK_ROWS, giving a `kind: 'filler'` row to
+      // target alongside the "add" row.
+      const shortSheet = store.addSheet('Snacks');
+      const onlyItem = store.addItem(shortSheet.id, 'Chips', 5);
+      await settle(fixture);
+
+      const host = rowDragHost(fixture);
+      const source = api.getRowNode(`item:${firstSheet.items[0].id}`);
+      const addItemNode = api.getRowNode(`add-item:${firstSheet.id}`);
+
+      // Not a bare `true`: a drop here must also force *where* it lands —
+      // see the "not enough on its own" note in `agent_docs/ag-grid.md`.
+      // Leaving position/target to AG Grid's own default (whichever half of
+      // the row the pointer is over) can splice the line in after "add" in
+      // the grid's own row model, a state nothing then corrects.
+      expect(
+        host.isRowValidDropPosition({ source, overNode: addItemNode, target: addItemNode, rows: [source], api }),
+      ).toEqual({
+        allowed: true,
+        position: 'above',
+        target: addItemNode,
+      });
+
+      // One item + the "add" line is 2 of the 6 rows a block never shrinks
+      // below (`MIN_BLOCK_ROWS`), so `ledger-model.ts` pads this sheet with a
+      // single filler row spanning the remaining 4 — see `ledgerRowId`.
+      const fillerId = `filler:${shortSheet.id}:4`;
+      const fillerNode = api.getRowNode(fillerId);
+      const shortSheetAddItemNode = api.getRowNode(`add-item:${shortSheet.id}`);
+      const onlyItemNode = api.getRowNode(`item:${onlyItem.id}`);
+      expect(fillerNode?.data?.kind).toBe('filler');
+
+      // A drop on the filler row must land above "add" too — not merely
+      // above the filler row itself, which would still be one slot too low.
+      expect(
+        host.isRowValidDropPosition({
+          source: onlyItemNode,
+          overNode: fillerNode,
+          target: fillerNode,
+          rows: [onlyItemNode],
+          api,
+        }),
+      ).toEqual({ allowed: true, position: 'above', target: shortSheetAddItemNode });
+    });
+
+    it('rejects a drop if any dragged line — not just the grabbed one — belongs to another sheet', async () => {
+      // Covers `rowDragMultiRow`: `params.rows` is the whole dragged
+      // selection, not only `params.source`, so a multi-sheet selection
+      // can't land in a sheet some of its lines don't belong to.
+      const { fixture, api, store } = await grid();
+      const firstSheet = store.sheets()[0];
+      const secondSheet = store.addSheet('Taxi');
+      store.addItem(secondSheet.id, 'Ride', 20);
+      await settle(fixture);
+
+      const host = rowDragHost(fixture);
+      const source = api.getRowNode(`item:${firstSheet.items[0].id}`);
+      const sameSheetRow = api.getRowNode(`item:${firstSheet.items[1].id}`);
+      const otherSheetRow = api.getRowNode(`item:${store.sheets()[1].items[0].id}`);
+      const overNode = api.getRowNode(`item:${firstSheet.items[2].id}`);
+
+      expect(
+        host.isRowValidDropPosition({ source, overNode, target: overNode, rows: [source, sameSheetRow] }),
+      ).toBe(true);
+      expect(
+        host.isRowValidDropPosition({ source, overNode, target: overNode, rows: [source, otherSheetRow] }),
+      ).toBe(false);
+    });
+
+    it('moves every line in the drop to its new position, not just the grabbed one', async () => {
+      // `rowDragMultiRow` drags the whole ticked selection at once; AG Grid's
+      // own row model does the physical reordering, and `onRowDragEnd` reads
+      // the result back whole rather than diffing one line — see
+      // `TripStore.reorderItems`. `rowDragEnd()` stands in for that already-
+      // reordered state regardless of how many lines conceptually moved.
+      const { fixture, api, store } = await grid();
+      const ids = store.sheets()[0].items.map((item) => item.id);
+      // Beer, Pizza, Burger, Steak, Coke — drag the ticked Beer+Pizza pair
+      // down past Burger and Steak together.
+      const dropped = [ids[2], ids[3], ids[0], ids[1], ids[4]];
+
+      rowDragHost(fixture).onRowDragEnd(
+        rowDragEnd(
+          api,
+          `item:${ids[0]}`,
+          dropped.map((id) => `item:${id}`),
+        ),
+      );
+      await settle(fixture);
+
+      expect(store.sheets()[0].items.map((item) => item.id)).toEqual(dropped);
+    });
+
+    it('enables dragging a whole ticked selection together', async () => {
+      const { fixture, api } = await grid();
+      expect(api.getGridOption('rowDragMultiRow')).toBe(true);
+    });
+
+    /**
+     * Neither `onRowDragEnd` nor `TripStore.reorderItems` branches on how
+     * many lines were dragged — both just replay whatever order the grid
+     * (or, for `reorderItems`, the caller) hands back. Proven here for every
+     * possible group size in a 5-item sheet, contiguous or not, rather than
+     * spot-checked at one or two sizes: a fix that only happened to work for
+     * a couple of hand-picked counts would be exactly the kind of bug this
+     * is meant to rule out.
+     */
+    for (let n = 1; n <= 5; n++) {
+      it(`moves a ticked group of ${n} contiguous line(s) to the sheet's end together`, async () => {
+        const { fixture, api, store } = await grid();
+        const ids = store.sheets()[0].items.map((item) => item.id);
+        const dragged = ids.slice(0, n);
+        const untouched = ids.slice(n);
+        const dropped = [...untouched, ...dragged];
+
+        rowDragHost(fixture).onRowDragEnd(
+          rowDragEnd(
+            api,
+            `item:${dragged[0]}`,
+            dropped.map((id) => `item:${id}`),
+          ),
+        );
+        await settle(fixture);
+
+        expect(store.sheets()[0].items.map((item) => item.id)).toEqual(dropped);
+      });
+    }
+
+    it('moves a non-contiguous ticked group (first, third, fifth line) together, preserving their relative order', async () => {
+      const { fixture, api, store } = await grid();
+      const ids = store.sheets()[0].items.map((item) => item.id);
+      // Beer, Pizza, Burger, Steak, Coke — tick Beer/Burger/Coke (skipping
+      // Pizza and Steak) and drag them, as a block, to the front.
+      const dragged = [ids[0], ids[2], ids[4]];
+      const untouched = [ids[1], ids[3]];
+      const dropped = [...dragged, ...untouched];
+
+      rowDragHost(fixture).onRowDragEnd(
+        rowDragEnd(
+          api,
+          `item:${dragged[1]}`,
+          dropped.map((id) => `item:${id}`),
+        ),
+      );
+      await settle(fixture);
+
+      expect(store.sheets()[0].items.map((item) => item.id)).toEqual(dropped);
+    });
+
+    it('drops a ticked group onto the "add" row for every group size, always landing above it', async () => {
+      // Exercises the actual fix (forcing `position: 'above'`/`target` to
+      // the sheet's "add" row) rather than the order-derivation it feeds —
+      // `isRowValidDropPosition` is what a real live drag consults on every
+      // hover, unlike `rowDragEnd()` above which only stands in for the
+      // grid's row model *after* that has already run.
+      const { fixture, api, store } = await grid();
+      const firstSheet = store.sheets()[0];
+      const ids = firstSheet.items.map((item) => item.id);
+      const addItemNode = api.getRowNode(`add-item:${firstSheet.id}`);
+      const host = rowDragHost(fixture);
+
+      for (let n = 1; n <= ids.length; n++) {
+        const rows = ids.slice(0, n).map((id) => api.getRowNode(`item:${id}`));
+        expect(
+          host.isRowValidDropPosition({
+            source: rows[0],
+            overNode: addItemNode,
+            target: addItemNode,
+            rows,
+            api,
+          }),
+        ).toEqual({ allowed: true, position: 'above', target: addItemNode });
+      }
+    });
+
+    it('keys off `params.target`, not `params.overNode`, when AG Grid substitutes them', async () => {
+      // AG Grid's own `deltaDraggingTarget` substitutes `target` for the
+      // next non-dragged row in the travel direction whenever `overNode` is
+      // itself one of the dragged lines — reached while hovering a ticked
+      // line that sits right next to "add", the substituted `target` is
+      // "add" even though `overNode` still reports an ordinary `item` row.
+      // Reading `overNode` here would answer a bare `true` and leave AG
+      // Grid's own below-by-default positioning to land one slot too low —
+      // this is the mechanism behind lines dropping under "New Row"
+      // intermittently, since it depends on the ticked group's position at
+      // that instant, not on anything visibly under the pointer.
+      const { fixture, api, store } = await grid();
+      const firstSheet = store.sheets()[0];
+      const ids = firstSheet.items.map((item) => item.id);
+      const host = rowDragHost(fixture);
+      const addItemNode = api.getRowNode(`add-item:${firstSheet.id}`);
+      // Beer, Pizza, Burger, Steak, Coke — Coke is the last line; hovering
+      // it while it's ticked and dragged is exactly when AG Grid would
+      // substitute "add" as the real target.
+      const cokeNode = api.getRowNode(`item:${ids[4]}`);
+      const beerNode = api.getRowNode(`item:${ids[0]}`);
+
+      expect(
+        host.isRowValidDropPosition({
+          source: beerNode,
+          overNode: cokeNode,
+          target: addItemNode,
+          rows: [beerNode, cokeNode],
+          api,
+        }),
+      ).toEqual({ allowed: true, position: 'above', target: addItemNode });
+    });
+
+    /**
+     * Every test above drives `onRowDragEnd`/`isRowValidDropPosition`
+     * directly, standing in for what AG Grid's own drag machinery would
+     * hand them. That stand-in is exactly what let a real bug through
+     * earlier: `isRowValidDropPosition` returning the right answer in
+     * isolation is not the same as AG Grid actually *applying* it while a
+     * live drag is mid-hover — which is genuinely a different code path
+     * (`BaseDragService`'s `onMove`/`dragging()` loop in `ag-stack`, not
+     * anything this component calls). The only way to close that gap is to
+     * drive the real thing: dispatch the actual `pointerdown` /
+     * `pointermove` / `pointerup` sequence `BaseDragService` listens for,
+     * on the real rendered DOM, in real Chrome (Karma), and read back what
+     * AG Grid's own row model — not a hand-built event object — ends up
+     * with.
+     */
+    describe('a real, browser-driven drag', () => {
+      // `fixture.nativeElement` here is Angular's own generated test-root
+      // container (`<div id="root0">`, `id="root1">`, ...), not literally
+      // `<app-split-grid>` — the component's template renders *inside* it,
+      // so that's what the id prefix targets rather than the selector.
+      afterEach(() => {
+        document.querySelectorAll('body > [id^="root"]').forEach((el) => el.remove());
+      });
+
+      /**
+       * `rootEl` for `BaseDragService` (`ag-stack`) is `eRootDiv.getRootNode()`
+       * — plain `document` for a component mounted normally in the page, not
+       * inside a shadow root — so `pointermove`/`pointerup` are dispatched
+       * there, matching where it actually listens. `pointerdown` has to land
+       * on the dragged line's own `.ag-drag-handle`, the one element
+       * `addDragSource` attaches its listener to.
+       */
+      async function realDrag(
+        fixture: ComponentFixture<SplitGrid>,
+        fromRowId: string,
+        overRowIds: readonly string[],
+      ): Promise<void> {
+        const root = fixture.nativeElement as HTMLElement;
+        const pointerId = 1;
+        const fire = (type: string, target: EventTarget, x: number, y: number) =>
+          target.dispatchEvent(
+            new PointerEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              composed: true,
+              clientX: x,
+              clientY: y,
+              button: 0,
+              buttons: 1,
+              pointerId,
+              pointerType: 'mouse',
+              isPrimary: true,
+            }),
+          );
+        const centerOf = (rowId: string): { x: number; y: number } => {
+          const row = root.querySelector(`.ag-row[row-id="${rowId}"]`);
+          if (!row) {
+            throw new Error(`row not rendered: ${rowId}`);
+          }
+          const r = row.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        };
+        const handle = root.querySelector(
+          `.ag-row[row-id="${fromRowId}"] .ag-cell[col-id="item"] .ag-drag-handle`,
+        );
+        if (!handle) {
+          throw new Error(`no drag handle on ${fromRowId}`);
+        }
+        const start = centerOf(fromRowId);
+        fire('pointerdown', handle, start.x, start.y);
+        let last = start;
+        for (const rowId of overRowIds) {
+          last = centerOf(rowId);
+          fire('pointermove', document, last.x, last.y);
+        }
+        fire('pointerup', document, last.x, last.y);
+      }
+
+      it('keeps a multi-line drag above the "add" row when a real drag passes through it', async () => {
+        const { fixture, api, store } = await grid();
+        document.body.appendChild(fixture.nativeElement);
+        await settle(fixture);
+
+        const firstSheet = store.sheets()[0];
+        const ids = firstSheet.items.map((item) => item.id);
+        // Beer, Pizza, Burger, Steak, Coke — tick Beer + Pizza and drag Beer
+        // down past every other line, onto the "add" row itself.
+        api.setNodesSelected({
+          nodes: [api.getRowNode(`item:${ids[0]}`)!, api.getRowNode(`item:${ids[1]}`)!],
+          newValue: true,
+        });
+        await settle(fixture);
+
+        await realDrag(fixture, `item:${ids[0]}`, [
+          `item:${ids[2]}`,
+          `item:${ids[3]}`,
+          `item:${ids[4]}`,
+          `add-item:${firstSheet.id}`,
+        ]);
+        await settle(fixture);
+
+        // `onRowDragEnd` only ever tracks order *among item-kind rows*, so
+        // the store ends up right here even against the reverted bug this
+        // fix replaced — confirmed by temporarily reverting it and re-running
+        // this suite. A sheet with no filler has nothing rendered after
+        // "add" for a line to visibly land behind, so this case can't pin
+        // that bug the way the filler-row case below does; it's here to
+        // confirm the plain "drag onto add, no filler" path still groups and
+        // orders correctly when driven through the real pointer pipeline.
+        expect(store.sheets()[0].items.map((item) => item.id)).toEqual([
+          ids[2],
+          ids[3],
+          ids[4],
+          ids[0],
+          ids[1],
+        ]);
+      });
+
+      it('keeps a multi-line drag above "add" even when the hover lands on one of the dragged lines itself', async () => {
+        // The subtler trigger: AG Grid substitutes `target` for the next
+        // non-dragged row in the travel direction whenever the pointer is
+        // over a line that is *itself* part of the drag (`deltaDraggingTarget`
+        // in AG Grid's own source) — reached here by ticking the sheet's
+        // *last* line along with an earlier one and ending the drag hovering
+        // that last line's own row, which is exactly when the substituted
+        // target becomes "add" while the row under the pointer still reads
+        // as an ordinary `item`. This is the mechanism `isRowValidDropPosition`
+        // now guards by reading `params.target` instead of `params.overNode`.
+        const { fixture, api, store } = await grid();
+        document.body.appendChild(fixture.nativeElement);
+        await settle(fixture);
+
+        const firstSheet = store.sheets()[0];
+        const ids = firstSheet.items.map((item) => item.id);
+        // Beer, Pizza, Burger, Steak, Coke — Coke is the sheet's last line.
+        api.setNodesSelected({
+          nodes: [api.getRowNode(`item:${ids[0]}`)!, api.getRowNode(`item:${ids[4]}`)!],
+          newValue: true,
+        });
+        await settle(fixture);
+
+        const console_ = captureConsoleErrors();
+        try {
+          await realDragFine(fixture, api, `item:${ids[0]}`, [
+            `item:${ids[1]}`,
+            `item:${ids[2]}`,
+            `item:${ids[3]}`,
+            `item:${ids[4]}`,
+          ]);
+        } finally {
+          console_.restore();
+        }
+        await settle(fixture);
+
+        expect(console_.errors)
+          .withContext(`console.error during the drag: ${JSON.stringify(console_.errors)}`)
+          .toEqual([]);
+        expect(store.sheets()[0].items.map((item) => item.id)).toEqual([
+          ids[1],
+          ids[2],
+          ids[3],
+          ids[0],
+          ids[4],
+        ]);
+
+        const domOrder: string[] = [];
+        api.forEachNode((node) => {
+          if (node.data?.sheetId === firstSheet.id) {
+            domOrder.push(node.id!);
+          }
+        });
+        const addIndex = domOrder.indexOf(`add-item:${firstSheet.id}`);
+        const lastItemIndex = Math.max(
+          ...domOrder.map((id, i) => (id.startsWith('item:') ? i : -1)),
+        );
+        expect(lastItemIndex)
+          .withContext(`grid order was ${domOrder.join(', ')}`)
+          .toBeLessThan(addIndex);
+      });
+
+      it('keeps a multi-line drag above the "add" row and its filler when a real drag passes through both', async () => {
+        const { fixture, api, store } = await grid();
+        document.body.appendChild(fixture.nativeElement);
+        await settle(fixture);
+
+        // A fresh, short sheet: three items plus the "add" line is 4 of the
+        // 6 rows a block never shrinks below, so `ledger-model.ts` pads it
+        // with a filler row spanning the other 2 — the exact shape that
+        // produced the reported bug (a line dragged through both "add" and
+        // filler landing after them instead of above).
+        const sheet = store.addSheet('Snacks');
+        const keep = store.addItem(sheet.id, 'Keep', 5);
+        const first = store.addItem(sheet.id, 'First', 10);
+        const second = store.addItem(sheet.id, 'Second', 15);
+        await settle(fixture);
+
+        api.setNodesSelected({
+          nodes: [
+            api.getRowNode(`item:${first.id}`)!,
+            api.getRowNode(`item:${second.id}`)!,
+          ],
+          newValue: true,
+        });
+        await settle(fixture);
+
+        await realDrag(fixture, `item:${first.id}`, [
+          `add-item:${sheet.id}`,
+          `filler:${sheet.id}:2`,
+        ]);
+        await settle(fixture);
+
+        expect(store.sheets().find((s) => s.id === sheet.id)!.items.map((item) => item.id)).toEqual([
+          keep.id,
+          first.id,
+          second.id,
+        ]);
+
+        const domOrder: string[] = [];
+        api.forEachNode((node) => {
+          if (node.data?.sheetId === sheet.id) {
+            domOrder.push(node.id!);
+          }
+        });
+        const addIndex = domOrder.indexOf(`add-item:${sheet.id}`);
+        const lastItemIndex = Math.max(
+          ...domOrder.map((id, i) => (id.startsWith('item:') ? i : -1)),
+        );
+        expect(lastItemIndex)
+          .withContext(`grid order was ${domOrder.join(', ')}`)
+          .toBeLessThan(addIndex);
+      });
+
+      /**
+       * Interpolates between waypoints in small steps rather than jumping
+       * straight to each one — closer to a real, unhurried mouse drag than
+       * `realDrag`'s few large jumps, and cheap insurance against a defect
+       * that only shows up once AG Grid has processed many intermediate
+       * hovers rather than a handful.
+       */
+      async function realDragFine(
+        fixture: ComponentFixture<SplitGrid>,
+        api: GridApi,
+        fromRowId: string,
+        overRowIds: readonly string[],
+        stepPx = 8,
+      ): Promise<void> {
+        const root = fixture.nativeElement as HTMLElement;
+        const pointerId = 1;
+        const fire = (type: string, target: EventTarget, x: number, y: number) =>
+          target.dispatchEvent(
+            new PointerEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              composed: true,
+              clientX: x,
+              clientY: y,
+              button: 0,
+              buttons: 1,
+              pointerId,
+              pointerType: 'mouse',
+              isPrimary: true,
+            }),
+          );
+        // A sheet appended after another (exactly the "Sheet 2" shape this
+        // covers) can push its own rows past AG Grid's default render
+        // buffer — nothing to do with the drag itself, just virtualisation
+        // not having rendered a row yet. `ensureIndexVisible` is the API's
+        // own, reliable way to bring one into the DOM before measuring it.
+        const centerOf = (rowId: string): { x: number; y: number } => {
+          let row = root.querySelector(`.ag-row[row-id="${rowId}"]`);
+          if (!row) {
+            const node = api.getRowNode(rowId);
+            if (node?.rowIndex != null) {
+              api.ensureIndexVisible(node.rowIndex, 'middle');
+              row = root.querySelector(`.ag-row[row-id="${rowId}"]`);
+            }
+          }
+          if (!row) {
+            throw new Error(`row not rendered: ${rowId}`);
+          }
+          const r = row.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        };
+        let pos = centerOf(fromRowId);
+        const handle = root.querySelector(
+          `.ag-row[row-id="${fromRowId}"] .ag-cell[col-id="item"] .ag-drag-handle`,
+        );
+        if (!handle) {
+          throw new Error(`no drag handle on ${fromRowId}`);
+        }
+        fire('pointerdown', handle, pos.x, pos.y);
+        for (const rowId of overRowIds) {
+          const target = centerOf(rowId);
+          const dx = target.x - pos.x;
+          const dy = target.y - pos.y;
+          const dist = Math.hypot(dx, dy);
+          const steps = Math.max(1, Math.ceil(dist / stepPx));
+          for (let i = 1; i <= steps; i++) {
+            pos = { x: target.x - (dx * (steps - i)) / steps, y: target.y - (dy * (steps - i)) / steps };
+            fire('pointermove', document, pos.x, pos.y);
+          }
+          pos = target;
+        }
+        fire('pointerup', document, pos.x, pos.y);
+      }
+
+      /**
+       * `window.addEventListener('error', ...)` only sees exceptions that
+       * escape uncaught to the browser — Angular's own `ErrorHandler`
+       * intercepts anything thrown inside `NgZone.run()` (which is where an
+       * AG Grid Angular event handler like `onRowDragEnd` executes) and
+       * routes it to `console.error` instead, so a real bug there would
+       * never reach a `window` error listener at all. Spying on
+       * `console.error` is what actually catches it.
+       */
+      function captureConsoleErrors(): { errors: unknown[][]; restore(): void } {
+        const errors: unknown[][] = [];
+        const original = console.error;
+        console.error = (...args: unknown[]) => {
+          errors.push(args);
+          original.apply(console, args);
+        };
+        return {
+          errors,
+          restore: () => {
+            console.error = original;
+          },
+        };
+      }
+
+      it('drags a ticked group within a non-first sheet, step by step, without throwing', async () => {
+        // The reported crash was specifically "Sheet 2" — a fresh sheet
+        // appended after one that already has its own items, unlike every
+        // other test in this file, which drags within the *first* sheet.
+        const { fixture, api, store } = await grid();
+        document.body.appendChild(fixture.nativeElement);
+        await settle(fixture);
+
+        const untouchedSheetId = store.sheets()[0].id;
+        const sheet2 = store.addSheet('Sheet 2');
+        const a = store.addItem(sheet2.id, 'A', 5);
+        const b = store.addItem(sheet2.id, 'B', 10);
+        const c = store.addItem(sheet2.id, 'C', 15);
+        const d = store.addItem(sheet2.id, 'D', 20);
+        await settle(fixture);
+
+        api.setNodesSelected({
+          nodes: [api.getRowNode(`item:${a.id}`)!, api.getRowNode(`item:${c.id}`)!],
+          newValue: true,
+        });
+        await settle(fixture);
+
+        let thrown: unknown = null;
+        const onError = (e: ErrorEvent) => {
+          thrown = e.error ?? e.message;
+        };
+        window.addEventListener('error', onError);
+        const console_ = captureConsoleErrors();
+        try {
+          await realDragFine(fixture, api, `item:${a.id}`, [
+            `item:${b.id}`,
+            `item:${c.id}`,
+            `item:${d.id}`,
+            `add-item:${sheet2.id}`,
+            `filler:${sheet2.id}:1`,
+            `item:${d.id}`,
+            `item:${b.id}`,
+          ]);
+        } finally {
+          window.removeEventListener('error', onError);
+          console_.restore();
+        }
+        await settle(fixture);
+
+        expect(thrown).withContext(`uncaught error during the drag: ${thrown}`).toBeNull();
+        expect(console_.errors)
+          .withContext(`console.error during the drag: ${JSON.stringify(console_.errors)}`)
+          .toEqual([]);
+        expect((fixture.nativeElement as HTMLElement).querySelector('.ag-root-wrapper'))
+          .withContext('the grid should still be rendered after the drag')
+          .not.toBeNull();
+        // The other, untouched sheet must be completely unaffected.
+        expect(store.sheets().find((s) => s.id === untouchedSheetId)!.items.length).toBe(5);
+      });
+
+      it('rejects a drag whose ticked selection spans two sheets, without throwing or changing anything', async () => {
+        // A real Shift-click can select across a sheet boundary — the range
+        // walk (`selectRowRange`, `split-grid.ts`) is by raw display index,
+        // not sheet-aware. Ticking this way and then dragging is a realistic
+        // way to end up with a cross-sheet selection without doing anything
+        // that looks unusual from the user's side.
+        const { fixture, api, store } = await grid();
+        document.body.appendChild(fixture.nativeElement);
+        await settle(fixture);
+
+        const firstSheet = store.sheets()[0];
+        const firstIds = firstSheet.items.map((item) => item.id);
+        const secondSheet = store.addSheet('Sheet 2');
+        const x = store.addItem(secondSheet.id, 'X', 5);
+        const y = store.addItem(secondSheet.id, 'Y', 10);
+        await settle(fixture);
+
+        // Beer (last-ticked-first, first sheet) through Y (second sheet) —
+        // ticks Coke (last of the first sheet) and both X and Y together.
+        api.setNodesSelected({
+          nodes: [
+            api.getRowNode(`item:${firstIds[4]}`)!,
+            api.getRowNode(`item:${x.id}`)!,
+            api.getRowNode(`item:${y.id}`)!,
+          ],
+          newValue: true,
+        });
+        await settle(fixture);
+
+        let thrown: unknown = null;
+        const onError = (e: ErrorEvent) => {
+          thrown = e.error ?? e.message;
+        };
+        window.addEventListener('error', onError);
+        const console_ = captureConsoleErrors();
+        try {
+          await realDragFine(fixture, api, `item:${firstIds[4]}`, [
+            `item:${x.id}`,
+            `add-item:${secondSheet.id}`,
+          ]);
+        } finally {
+          window.removeEventListener('error', onError);
+          console_.restore();
+        }
+        await settle(fixture);
+
+        expect(thrown).withContext(`uncaught error during the drag: ${thrown}`).toBeNull();
+        expect(console_.errors)
+          .withContext(`console.error during the drag: ${JSON.stringify(console_.errors)}`)
+          .toEqual([]);
+        expect(store.sheets()[0].items.map((item) => item.id)).toEqual(firstIds);
+        expect(store.sheets().find((s) => s.id === secondSheet.id)!.items.map((item) => item.id)).toEqual([
+          x.id,
+          y.id,
+        ]);
+      });
     });
 
     /**

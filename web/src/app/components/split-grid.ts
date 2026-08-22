@@ -179,6 +179,9 @@ ModuleRegistry.registerModules([
   // Dragging a line by its number to reorder it within its sheet — see
   // {@link SplitGrid.onRowDragEnd}. Community, unlike AG Grid's own row
   // grouping, which is why the sheet blocks above are hand-rolled instead.
+  // `rowDragMultiRow` (dragging a whole ticked selection together) is this
+  // same module's grid option, also Community — no Enterprise fallback
+  // needed for that either.
   RowDragModule,
   // `suppressNavigable` (keeps Tab/arrow keys off the filler beneath a short
   // block) and `api.clearFocusedCell()` (bounces a mouse click off the same
@@ -2132,11 +2135,13 @@ export class SplitGrid {
   }
 
   /**
-   * Persists a line drag: `rowDragManaged` has already reordered the grid's
-   * own row model by the time this fires, so the new position is read back
-   * off the grid and diffed against the sheet's still-unchanged stored order.
-   * `isRowValidDropPosition` keeps every drop inside the dragged line's own
-   * sheet, so the two ids being compared are always the same list.
+   * Persists a line drag — one line, or (with `rowDragMultiRow` and a ticked
+   * selection) several dragged together. Either way `rowDragManaged` has
+   * already reordered the grid's own row model by the time this fires, so
+   * the new order is read back off the grid whole rather than diffed line by
+   * line, and written with {@link TripStore.reorderItems}.
+   * `isRowValidDropPosition` keeps every dragged line inside the same sheet
+   * as the drop target, so this is always that one sheet's full order.
    */
   protected onRowDragEnd(event: RowDragEndEvent<LedgerRowData>): void {
     const dragged = event.node.data;
@@ -2144,7 +2149,6 @@ export class SplitGrid {
       return;
     }
     const sheetId = dragged.sheetId;
-    const itemId = dragged.row.item.id;
     const order: string[] = [];
     event.api.forEachNode((node) => {
       if (node.data?.kind === 'item' && node.data.sheetId === sheetId) {
@@ -2152,10 +2156,9 @@ export class SplitGrid {
       }
     });
     const items = this.store.sheets().find((sheet) => sheet.id === sheetId)?.items ?? [];
-    const from = items.findIndex((item) => item.id === itemId);
-    const to = order.indexOf(itemId);
-    if (from >= 0 && to >= 0 && from !== to) {
-      this.store.moveItem(sheetId, itemId, to - from);
+    const unchanged = order.length === items.length && order.every((id, i) => id === items[i].id);
+    if (!unchanged) {
+      this.store.reorderItems(sheetId, order);
     }
   }
 
@@ -3926,13 +3929,61 @@ export class SplitGrid {
     return this.copiedRows().some((line) => line.itemId === itemId);
   }
 
-  // Keeps a dragged line inside its own sheet's block: the "add" and filler
-  // rows below it aren't valid targets either, so the furthest a line can
-  // travel is just above or below another line of the same sheet.
-  protected readonly isRowValidDropPosition = ((params) =>
-    params.overNode?.data?.kind === 'item' &&
-    params.overNode.data.sheetId ===
-      params.source.data?.sheetId) satisfies IsRowValidDropPositionCallback<LedgerRowData>;
+  // Keeps every dragged line inside its own sheet's block, but the "add" row
+  // and any filler rows below it are valid targets too — they're what makes
+  // dropping a line as the sheet's new *last* line possible, the same as
+  // dropping "below" the current last line already was. Rejecting a hover
+  // there entirely (as an earlier version of this did) is what let a drag
+  // that crossed that stretch on its way to a perfectly valid line further
+  // up get read as refused: AG Grid tracks validity live as the pointer
+  // moves, and only the released-on position needs to be inside this sheet's
+  // block, not every position the pointer passed through first.
+  //
+  // Reads `params.target`, not `params.overNode`. They usually agree, but
+  // AG Grid substitutes a different `target` (`deltaDraggingTarget`, in its
+  // own source) whenever the pointer is hovering a line that is *itself*
+  // part of the drag: it walks forward to the next non-dragged row in the
+  // travel direction and uses that instead — which can land on the "add"
+  // row while `overNode` still reports an ordinary ticked line. `target` is
+  // what AG Grid actually splices against, so checking `overNode` here let
+  // that substitution slip through the gap: this component would see kind
+  // `item`, answer a bare `true`, and leave AG Grid's own `below`-by-default
+  // positioning to decide — which can land one slot too low, after "add",
+  // exactly like an unguarded `overNode` hit would. It read as intermittent
+  // because it depends on the ticked group's position relative to "add" at
+  // that exact moment, not on anything the pointer is visibly over.
+  //
+  // `params.rows` is the whole dragged set, not just the grabbed line —
+  // checking only `params.source` would let a multi-sheet selection get
+  // dropped into a sheet some of its lines don't belong to.
+  protected readonly isRowValidDropPosition = ((params) => {
+    const targetData = params.target?.data;
+    const targetSheetId =
+      targetData?.kind === 'item' || targetData?.kind === 'add-item' || targetData?.kind === 'filler'
+        ? targetData.sheetId
+        : undefined;
+    if (targetSheetId === undefined) {
+      return false;
+    }
+    if (!params.rows.every((row) => row.data?.kind === 'item' && row.data.sheetId === targetSheetId)) {
+      return false;
+    }
+    if (targetData!.kind === 'item') {
+      return true;
+    }
+    // A plain `true` here would leave AG Grid free to pick "below" instead
+    // of "above" depending on which half of the row the pointer is over —
+    // and "below" the *filler* row in particular still lands one slot too
+    // low, between the "add" row and it. Forcing the target to the sheet's
+    // "add" row itself, with `position: 'above'`, is what actually keeps
+    // every item ahead of it: the layout `ledger-model.ts` always builds
+    // (items, then "add", then filler) is never renegotiated after a drag,
+    // only ever produced fresh, so a live-drag reorder that puts a line
+    // after "add" or filler stays wrong looking until whatever next redraws
+    // that sheet's block — nothing does that on its own once `onRowDragEnd`
+    // sees the same item order it started with and skips writing back.
+    return { allowed: true, position: 'above', target: params.api.getRowNode(`add-item:${targetSheetId}`) };
+  }) satisfies IsRowValidDropPositionCallback<LedgerRowData>;
 
   /**
    * Writes a field of an item, creating the item first when the edit landed on
