@@ -60,8 +60,9 @@ Two rules that are never negotiable, because breaking either is silent:
   rendered layout back, real geometry included.
 - Playwright specs live in `web/e2e/`, run against a real `ng serve` in
   headless Chromium, and cover full user journeys — creating a split,
-  import/export round-trips, ticking and a bulk action on the ledger — rather
-  than single-component geometry. Selectors lean on what AG Grid already
+  import/export round-trips, ticking and a bulk action on the ledger,
+  drag-select and real clipboard copy/paste — rather than single-component
+  geometry. Selectors lean on what AG Grid already
   renders (`row-id`, `col-id`) rather than adding `data-testid`; see the doc
   comment atop `e2e/helpers.ts`. `verify-ui-change` (Jasmine, real Chrome, no
   Playwright) stays the tool for proving one CSS/layout fix in isolation —
