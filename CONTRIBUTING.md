@@ -23,30 +23,36 @@ All of them run from `web/`, not the repository root.
 | `npm start` | Dev server on :4200, reloads on save. |
 | `npm run build` | Production build, ~6s. |
 | `npx ng test --watch=false --browsers=ChromeHeadless` | Full suite once, ~14s. |
+| `npx playwright test` | Full E2E suite once, headless Chromium. |
 
 `npm test` on its own starts **watch mode** against a real Chrome window, which
 is what you want while developing and not what you want in a script.
+`npx playwright test --ui` is the closest E2E equivalent — an interactive
+runner rather than a real-browser watch mode.
 
 ## Before you push
 
-Run both:
+Run all three:
 
 ```bash
-cd web && npm run build && npx ng test --watch=false --browsers=ChromeHeadless
+cd web && npm run build && npx ng test --watch=false --browsers=ChromeHeadless && npx playwright test
 ```
 
-They catch different things. The test suite is what CI runs. The **build** is
+They catch different things. Both suites are what CI runs. The **build** is
 the only check that enforces the per-component CSS size budget — `tsc --noEmit`
 and `ng test` both pass no matter how large a component's styles get, so a
-change that adds CSS is only verified by a build.
+change that adds CSS is only verified by a build. **Playwright** is the only
+check that drives the app through a real browser end to end, including the
+bespoke AG Grid row-span and tick/range-select code (`components/ledger-model.ts`,
+`components/cell-range.ts`) that Karma only ever asserts in isolation.
 
 ## Publishing
 
 **Pushing to `main` publishes the live public demo.**
 `.github/workflows/deploy-demo.yml` builds and deploys to GitHub Pages on every
-push to `main`, gated on the test suite — a red suite blocks the deploy. This
-is the only place the app is visible to anyone but its author, so a broken
-demo is worse than a stale one.
+push to `main`, gated on the Karma and Playwright suites — either one going red
+blocks the deploy. This is the only place the app is visible to anyone but its
+author, so a broken demo is worse than a stale one.
 
 Two details in that workflow are easy to trip over: the build needs
 `--base-href /Tally/` because Pages serves from a subpath, and the artifact

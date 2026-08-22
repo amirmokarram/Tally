@@ -41,6 +41,12 @@ jobs:
       - name: Test
         run: npx ng test --watch=false --browsers=ChromeHeadless
 
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E test
+        run: npm run test:e2e
+
       # Pages serves this repo from /Tally/, but index.html declares
       # `<base href="/">`. Without the override every asset 404s and the page
       # comes up blank.

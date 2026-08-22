@@ -13,6 +13,7 @@ cd web
 npm install
 npm start          # http://localhost:4200
 npm test           # engine + component tests
+npx playwright test   # end-to-end browser tests
 npm run build
 ```
 

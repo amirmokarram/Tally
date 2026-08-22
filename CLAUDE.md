@@ -13,6 +13,7 @@ cd web
 npm start                                            # dev server, :4200
 npm run build                                        # ~6s
 npx ng test --watch=false --browsers=ChromeHeadless  # ~14s, one-shot
+npx playwright test                                  # e2e, headless Chromium
 ```
 
 - `npm test` on its own starts **watch mode** against a real Chrome window. For
@@ -57,6 +58,15 @@ Two rules that are never negotiable, because breaking either is silent:
   query is testable here: Karma has no way to resize the real browser window,
   but a spec can set an element's `style.width` directly and read the
   rendered layout back, real geometry included.
+- Playwright specs live in `web/e2e/`, run against a real `ng serve` in
+  headless Chromium, and cover full user journeys — creating a split,
+  import/export round-trips, ticking and a bulk action on the ledger — rather
+  than single-component geometry. Selectors lean on what AG Grid already
+  renders (`row-id`, `col-id`) rather than adding `data-testid`; see the doc
+  comment atop `e2e/helpers.ts`. `verify-ui-change` (Jasmine, real Chrome, no
+  Playwright) stays the tool for proving one CSS/layout fix in isolation —
+  Playwright is for cross-page flows, not single-element geometry. See
+  `e2e/README.md` for what is and isn't covered yet.
 
 ## Settings scope
 
@@ -86,7 +96,8 @@ that file is the source of truth if these ever disagree.
   explains why**, not what the diff already shows — including what was tried
   and rejected. Match the tone of `git log`.
 - **Pushing to `main` publishes the live public demo** to GitHub Pages
-  (`.github/workflows/deploy-demo.yml`), gated on the test suite.
+  (`.github/workflows/deploy-demo.yml`), gated on the Karma and Playwright
+  suites.
 
 ## Deeper background
 
