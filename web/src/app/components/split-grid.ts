@@ -1561,6 +1561,13 @@ export class SplitGrid {
     // real width; see `itemColumnWidth`'s doc comment for why that needs a
     // fresh read here rather than only reacting to the viewport resizing.
     this.refreshItemColumnWidth();
+
+    // Also exactly when the line-number header's own tri-state checkbox
+    // (`index-header.ts`) can go from disabled to enabled or back — its
+    // `selectableNodes(api).length` depends on how many lines exist, not on
+    // what is selected, so `onSelectionChanged`'s own `refreshHeader()` never
+    // catches an item being added to or removed from an empty sheet.
+    this.api?.refreshHeader();
   }
 
   /**

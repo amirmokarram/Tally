@@ -990,6 +990,25 @@ describe('the ledger grid', () => {
       expect(header().indeterminate).toBe(false);
     });
 
+    it('disables the header checkbox once there is nothing left to tick', async () => {
+      const { fixture, api, store } = await grid();
+      const host = fixture.nativeElement as HTMLElement;
+      const header = () =>
+        host.querySelector<HTMLInputElement>('.ag-header-cell[col-id="index"] input')!;
+
+      expect(header().disabled).toBe(false);
+
+      for (const sheet of store.sheets()) {
+        for (const item of [...sheet.items]) {
+          store.removeItem(sheet.id, item.id);
+        }
+      }
+      await settle(fixture);
+
+      expect(header().disabled).toBe(true);
+      expect(api.getSelectedNodes().length).toBe(0);
+    });
+
     it('clears every ticked line on Escape, the "start over" gesture Ctrl/Cmd+Click does not cover', async () => {
       const harness = await grid();
       const items = harness.store.sheets()[0].items;

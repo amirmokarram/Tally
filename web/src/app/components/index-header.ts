@@ -8,7 +8,15 @@
  *
  * Unchecked, checked and indeterminate read whether none, all, or some
  * lines are ticked; a click or Space sets them all to match — the same job
- * {@link SplitGrid.onCellMouseDown} does per line, one column over.
+ * {@link SplitGrid.onCellMouseDown} does per line, one column over. Disabled
+ * when there is nothing to tick, rather than left clickable with nothing to
+ * do — an empty sheet, or a split with no sheets at all.
+ *
+ * The three states are drawn by hand (`.mark`, an `::before` on a sibling of
+ * the real, invisibly-opacity'd `<input>`) rather than left to the browser's
+ * native rendering: a native indeterminate box reads as a barely-there dash
+ * at 15px against a dark header band, easy to miss for a state that is meant
+ * to be as legible as checked/unchecked.
  */
 
 import { ChangeDetectionStrategy, Component, ElementRef, effect, signal, viewChild } from '@angular/core';
@@ -32,14 +40,18 @@ function selectableNodes(api: GridApi<LedgerRowData>): IRowNode<LedgerRowData>[]
   selector: 'app-index-header',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <input
-      #box
-      type="checkbox"
-      [checked]="all()"
-      [attr.aria-label]="all() ? 'Untick every line' : 'Tick every line'"
-      [title]="all() ? 'Untick every line' : 'Tick every line'"
-      (change)="toggle()"
-    />
+    <label class="box">
+      <input
+        #box
+        type="checkbox"
+        [checked]="all()"
+        [disabled]="empty()"
+        [attr.aria-label]="empty() ? 'No lines to tick' : all() ? 'Untick every line' : 'Tick every line'"
+        [title]="empty() ? 'No lines to tick' : all() ? 'Untick every line' : 'Tick every line'"
+        (change)="toggle()"
+      />
+      <span class="mark" aria-hidden="true"></span>
+    </label>
   `,
   styles: `
     :host {
@@ -50,29 +62,89 @@ function selectableNodes(api: GridApi<LedgerRowData>): IRowNode<LedgerRowData>[]
       height: 100%;
     }
 
-    /* The header sits on the same navy band as every other column's — the
-       browser's default checkbox border reads at low contrast there, so it
-       gets the same translucent-white treatment \`person-header.ts\`'s own
-       name box uses for the same reason. \`accent-color\` alone covers the
-       checked and indeterminate fills. */
-    input {
+    .box {
+      position: relative;
+      display: inline-flex;
       width: 15px;
       height: 15px;
+      cursor: pointer;
+
+      /* One source of truth for "disabled" — the input's own attribute,
+         not a second class binding that could drift from it. */
+      &:has(input:disabled) {
+        cursor: default;
+      }
+    }
+
+    /* Visually hidden, not \`display: none\` — the checkbox itself stays the
+       real interactive and accessible element; \`.mark\` only draws what it
+       is doing. Native \`:checked\`/\`:indeterminate\` rendering is too subtle
+       at this size against the dark header band (and \`:indeterminate\` has
+       no fallback for browsers that render it as a plain unchecked box), so
+       both states get their own explicit mark instead of relying on it. */
+    input {
+      position: absolute;
+      inset: 0;
       margin: 0;
+      opacity: 0;
+      cursor: inherit;
+    }
+
+    /* The header sits on the same navy band as every other column's — the
+       same translucent-white treatment \`person-header.ts\`'s own name box
+       uses, for the same low-contrast-on-navy reason. */
+    .mark {
+      position: absolute;
+      inset: 0;
       border-radius: 3px;
       outline: 1px solid rgb(255 255 255 / 55%);
       outline-offset: -1px;
-      accent-color: var(--text-invert);
-      cursor: pointer;
+      display: grid;
+      place-content: center;
+      pointer-events: none;
+
+      &::before {
+        content: '';
+        width: 9px;
+        height: 9px;
+        transform: scale(0);
+        background: var(--navy-700);
+        /* A checkmark. \`:indeterminate\` below swaps this for a dash instead. */
+        clip-path: polygon(14% 44%, 0% 63%, 39% 100%, 100% 20%, 82% 4%, 39% 74%);
+      }
     }
 
-    input:hover {
+    input:hover:not(:disabled) + .mark {
       outline-color: var(--text-invert);
     }
 
-    input:focus-visible {
+    input:focus-visible + .mark {
       outline: 2px solid var(--text-invert);
       outline-offset: 1px;
+    }
+
+    input:checked + .mark,
+    input:indeterminate + .mark {
+      background: var(--text-invert);
+      outline-color: var(--text-invert);
+    }
+
+    input:checked + .mark::before {
+      transform: scale(1);
+    }
+
+    /* Indeterminate reads as a dash, not a shrunk checkmark — a partial tick
+       is not "nearly all", it is its own state. */
+    input:indeterminate + .mark::before {
+      transform: scale(1);
+      clip-path: none;
+      width: 9px;
+      height: 2px;
+      border-radius: 1px;
+    }
+
+    input:disabled + .mark {
+      outline-color: rgb(255 255 255 / 25%);
     }
   `,
 })
@@ -83,6 +155,7 @@ export class IndexHeader implements IHeaderAngularComp {
 
   protected readonly all = signal(false);
   protected readonly some = signal(false);
+  protected readonly empty = signal(false);
 
   constructor() {
     // Indeterminate has no HTML attribute, only the DOM property — the
@@ -115,6 +188,7 @@ export class IndexHeader implements IHeaderAngularComp {
     const ticked = api.getSelectedNodes().length;
     this.all.set(total > 0 && ticked === total);
     this.some.set(ticked > 0 && ticked < total);
+    this.empty.set(total === 0);
   }
 
   /**
